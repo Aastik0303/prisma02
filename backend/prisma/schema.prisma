@@ -1,0 +1,114 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  student
+  mentor
+  recruiter
+  admin
+}
+
+enum TokenType {
+  email_verification
+  password_reset
+  email_change
+  account_unlock
+}
+
+model User {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String         @unique
+  emailVerified      Boolean        @default(false) @map("email_verified")
+  fullName           String         @map("full_name")
+  avatarUrl          String?        @map("avatar_url")
+  role               UserRole       @default(student)
+  passwordHash       String?        @map("password_hash")
+  mfaSecret          String?        @map("mfa_secret")
+  mfaEnabled         Boolean        @default(false) @map("mfa_enabled")
+  mfaRecoveryCodes   String[]       @map("mfa_recovery_codes")
+  failedAttempts     Int            @default(0) @db.SmallInt @map("failed_attempts")
+  lockedUntil        DateTime?      @map("locked_until")
+  lastLoginAt        DateTime?      @map("last_login_at")
+  lastLoginIp        String?        @db.Inet @map("last_login_ip")
+  metadata           Json           @default("{}")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  refreshTokens      RefreshToken[]
+  oauthAccounts      OAuthAccount[]
+  authTokens         AuthToken[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @db.Uuid @map("user_id")
+  tokenHash     String    @unique @map("token_hash")
+  family        String    @db.Uuid
+  deviceInfo    Json?     @map("device_info")
+  expiresAt     DateTime  @map("expires_at")
+  revoked       Boolean   @default(false)
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revoked])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model OAuthAccount {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @db.Uuid @map("user_id")
+  provider     String
+  providerId   String    @map("provider_id")
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+}
+
+model AuthToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  type      TokenType
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  ipAddress String?   @db.Inet @map("ip_address")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_tokens")
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  userId    String?  @db.Uuid @map("user_id")
+  action    String
+  resource  String?
+  ipAddress String?  @db.Inet @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
