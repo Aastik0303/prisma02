@@ -698,14 +698,9 @@ export default function StudentDashboard({
               </div>
             </div>
           </div>
-
         </div>
-
       </div>
 
-      {/* ==================================================
-          IN-MEMORY PROFILE EDIT GLASS MODAL OVERLAY
-          ================================================== */}
       <AnimatePresence>
         {editProfileOpen && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">

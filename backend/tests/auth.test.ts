@@ -16,6 +16,16 @@ describe('Authentication & Authorization System API Tests', () => {
   let app: any;
   let serverInstance: any;
 
+  const getCsrfContext = async () => {
+    const csrfResponse = await request(serverInstance).get('/api/v1/auth/csrf-token');
+    const cookies = csrfResponse.headers['set-cookie'] || [];
+
+    return {
+      csrfToken: csrfResponse.body.csrfToken,
+      sessionCookie: cookies.find((cookie: string) => cookie.startsWith('csrf_session_id='))
+    };
+  };
+
   beforeEach(async () => {
     // Clear databases
     mockUsers = [];
@@ -55,6 +65,8 @@ describe('Authentication & Authorization System API Tests', () => {
       mockUsers.push(newUser);
       return newUser;
     });
+
+    app.prisma.user.findMany = vi.fn().mockImplementation(async () => mockUsers);
 
     app.prisma.user.update = vi.fn().mockImplementation(async (args: any) => {
       const { where, data } = args;
@@ -185,8 +197,11 @@ describe('Authentication & Authorization System API Tests', () => {
 
   describe('POST /api/v1/auth/register', () => {
     it('should register a new user successfully and dispatch verification email', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
       const response = await request(serverInstance)
         .post('/api/v1/auth/register')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           fullName: 'Aarav Sharma',
           email: 'aarav@example.com',
@@ -207,8 +222,11 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should fail registration for weak/short password', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
       const response = await request(serverInstance)
         .post('/api/v1/auth/register')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           fullName: 'Aarav Sharma',
           email: 'aarav@example.com',
@@ -221,9 +239,13 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should prevent duplicate email registration', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
+
       // Register first user
       await request(serverInstance)
         .post('/api/v1/auth/register')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           fullName: 'Aarav Sharma',
           email: 'aarav@example.com',
@@ -233,6 +255,8 @@ describe('Authentication & Authorization System API Tests', () => {
       // Register second user with same email
       const response = await request(serverInstance)
         .post('/api/v1/auth/register')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           fullName: 'Aarav Sharma Copy',
           email: 'aarav@example.com',
@@ -265,8 +289,11 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should authenticate successfully with correct credentials', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
       const response = await request(serverInstance)
         .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           email: 'test@example.com',
           password: 'Password123!'
@@ -283,8 +310,11 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should fail with an incorrect password', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
       const response = await request(serverInstance)
         .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           email: 'test@example.com',
           password: 'WrongPassword!'
@@ -296,8 +326,11 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should fail when the user is not registered', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
       const response = await request(serverInstance)
         .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
         .send({
           email: 'missing@example.com',
           password: 'Password123!'
@@ -309,10 +342,14 @@ describe('Authentication & Authorization System API Tests', () => {
     });
 
     it('should lock user out after 5 consecutive failures', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
+
       // Run 5 failed login attempts
       for (let i = 0; i < 5; i++) {
         const res = await request(serverInstance)
           .post('/api/v1/auth/login')
+          .set('Cookie', sessionCookie)
+          .set('x-csrf-token', csrfToken)
           .send({
             email: 'test@example.com',
             password: 'WrongPassword!'

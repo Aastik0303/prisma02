@@ -7,9 +7,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: prisma_auth
+      POSTGRES_DB: prisma_embedded_codes2
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: aastik0003
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

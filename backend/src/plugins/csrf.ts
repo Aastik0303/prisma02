@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'crypto';
+import fp from 'fastify-plugin';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -15,8 +16,8 @@ export function getCookie(cookieHeader: string | undefined, name: string): strin
 }
 
 const csrfPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
-  // Pre-handler hook to extract or establish the CSRF session ID
-  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+  // Extract or establish the CSRF session ID before validation hooks run.
+  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     let sessionId = getCookie(request.headers.cookie, 'csrf_session_id');
 
     if (!sessionId) {
@@ -78,4 +79,4 @@ const csrfPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   });
 };
 
-export default csrfPlugin;
+export default fp(csrfPlugin, { name: 'csrf-plugin' });

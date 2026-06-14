@@ -47,6 +47,11 @@ const prismaPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     await prisma.$connect();
     fastify.decorate('prisma', prisma);
   } catch (error) {
+    if (fastify.config.NODE_ENV !== 'test') {
+      fastify.log.error({ err: error }, 'PostgreSQL connection failed');
+      throw error;
+    }
+
     fastify.log.warn({ err: error }, 'Falling back to in-memory Prisma client for local development');
     const mockPrisma = createMockPrismaClient();
     fastify.decorate('prisma', mockPrisma as unknown as PrismaClient);

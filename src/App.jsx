@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Compass, ShieldCheck, Users, FolderGit2, Award, Flame, 
   Sun, Moon, Sparkles, Menu, X, LayoutDashboard, Home, BookOpen,
-  MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Key, CheckCircle2, RefreshCw
+  MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Key, CheckCircle2, RefreshCw, Mail
 } from 'lucide-react';
 
 // Import Pages
@@ -146,6 +146,23 @@ export default function App() {
   const [authToken, setAuthToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
 
+  // MFA States
+  const [mfaChallengeToken, setMfaChallengeToken] = useState(null);
+  const [mfaMethods, setMfaMethods] = useState([]);
+  const [selectedMfaMethod, setSelectedMfaMethod] = useState('totp');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaVerificationCode, setMfaVerificationCode] = useState('');
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState(null);
+  const [mfaConfigError, setMfaConfigError] = useState('');
+  const [mfaConfigSuccess, setMfaConfigSuccess] = useState(false);
+
+  // Password Reset & Email Verification States
+  const [resetTokenState, setResetTokenState] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [verifyStatus, setVerifyStatus] = useState(null);
+
   // Dynamic Student/Account State
   const [userData, setUserData] = useState(() => createWorkspace('Guest Learner', '').userData);
 
@@ -217,6 +234,23 @@ export default function App() {
     }
   }, [theme]);
 
+  // Handle email verification and password reset links from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (window.location.href.includes('verify-email') || window.location.href.includes('verify')) {
+      if (token) {
+        handleEmailVerification(token);
+      }
+    } else if (window.location.href.includes('reset-password') || window.location.href.includes('reset')) {
+      if (token) {
+        setResetTokenState(token);
+        setActiveModal('reset_password');
+      }
+    }
+  }, []);
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
@@ -247,8 +281,10 @@ export default function App() {
       });
 
       if (authData.requiresMfa) {
+        setMfaChallengeToken(authData.mfaToken);
+        setMfaMethods(authData.methods || ['totp']);
+        setSelectedMfaMethod(authData.methods?.[0] || 'totp');
         setAuthLoading(false);
-        setAuthError('MFA is required for this account. OTP sign-in is not available in this UI yet.');
         return;
       }
 
@@ -277,6 +313,176 @@ export default function App() {
       } else {
         setAuthError(error.message || 'Sign in failed. Please try again.');
       }
+    }
+  };
+
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault();
+    if (!mfaCode) return;
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const authData = await authRequest('/auth/verify-otp', {
+        mfaToken: mfaChallengeToken,
+        code: mfaCode,
+        type: selectedMfaMethod
+      });
+
+      const workspace = createWorkspaceFromAuthUser(authData.user);
+      applyWorkspace(workspace);
+      persistWorkspace(workspace);
+      setAuthToken(authData.accessToken || '');
+      setRefreshToken(authData.refreshToken || '');
+      setIsSignedIn(true);
+      setPage('dashboard');
+      setAuthLoading(false);
+      setAuthSuccess(true);
+      setMfaChallengeToken(null);
+      setMfaCode('');
+      setTimeout(() => {
+        setAuthSuccess(false);
+        setActiveModal(null);
+        setAuthError('');
+      }, 1000);
+    } catch (error) {
+      setAuthLoading(false);
+      setAuthError(error.message || 'OTP Verification failed.');
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await authRequest('/auth/forgot-password', { email: forgotEmail });
+      setAuthSuccess(true);
+      setAuthLoading(false);
+      setTimeout(() => {
+        setAuthSuccess(false);
+        setActiveModal(null);
+        setForgotEmail('');
+      }, 2000);
+    } catch (error) {
+      setAuthLoading(false);
+      setAuthError(error.message || 'Failed to submit forgot password request.');
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!newPassword || !resetTokenState) return;
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await authRequest('/auth/reset-password', { token: resetTokenState, password: newPassword });
+      setAuthSuccess(true);
+      setAuthLoading(false);
+      setTimeout(() => {
+        setAuthSuccess(false);
+        setActiveModal(null);
+        setNewPassword('');
+        setResetTokenState('');
+      }, 2000);
+    } catch (error) {
+      setAuthLoading(false);
+      setAuthError(error.message || 'Failed to reset password.');
+    }
+  };
+
+  const handleEmailVerification = async (token) => {
+    setVerifyStatus('verifying');
+    setActiveModal('verify_status');
+    try {
+      const csrfToken = await getCsrfToken();
+      const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ token })
+      });
+      if (res.ok) {
+        setVerifyStatus('success');
+      } else {
+        setVerifyStatus('error');
+      }
+    } catch {
+      setVerifyStatus('error');
+    }
+  };
+
+  const handleMfaSetupInit = async () => {
+    setMfaConfigError('');
+    setMfaSetupData(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/mfa/setup`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMfaSetupData(data);
+      } else {
+        setMfaConfigError(data.message || 'Failed to setup MFA.');
+      }
+    } catch {
+      setMfaConfigError('Failed to contact setup endpoint.');
+    }
+  };
+
+  const handleMfaSetupVerify = async (e) => {
+    e.preventDefault();
+    if (!mfaVerificationCode) return;
+    setMfaConfigError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/mfa/enable`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ code: mfaVerificationCode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMfaRecoveryCodes(data.recoveryCodes);
+        setMfaConfigSuccess(true);
+        setUserData(prev => ({ ...prev, mfaEnabled: true }));
+      } else {
+        setMfaConfigError(data.message || 'Failed to verify TOTP code.');
+      }
+    } catch {
+      setMfaConfigError('Failed to verify OTP code.');
+    }
+  };
+
+  const handleMfaDisable = async () => {
+    if (!confirm('Are you sure you want to disable Multi-Factor Authentication? This reduces your account security.')) return;
+    setMfaConfigError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/mfa/disable`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      if (res.ok) {
+        setMfaSetupData(null);
+        setMfaRecoveryCodes(null);
+        setUserData(prev => ({ ...prev, mfaEnabled: false }));
+        alert('MFA disabled successfully.');
+      } else {
+        const data = await res.json();
+        setMfaConfigError(data.message || 'Failed to disable MFA.');
+      }
+    } catch {
+      setMfaConfigError('Failed to disable MFA.');
     }
   };
 
@@ -365,6 +571,7 @@ export default function App() {
             tracksData={tracksData}
             setActiveTrack={setActiveTrack}
             onSaveProfile={handleSaveUserProfile}
+            authToken={authToken}
           />
         );
       case 'learning':
@@ -400,7 +607,7 @@ export default function App() {
       case 'mentorship':
         return <Mentorship mentors={MENTORS} />;
       case 'community':
-        return <Community leaderboard={LEADERBOARD} />;
+        return <Community leaderboard={LEADERBOARD} authToken={authToken} userData={userData} isSignedIn={isSignedIn} />;
       default:
         return <HomeScreen setPage={setPage} xp={xp} streak={streak} activeTrack={activeTrack} />;
     }
@@ -416,14 +623,16 @@ export default function App() {
           {/* Logo & Branding */}
           <div 
             onClick={() => setPage('home')} 
-            className="flex items-center gap-2 cursor-pointer shrink-0 group"
+            className="flex items-center gap-2.5 cursor-pointer shrink-0 group"
           >
-            <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-accent flex items-center justify-center text-white font-extrabold shadow shadow-indigo-500/10 group-hover:scale-105 transition-transform">
-              P
-            </span>
+            <img
+              src="/prisma-mark.svg"
+              alt="Prisma Embedded Codes"
+              className="w-10 h-10 rounded-xl object-cover shadow shadow-indigo-500/10 group-hover:scale-105 transition-transform"
+            />
             <div className="hidden sm:block">
               <h2 className="text-xs font-extrabold text-slate-950 dark:text-white leading-tight">
-                Prisma Embedded
+                Prisma Embedded Codes
               </h2>
               <span className="text-[9px] text-brand-primary font-bold block mt-0.5">Learn. Build. Earn.</span>
             </div>
@@ -612,10 +821,96 @@ export default function App() {
                     <p className="mt-0.5 text-slate-500 dark:text-slate-400">All registered badges, resume ATS scans, and roadmap milestones are securely mapped in-memory inside this browser console session.</p>
                   </div>
                 </div>
+
+                {/* MFA Configurations Section */}
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider">
+                    <span className="text-slate-450 flex items-center gap-1">
+                      <Shield className="w-3.5 h-3.5 text-indigo-500" /> Multi-Factor Security (MFA)
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold ${userData.mfaEnabled ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-450'}`}>
+                      {userData.mfaEnabled ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  </div>
+
+                  {userData.mfaEnabled ? (
+                    <div className="space-y-2">
+                      <span className="text-[10px] text-slate-500 block">Your account is secured with 2FA TOTP (Authenticator App) verification.</span>
+                      <button
+                        onClick={handleMfaDisable}
+                        className="py-2 px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold rounded-xl text-[10px] border border-rose-500/10 transition-colors w-full"
+                      >
+                        Deactivate Multi-Factor Authentication
+                      </button>
+                    </div>
+                  ) : mfaSetupData ? (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-xl space-y-3">
+                      <span className="text-[9.5px] uppercase font-extrabold text-indigo-550 tracking-wider block">Scan with Authenticator App</span>
+                      
+                      <div className="p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col items-center justify-center text-center space-y-2">
+                        {/* Simulated QR code box */}
+                        <div className="w-28 h-28 bg-slate-100 dark:bg-slate-900 border-2 border-indigo-500/20 rounded-lg flex items-center justify-center p-2 text-center font-mono text-[7px] text-slate-450 leading-tight">
+                          AUTHENTICATOR QR CODE
+                          <br />
+                          {mfaSetupData.secret}
+                        </div>
+                        <span className="text-[8px] font-bold text-slate-555 select-all font-mono leading-none break-all mt-1">
+                          Secret: {mfaSetupData.secret}
+                        </span>
+                      </div>
+
+                      <form onSubmit={handleMfaSetupVerify} className="space-y-2">
+                        <label className="font-bold text-slate-550 dark:text-slate-450 block text-[9.5px]">Verify OTP Code to Enable</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            required
+                            maxLength={6}
+                            value={mfaVerificationCode}
+                            onChange={(e) => setMfaVerificationCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="e.g. 123456"
+                            className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none text-slate-800 dark:text-white font-mono tracking-widest text-center"
+                          />
+                          <button type="submit" className="px-4 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]">
+                            Verify
+                          </button>
+                        </div>
+                      </form>
+                      {mfaConfigError && <span className="text-[9px] text-rose-500 font-semibold block">{mfaConfigError}</span>}
+                    </div>
+                  ) : mfaConfigSuccess && mfaRecoveryCodes ? (
+                    <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl space-y-2.5">
+                      <span className="text-[9.5px] uppercase font-extrabold text-emerald-500 tracking-wider block">✓ 2FA Enabled Successfully!</span>
+                      <p className="text-[10px] text-slate-500 leading-normal">Save these emergency recovery codes. They can authorize account login if you lose access to your device:</p>
+                      <div className="grid grid-cols-2 gap-1.5 p-2 bg-white dark:bg-slate-950 border border-emerald-500/10 rounded-lg text-center font-mono text-[9px] font-bold text-slate-700 dark:text-slate-350">
+                        {mfaRecoveryCodes.map((code, idx) => (
+                          <div key={idx}>{code}</div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => { setMfaConfigSuccess(false); setMfaRecoveryCodes(null); }}
+                        className="py-1.5 w-full bg-slate-100 dark:bg-slate-850 hover:bg-slate-200 text-slate-800 dark:text-slate-200 font-bold rounded-lg text-[9.5px]"
+                      >
+                        Got it, Close
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <span className="text-[10px] text-slate-500 block">Add an extra layer of protection by verifying OTP codes when logging in.</span>
+                      <button
+                        onClick={handleMfaSetupInit}
+                        className="py-2 px-4 bg-indigo-550/15 hover:bg-indigo-500/20 text-brand-primary font-bold rounded-xl text-[10px] border border-indigo-500/10 transition-colors w-full"
+                      >
+                        Activate Multi-Factor Authenticator Setup
+                      </button>
+                      {mfaConfigError && <span className="text-[9px] text-rose-500 font-semibold block">{mfaConfigError}</span>}
+                    </div>
+                  )}
               </div>
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* 2. SIGN IN MODAL */}
@@ -637,6 +932,76 @@ export default function App() {
                 <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Authenticated!</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Loading your candidate credentials...</p>
               </div>
+            ) : mfaChallengeToken ? (
+              <form onSubmit={handleMfaSubmit} className="space-y-5">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5 font-sora">
+                    <Key className="w-5 h-5 text-indigo-500" /> Multi-Factor Verification
+                  </h3>
+                  <span className="text-[10px] text-slate-455 mt-1 block">Enter the 6-digit code to authorize candidate access.</span>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  {mfaMethods.length > 1 && (
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-550 dark:text-slate-450 block">Select Verification Method</label>
+                      <select
+                        value={selectedMfaMethod}
+                        onChange={(e) => setSelectedMfaMethod(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-55 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-800 dark:text-white"
+                      >
+                        <option value="totp">Authenticator App (TOTP)</option>
+                        <option value="email_otp">Email Verification Code</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-550 dark:text-slate-450 block">6-Digit Verification Code</label>
+                    <input 
+                      type="text" 
+                      required
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 123456"
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-800 dark:text-white text-center font-bold tracking-widest text-lg"
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-indigo-650/15"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Verifying...
+                    </>
+                  ) : (
+                    <>Verify and Login</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaChallengeToken(null);
+                    setMfaCode('');
+                    setAuthError('');
+                  }}
+                  className="w-full text-center text-xs font-bold text-slate-400 hover:underline mt-2"
+                >
+                  Cancel and return to Sign In
+                </button>
+              </form>
             ) : (
               <form onSubmit={handleSignInSubmit} className="space-y-5">
                 <div>
@@ -660,7 +1025,16 @@ export default function App() {
                   </div>
                   
                   <div className="space-y-1">
-                    <label className="font-bold text-slate-550 dark:text-slate-450 block">Password</label>
+                    <div className="flex justify-between items-center">
+                      <label className="font-bold text-slate-550 dark:text-slate-450 block">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => { setActiveModal('forgot_password'); setAuthError(''); }}
+                        className="text-[10px] text-indigo-500 hover:underline font-bold"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                     <input 
                       type="password" 
                       required
@@ -783,6 +1157,190 @@ export default function App() {
                   )}
                 </button>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. FORGOT PASSWORD MODAL */}
+      {activeModal === 'forgot_password' && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
+            <button 
+              onClick={() => setActiveModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {authSuccess ? (
+              <div className="flex flex-col items-center text-center py-6">
+                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Link Sent!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Please check your inbox for password reset instructions.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
+                    <Key className="w-5 h-5 text-indigo-500" /> Reset Password
+                  </h3>
+                  <span className="text-[10px] text-slate-455 mt-1 block">Request a secure password reset link to your email.</span>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-550 dark:text-slate-455 block">Email Address</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="e.g. name@example.com"
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Submitting request...
+                    </>
+                  ) : (
+                    <>Request Reset Link</>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. RESET PASSWORD MODAL */}
+      {activeModal === 'reset_password' && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
+            <button 
+              onClick={() => setActiveModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {authSuccess ? (
+              <div className="flex flex-col items-center text-center py-6">
+                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Password Changed!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Please sign in with your new password.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
+                    <Key className="w-5 h-5 text-indigo-500" /> Choose New Password
+                  </h3>
+                  <span className="text-[10px] text-slate-455 mt-1 block">Establish a new, strong password for your account.</span>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-550 dark:text-slate-455 block">New Secure Password</label>
+                    <input 
+                      type="password" 
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimum 8 characters..."
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Updating password...
+                    </>
+                  ) : (
+                    <>Update Password</>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. EMAIL VERIFICATION STATUS MODAL */}
+      {activeModal === 'verify_status' && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-center">
+            <button 
+              onClick={() => setActiveModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {verifyStatus === 'verifying' ? (
+              <div className="py-6 space-y-4">
+                <RefreshCw className="w-10 h-10 text-indigo-550 animate-spin mx-auto" />
+                <h3 className="text-lg font-extrabold text-slate-950 dark:text-white">Verifying Email...</h3>
+                <p className="text-xs text-slate-500">Contacting authentication nodes for security verification...</p>
+              </div>
+            ) : verifyStatus === 'success' ? (
+              <div className="py-6 space-y-4">
+                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-extrabold text-slate-950 dark:text-white">Email Verified!</h3>
+                <p className="text-xs text-slate-500">Your address is confirmed. You can now access full collaborative workspace features.</p>
+                <button
+                  onClick={() => setActiveModal('signin')}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl"
+                >
+                  Sign In
+                </button>
+              </div>
+            ) : (
+              <div className="py-6 space-y-4">
+                <div className="w-14 h-14 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-extrabold text-slate-950 dark:text-white">Verification Failed</h3>
+                <p className="text-xs text-slate-500">The verification link is invalid, expired, or has already been used.</p>
+                <button
+                  onClick={() => setActiveModal(null)}
+                  className="px-6 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl"
+                >
+                  Close
+                </button>
+              </div>
             )}
           </div>
         </div>

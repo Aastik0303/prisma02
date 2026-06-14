@@ -8,10 +8,14 @@ generator client {
 }
 
 enum UserRole {
+  super_admin
+  admin
+  team_leader
+  team_member
+  user
   student
   mentor
   recruiter
-  admin
 }
 
 enum TokenType {
@@ -44,6 +48,17 @@ model User {
   oauthAccounts      OAuthAccount[]
   authTokens         AuthToken[]
   auditLogs          AuditLog[]
+
+  teamMemberships    TeamMember[]
+  sentInvitations    TeamInvitation[] @relation("SentInvitations")
+  ownedProjects      Project[]        @relation("OwnedProjects")
+  assignedTasks      Task[]           @relation("AssignedTasks")
+  createdTasks       Task[]           @relation("CreatedTasks")
+  taskComments       TaskComment[]
+  createdDocuments   SharedDocument[]
+  uploadedFiles      SharedFile[]
+  sentMessages       ChatMessage[]    @relation("SentMessages")
+  receivedMessages   ChatMessage[]    @relation("ReceivedMessages")
 
   @@map("users")
 }
@@ -111,4 +126,152 @@ model AuditLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+model Team {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  members     TeamMember[]
+  projects    Project[]
+  invitations TeamInvitation[]
+  chatMessages ChatMessage[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @db.Uuid @map("team_id")
+  userId    String   @db.Uuid @map("user_id")
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String   @db.Uuid @map("team_id")
+  inviterId    String   @db.Uuid @map("inviter_id")
+  inviteeEmail String   @map("invitee_email")
+  role         String   @default("MEMBER")
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  inviter User @relation("SentInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@map("team_invitations")
+}
+
+model Project {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId      String?          @db.Uuid @map("team_id")
+  ownerId     String           @db.Uuid @map("owner_id")
+  title       String
+  description String?
+  difficulty  String           @default("Beginner")
+  track       String           @default("Web Dev")
+  status      String           @default("ACTIVE")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  team         Team?            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner        User             @relation("OwnedProjects", fields: [ownerId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+  documents    SharedDocument[]
+  files        SharedFile[]
+  chatMessages ChatMessage[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String        @db.Uuid @map("project_id")
+  title       String
+  description String?
+  status      String        @default("TO_DO")
+  priority    String        @default("MEDIUM")
+  assigneeId  String?       @db.Uuid @map("assignee_id")
+  creatorId   String        @db.Uuid @map("creator_id")
+  dueDate     DateTime?     @map("due_date")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?         @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator  User          @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: Cascade)
+  comments TaskComment[]
+
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @db.Uuid @map("task_id")
+  userId    String   @db.Uuid @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+model SharedDocument {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @db.Uuid @map("project_id")
+  title       String
+  content     String
+  creatorId   String   @db.Uuid @map("creator_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("shared_documents")
+}
+
+model SharedFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @db.Uuid @map("project_id")
+  name        String
+  url         String
+  size        Int
+  mimeType    String   @map("mime_type")
+  uploaderId  String   @db.Uuid @map("uploader_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@map("shared_files")
+}
+
+model ChatMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId         String?  @db.Uuid @map("team_id")
+  projectId      String?  @db.Uuid @map("project_id")
+  senderId       String   @db.Uuid @map("sender_id")
+  receiverId     String?  @db.Uuid @map("receiver_id")
+  content        String
+  isAnnouncement Boolean  @default(false) @map("is_announcement")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  team     Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sender   User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User?    @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
 }

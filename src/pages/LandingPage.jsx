@@ -599,13 +599,20 @@ export default function LandingPage({ setPage, setTrack }) {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-slate-200/50 dark:border-slate-800/40 text-center relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-left">
-            <span className="text-lg font-extrabold bg-gradient-to-r from-brand-primary to-brand-accent bg-clip-text text-transparent">
-              Prisma Embedded Codes
-            </span>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <div className="text-left flex items-center gap-3">
+            <img
+              src="/prisma-mark.svg"
+              alt="Prisma Embedded Codes"
+              className="h-11 w-11 rounded-xl object-cover"
+            />
+            <div>
+              <span className="text-lg font-extrabold text-slate-950 dark:text-white">
+                Prisma Embedded Codes
+              </span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               "Learn. Build. Earn. Grow." &copy; {new Date().getFullYear()} All rights reserved.
-            </p>
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-6 text-sm text-slate-500 dark:text-slate-400">

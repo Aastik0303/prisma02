@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "admin:dev": "vite --host 127.0.0.1 --port 5174 --strictPort --config vite.admin.config.js",
     "build": "vite build",
+    "admin:build": "vite build --config vite.admin.config.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

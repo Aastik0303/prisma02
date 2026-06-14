@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import oauthPlugin from '@fastify/oauth2';
+import websocket from '@fastify/websocket';
 import { ZodError } from 'zod';
 
 import { config } from './config/config.js';
@@ -14,7 +15,12 @@ import csrfPlugin from './plugins/csrf.js';
 
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { teamsRoutes } from './modules/teams/teams.routes.js';
+import { projectsRoutes } from './modules/projects/projects.routes.js';
+import { tasksRoutes } from './modules/tasks/tasks.routes.js';
+import { chatRoutes } from './modules/chat/chat.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { ensureAdminUser } from './utils/adminBootstrap.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -98,14 +104,24 @@ export async function buildApp(opts = {}) {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
   });
 
-  // 4. Register base plugins (DB, Redis, JWT)
+  // 4. Register base plugins (DB, Redis, JWT, WebSockets)
   await app.register(dbPlugin);
   await app.register(redisPlugin);
   await app.register(jwtPlugin);
+  await app.register(websocket);
 
   // 5. Decorate with AuthService (injecting db and redis)
   const authService = new AuthService(app.prisma, app.redis);
   app.decorate('authService', authService);
+
+  if (config.NODE_ENV !== 'test') {
+    await ensureAdminUser(app.prisma, {
+      nodeEnv: config.NODE_ENV,
+      email: config.ADMIN_EMAIL,
+      password: config.ADMIN_PASSWORD,
+      fullName: config.ADMIN_FULL_NAME
+    });
+  }
 
   // 6. Register CSRF and Rate Limiting
   await app.register(csrfPlugin);
@@ -149,6 +165,10 @@ export async function buildApp(opts = {}) {
 
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(usersRoutes, { prefix: '/api/v1/users' });
+  await app.register(teamsRoutes, { prefix: '/api/v1/teams' });
+  await app.register(projectsRoutes, { prefix: '/api/v1/projects' });
+  await app.register(tasksRoutes, { prefix: '/api/v1/tasks' });
+  await app.register(chatRoutes, { prefix: '/api/v1/chat' });
 
   // 9. Global Error Handler
   app.setErrorHandler((error: any, request: FastifyRequest, reply: FastifyReply) => {
