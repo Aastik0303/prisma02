@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Award,
   Bell,
-  BookOpen,
   Bookmark,
-  CalendarDays,
   CheckCircle2,
   Code2,
-  Flame,
   Heart,
   Image,
   Link2,
-  MapPin,
   MessageCircle,
   MessageSquare,
   MoreHorizontal,
@@ -147,12 +142,6 @@ const communities = [
   { name: "Project Review Room", members: "4.9k", icon: Star, color: "text-emerald-500", bg: "bg-emerald-500/10" },
 ];
 
-const events = [
-  { date: "18 Jun", title: "LinkedIn profile audit jam", meta: "Live peer reviews" },
-  { date: "21 Jun", title: "Resume ATS teardown", meta: "Mentor-led workshop" },
-  { date: "24 Jun", title: "Embedded interview prep", meta: "Mock Q&A room" },
-];
-
 const filters = ["For You", "Projects", "Doubts", "Jobs", "Events"];
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const fallbackAvatar =
@@ -178,18 +167,6 @@ const normalizeDirectoryUser = (user) => ({
   mutuals: user.emailVerified ? "Verified registered user" : "Registered user",
   isBackendUser: Boolean(user.id && user.fullName),
 });
-
-function StatCard({ icon: Icon, label, value, tone }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <p className="text-xl font-black text-slate-950 dark:text-white">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
-    </div>
-  );
-}
 
 function ProfileCard({ user = currentUser }) {
   return (
@@ -558,26 +535,6 @@ function RightRail({ authToken, isSignedIn }) {
           ))}
         </div>
       </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-black text-slate-950 dark:text-white">Upcoming Rooms</h3>
-          <CalendarDays className="h-4 w-4 text-rose-500" />
-        </div>
-        <div className="space-y-3">
-          {events.map((event) => (
-            <div key={event.title} className="flex gap-3 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-center text-[11px] font-black leading-4 text-rose-600 dark:text-rose-300">
-                {event.date}
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-900 dark:text-white">{event.title}</p>
-                <p className="mt-1 text-[11px] font-semibold text-slate-500">{event.meta}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
     </aside>
   );
 }
@@ -650,46 +607,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-darknavy dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-          <img
-            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1800&h=600&fit=crop"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-20"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/70 dark:from-darknavy-card dark:via-darknavy-card/95 dark:to-darknavy-card/75" />
-          <div className="relative grid gap-6 p-6 lg:grid-cols-[1fr_420px] lg:p-8">
-            <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
-                <Sparkles className="h-4 w-4" />
-                Prisma Community Network
-              </div>
-              <h1 className="text-3xl font-black leading-tight text-slate-950 dark:text-white sm:text-4xl">
-                Learn, connect, and grow with students building real career proof.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 dark:text-slate-300">
-                A professional student community for discussions, project showcases, mentorship rooms, peer messaging, and placement-ready networking.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button className="flex h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-xs font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700" type="button">
-                  <MessageCircle className="h-4 w-4" />
-                  Start Discussion
-                </button>
-                <button className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-5 text-xs font-black text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200" type="button">
-                  <MapPin className="h-4 w-4" />
-                  Find Study Room
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard icon={Users} value="18.2k" label="Active learners" tone="bg-indigo-500/10 text-indigo-600 dark:text-indigo-300" />
-              <StatCard icon={BookOpen} value="642" label="Doubts solved today" tone="bg-cyan-500/10 text-cyan-600 dark:text-cyan-300" />
-              <StatCard icon={Award} value="1.9k" label="Projects showcased" tone="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300" />
-              <StatCard icon={Flame} value="94%" label="Weekly engagement" tone="bg-amber-500/10 text-amber-600 dark:text-amber-300" />
-            </div>
-          </div>
-        </section>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)_330px]">
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)_330px]">
           <div className="hidden lg:block">
             <LeftRail user={viewer} />
           </div>

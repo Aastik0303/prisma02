@@ -33,7 +33,7 @@ export default function StudentDashboard({
   xp, streak, atsScore, resumeScore,
   internshipScore, freelanceScore,
   activeTrack, setPage, userData, tracksData, setActiveTrack,
-  onSaveProfile
+  lastStreakDate, onSaveProfile
 }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: "Hello! I am your AI Career Copilot. I can audit your ATS keywords, suggest professional portfolio repositories, or run mock code assessments. What should we tackle today?" }
@@ -182,6 +182,72 @@ export default function StudentDashboard({
   let placementLevel = "Beginner";
   if (placementReadyScore >= 50 && placementReadyScore < 80) placementLevel = "Intermediate";
   else if (placementReadyScore >= 80) placementLevel = "Placement Ready";
+  const toDateKey = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const today = new Date();
+  const todayKey = toDateKey(today);
+  const activeStreakDate = lastStreakDate ? new Date(`${lastStreakDate}T00:00:00`) : null;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  weekStart.setHours(0, 0, 0, 0);
+  const isActiveToday = lastStreakDate === todayKey;
+  const activeDayIndex = activeStreakDate && activeStreakDate >= weekStart
+    ? (activeStreakDate.getDay() + 6) % 7
+    : -1;
+  const streakDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => ({
+    day,
+    isToday: index === ((today.getDay() + 6) % 7),
+    checked: activeDayIndex >= 0 && index <= activeDayIndex && index > activeDayIndex - streak
+  }));
+  const courseCompletedCount = tracksData?.reduce((sum, track) => sum + (track.completedNodes || 0), 0) || 0;
+  const totalCourseNodes = tracksData?.reduce((sum, track) => sum + (track.totalNodes || 0), 0) || 0;
+  const completedProjectCount = userProjects.filter(project => project.status === 'Completed').length;
+  const xpLevel = Math.floor(xp / 500) + 1;
+  const xpIntoLevel = xp % 500;
+  const xpProgress = Math.min(100, Math.round((xpIntoLevel / 500) * 100));
+  const xpRemaining = 500 - xpIntoLevel;
+  const achievementBadges = [
+    {
+      icon: BookOpen,
+      name: 'Course Climber',
+      rarity: 'Silver',
+      detail: `${courseCompletedCount} of ${totalCourseNodes || 0} course levels completed`,
+      unlocked: courseCompletedCount >= 1,
+      tone: 'from-indigo-500/20 to-cyan-500/10',
+      ring: 'text-indigo-500'
+    },
+    {
+      icon: Flame,
+      name: 'Streak Keeper',
+      rarity: 'Gold',
+      detail: `${streak} active day${streak === 1 ? '' : 's'} recorded`,
+      unlocked: streak >= 7,
+      tone: 'from-amber-500/20 to-orange-500/10',
+      ring: 'text-amber-500'
+    },
+    {
+      icon: Code2,
+      name: 'Project Builder',
+      rarity: 'Bronze',
+      detail: `${completedProjectCount} completed portfolio project${completedProjectCount === 1 ? '' : 's'}`,
+      unlocked: completedProjectCount >= 1,
+      tone: 'from-emerald-500/20 to-cyan-500/10',
+      ring: 'text-emerald-500'
+    },
+    {
+      icon: Sparkles,
+      name: 'XP Achiever',
+      rarity: 'Platinum',
+      detail: `${xp} total XP earned`,
+      unlocked: xp >= 500,
+      tone: 'from-violet-500/20 to-fuchsia-500/10',
+      ring: 'text-violet-500'
+    }
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 text-left">
@@ -404,40 +470,48 @@ export default function StudentDashboard({
           </div>
 
           {/* GAMIFIED ACHIEVEMENTS & BADGES SECTION */}
-          <div className={`${cardStyleClass} p-5 space-y-4`}>
-            <div className="flex justify-between items-center">
+          <div className={`${cardStyleClass} p-5 space-y-5`}>
+            <div className="flex flex-wrap justify-between items-center gap-3">
               <h4 className="text-xs font-bold text-slate-950 dark:text-white flex items-center gap-1.5 font-sora">
                 <Award className="w-4 h-4 text-brand-secondary" /> Achievement Badges
               </h4>
-              <span className="text-[9px] font-bold text-slate-500">Unlocks new level titles</span>
+              <span className="text-[9px] font-bold text-slate-500">Course, streak, project, and XP milestones</span>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {[
-                { emoji: "🎓", name: "Course Finisher", type: "Course Finisher", rarity: "Silver", xp: 100, unlocked: true },
-                { emoji: "🔥", name: "7 Day Streak", type: "7 Day Streak", rarity: "Gold", xp: 150, unlocked: true },
-                { emoji: "🛡️", name: "ATS Master", type: "ATS Master", rarity: "Platinum", xp: 250, unlocked: true },
-                { emoji: "⚙️", name: "Project Builder", type: "Project Builder", rarity: "Bronze", xp: 50, unlocked: true },
-                { emoji: "💬", name: "Community Contributor", type: "Community Contributor", rarity: "Gold", xp: 120, unlocked: false }
-              ].map((badge, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setSelectedBadge(badge)}
-                  className={`p-3 rounded-2xl border flex flex-col items-center justify-center text-center transition-all cursor-pointer relative overflow-hidden group ${badge.unlocked
-                    ? 'border-indigo-500/20 bg-slate-50/50 dark:bg-slate-950/40 hover:scale-[1.05] hover:shadow-sm'
-                    : 'border-transparent bg-slate-100/30 dark:bg-slate-955/10 opacity-30 hover:opacity-50'
-                    }`}
-                >
-                  <span className="text-2xl">{badge.emoji}</span>
-                  <span className="text-[8.5px] text-slate-950 dark:text-white font-extrabold mt-1.5 block truncate max-w-full leading-tight font-sora">{badge.name.split(' ')[0]}</span>
-                  <span className={`text-[7px] font-extrabold uppercase mt-1 px-1.5 py-0.5 rounded ${badge.rarity === 'Platinum' ? 'bg-cyan-500/10 text-cyan-500' :
-                    badge.rarity === 'Gold' ? 'bg-amber-500/10 text-amber-500' :
-                      badge.rarity === 'Silver' ? 'bg-slate-500/10 text-slate-550' : 'bg-orange-500/10 text-orange-500'
-                    }`}>
-                    {badge.rarity}
-                  </span>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              {achievementBadges.map((badge, idx) => {
+                const Icon = badge.icon;
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedBadge(badge)}
+                    className={`min-h-36 p-4 rounded-2xl border flex flex-col justify-between text-left transition-all cursor-pointer relative overflow-hidden group ${badge.unlocked
+                      ? 'border-indigo-500/20 bg-slate-50/70 dark:bg-slate-950/50 hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/10'
+                      : 'border-slate-200/50 dark:border-slate-805/30 bg-slate-100/40 dark:bg-slate-950/20 opacity-70 hover:opacity-100'
+                      }`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${badge.tone} opacity-70`} />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <span className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-800 ${badge.ring}`}>
+                        <Icon className="w-5 h-5" />
+                      </span>
+                      <span className={`text-[8px] font-extrabold uppercase px-2 py-1 rounded-full ${badge.unlocked ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                        {badge.unlocked ? 'Unlocked' : 'Locked'}
+                      </span>
+                    </div>
+                    <div className="relative mt-4">
+                      <span className="text-xs text-slate-950 dark:text-white font-extrabold block leading-tight font-sora">{badge.name}</span>
+                      <span className="mt-1 block text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">{badge.detail}</span>
+                    </div>
+                    <span className={`relative mt-3 w-fit text-[7px] font-extrabold uppercase px-2 py-1 rounded ${badge.rarity === 'Platinum' ? 'bg-cyan-500/10 text-cyan-500' :
+                      badge.rarity === 'Gold' ? 'bg-amber-500/10 text-amber-500' :
+                        badge.rarity === 'Silver' ? 'bg-slate-500/10 text-slate-550' : 'bg-orange-500/10 text-orange-500'
+                      }`}>
+                      {badge.rarity}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -561,44 +635,56 @@ export default function StudentDashboard({
 
           {/* XP CARD */}
           <div className={`${cardStyleClass} p-4.5 relative overflow-hidden text-left`}>
-            <span className="text-[9.5px] uppercase font-bold text-slate-455 tracking-wider block mb-1">XP Points</span>
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400" />
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[9.5px] uppercase font-bold text-slate-455 tracking-wider">XP Points</span>
+              <span className="text-[9px] font-extrabold text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded-full">Level {xpLevel}</span>
+            </div>
             <div className="flex justify-between items-baseline mb-2">
               <h3 className="text-2xl font-extrabold text-slate-950 dark:text-white font-sora">{xp} <span className="text-xs font-semibold text-slate-455">Total</span></h3>
               <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 border border-emerald-500/10 px-2 py-0.5 rounded-md flex items-center gap-0.5">
-                +14% <TrendingUp className="w-2.5 h-2.5" />
+                {xpProgress}% <TrendingUp className="w-2.5 h-2.5" />
               </span>
             </div>
             <div className="w-full h-1 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-550 rounded-full w-[70%]"></div>
+              <div className="h-full bg-indigo-550 rounded-full transition-all duration-500" style={{ width: `${xpProgress}%` }}></div>
             </div>
+            <p className="mt-2 text-[9px] font-semibold text-slate-500 dark:text-slate-400">{xpRemaining} XP to Level {xpLevel + 1}</p>
           </div>
 
           {/* STREAK CARD */}
-          <div className={`${cardStyleClass} p-4.5 relative text-left`}>
+          <div className={`${cardStyleClass} p-4.5 relative overflow-hidden text-left`}>
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500" />
             <div className="flex justify-between items-center mb-3">
               <span className="text-[9.5px] uppercase font-bold text-slate-455 tracking-wider">Daily Streak</span>
-              <Flame className="w-4.5 h-4.5 text-amber-500 fill-current animate-bounce" />
+              <span className={`flex h-8 w-8 items-center justify-center rounded-2xl ${isActiveToday ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-100 text-slate-400 dark:bg-slate-950 dark:text-slate-500'}`}>
+                <Flame className={`w-4.5 h-4.5 ${isActiveToday ? 'fill-current animate-bounce' : ''}`} />
+              </span>
             </div>
 
-            <div className="flex items-baseline gap-1 mb-3.5">
-              <h3 className="text-2xl font-extrabold text-slate-950 dark:text-white font-sora">{streak}</h3>
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Streak days</span>
+            <div className="flex items-end justify-between gap-3 mb-3.5">
+              <div className="flex items-baseline gap-1">
+                <h3 className="text-2xl font-extrabold text-slate-950 dark:text-white font-sora">{streak}</h3>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Streak days</span>
+              </div>
+              <span className={`text-[9px] font-extrabold px-2 py-1 rounded-full ${isActiveToday ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                {isActiveToday ? 'Updated today' : 'Practice today'}
+              </span>
             </div>
 
-            {/* Calendar list check */}
-            <div className="flex justify-between items-center gap-1.5 py-1.5 px-2 bg-slate-100/50 dark:bg-slate-950/60 rounded-xl border border-slate-200/50 dark:border-slate-805/30">
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => {
-                const isChecked = idx < 5;
-                return (
-                  <div key={idx} className="flex flex-col items-center gap-1">
-                    <span className="text-[8px] font-extrabold text-slate-400">{day}</span>
-                    <div className={`w-3.5 h-3.5 rounded-full border text-[8px] font-extrabold flex items-center justify-center ${isChecked ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-slate-450'}`}>
-                      {isChecked ? '✓' : ''}
-                    </div>
+            <div className="flex justify-between items-center gap-1.5 py-2 px-2 bg-slate-100/50 dark:bg-slate-950/60 rounded-xl border border-slate-200/50 dark:border-slate-805/30">
+              {streakDays.map(({ day, checked, isToday }, idx) => (
+                <div key={idx} className="flex flex-col items-center gap-1">
+                  <span className={`text-[8px] font-extrabold ${isToday ? 'text-amber-500' : 'text-slate-400'}`}>{day}</span>
+                  <div className={`w-4 h-4 rounded-full border text-[8px] font-extrabold flex items-center justify-center transition-colors ${checked ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm shadow-indigo-500/30' : isToday ? 'border-amber-400 bg-amber-500/10 text-amber-500' : 'border-slate-300 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-slate-450'}`}>
+                    {checked ? <Check className="w-2.5 h-2.5" /> : ''}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
+            <p className="mt-2 text-[9px] font-semibold text-slate-500 dark:text-slate-400">
+              {isActiveToday ? 'Nice, your streak is safe for today.' : 'Complete one lesson to keep the streak current.'}
+            </p>
           </div>
 
           {/* DYNAMIC CAREER READINESS CARD */}
@@ -822,43 +908,46 @@ export default function StudentDashboard({
           BADGE INFO MODAL SCREEN
           ================================================== */}
       <AnimatePresence>
-        {selectedBadge && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-7 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-center space-y-4"
-            >
-              <button
-                onClick={() => setSelectedBadge(null)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+        {selectedBadge && (() => {
+          const BadgeIcon = selectedBadge.icon;
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-7 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-center space-y-4 overflow-hidden"
               >
-                <X className="w-5 h-5" />
-              </button>
+                <div className={`absolute inset-0 bg-gradient-to-br ${selectedBadge.tone} opacity-60`} />
+                <button
+                  onClick={() => setSelectedBadge(null)}
+                  className="absolute top-4 right-4 z-10 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
 
-              <span className="text-5xl block animate-bounce py-2">{selectedBadge.emoji}</span>
+                <div className={`relative mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 ${selectedBadge.ring}`}>
+                  <BadgeIcon className="w-8 h-8" />
+                </div>
 
-              <div className="space-y-1">
-                <h3 className="text-lg font-extrabold text-slate-950 dark:text-white font-sora">{selectedBadge.name}</h3>
-                <span className="text-[10px] text-brand-primary dark:text-brand-accent uppercase font-bold tracking-wider">{selectedBadge.rarity} Rarity Achievement</span>
-              </div>
+                <div className="relative space-y-1">
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white font-sora">{selectedBadge.name}</h3>
+                  <span className="text-[10px] text-brand-primary dark:text-brand-accent uppercase font-bold tracking-wider">{selectedBadge.rarity} Rarity Achievement</span>
+                </div>
 
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed py-1.5 px-4 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                {selectedBadge.unlocked
-                  ? `Successfully unlocked! You received +${selectedBadge.xp} XP points for passing relevant milestone check level nodes.`
-                  : `Currently locked. Earn +${selectedBadge.xp} XP points by participating inside DTU community forums and posting helpful threads.`
-                }
-              </p>
+                <p className="relative text-xs text-slate-500 dark:text-slate-400 leading-relaxed py-2 px-4 bg-white/70 dark:bg-slate-900/70 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+                  {selectedBadge.detail}
+                </p>
 
-              <div className="flex gap-2 justify-center items-center pt-2">
-                <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full ${selectedBadge.unlocked ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/10' : 'bg-slate-100 dark:bg-slate-900 text-slate-450 border border-slate-200/50'}`}>
-                  {selectedBadge.unlocked ? '✓ Verified Unlocked' : '🔒 Milestone Pending'}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                <div className="relative flex gap-2 justify-center items-center pt-2">
+                  <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full ${selectedBadge.unlocked ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/10' : 'bg-slate-100 dark:bg-slate-900 text-slate-450 border border-slate-200/50'}`}>
+                    {selectedBadge.unlocked ? 'Verified Unlocked' : 'Milestone Pending'}
+                  </span>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
     </div>

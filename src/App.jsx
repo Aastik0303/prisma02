@@ -21,6 +21,17 @@ import {
 } from './data/mockData';
 
 const cloneTracks = (tracks = CAREER_TRACKS) => JSON.parse(JSON.stringify(tracks));
+const toDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const yesterdayKey = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return toDateKey(date);
+};
 
 const createFreshTracks = () => cloneTracks().map((track, trackIndex) => ({
   ...track,
@@ -57,12 +68,14 @@ const createWorkspace = (name = 'New Learner', email = '') => {
     resumeScore: 0,
     internshipScore: 0,
     freelanceScore: 0,
+    lastStreakDate: '',
     tracksData: tracks,
     activeTrack: tracks[0]
   };
 };
 
 const workspaceKey = (email) => `pec_workspace:${email.toLowerCase().trim()}`;
+const guestWorkspaceKey = 'pec_workspace:guest';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 const getCsrfToken = async () => {
@@ -180,26 +193,28 @@ export default function App() {
   const [resumeScore, setResumeScore] = useState(0);
   const [internshipScore, setInternshipScore] = useState(0);
   const [freelanceScore, setFreelanceScore] = useState(0);
+  const [lastStreakDate, setLastStreakDate] = useState('');
 
   // In-memory global data layers to allow dynamic state changes
   const [tracksData, setTracksData] = useState(() => createFreshTracks());
   const [activeTrack, setActiveTrack] = useState(() => createFreshTracks()[0]); // Default to Web Dev
 
   const persistWorkspace = (workspace) => {
-    if (!workspace.userData.email) return;
-    localStorage.setItem(workspaceKey(workspace.userData.email), JSON.stringify(workspace));
+    const key = workspace.userData.email ? workspaceKey(workspace.userData.email) : guestWorkspaceKey;
+    localStorage.setItem(key, JSON.stringify(workspace));
   };
 
   const applyWorkspace = (workspace) => {
     setUserData(workspace.userData);
-    setXp(workspace.xp);
-    setStreak(workspace.streak);
-    setAtsScore(workspace.atsScore);
-    setResumeScore(workspace.resumeScore);
-    setInternshipScore(workspace.internshipScore);
-    setFreelanceScore(workspace.freelanceScore);
-    setTracksData(workspace.tracksData);
-    setActiveTrack(workspace.activeTrack || workspace.tracksData[0]);
+    setXp(workspace.xp || 0);
+    setStreak(workspace.streak || 0);
+    setAtsScore(workspace.atsScore || 0);
+    setResumeScore(workspace.resumeScore || 0);
+    setInternshipScore(workspace.internshipScore || 0);
+    setFreelanceScore(workspace.freelanceScore || 0);
+    setLastStreakDate(workspace.lastStreakDate || '');
+    setTracksData(workspace.tracksData || createFreshTracks());
+    setActiveTrack(workspace.activeTrack || workspace.tracksData?.[0] || createFreshTracks()[0]);
   };
 
   const handleSaveUserProfile = (profileData) => {
@@ -212,6 +227,7 @@ export default function App() {
       resumeScore,
       internshipScore,
       freelanceScore,
+      lastStreakDate,
       tracksData,
       activeTrack
     };
@@ -219,6 +235,77 @@ export default function App() {
     setUserData(nextUserData);
     persistWorkspace(nextWorkspace);
     return true;
+  };
+
+  const handleCompleteNode = (nodeId, nodeXp, category = '') => {
+    const today = toDateKey();
+    const targetTrack = tracksData.find(track => track.nodes.some(node => node.id === nodeId));
+    const targetNode = targetTrack?.nodes.find(node => node.id === nodeId);
+
+    if (!targetTrack || !targetNode || targetNode.status === 'completed') {
+      return { awardedXp: 0, streakIncreased: false, alreadyCompleted: true };
+    }
+
+    const updatedTracks = tracksData.map(track => {
+      if (track.id !== targetTrack.id) return track;
+
+      const updatedNodes = track.nodes.map((node, index) => {
+        if (node.id === nodeId) {
+          return { ...node, status: 'completed' };
+        }
+
+        if (index > 0 && track.nodes[index - 1].id === nodeId && node.status === 'locked') {
+          return { ...node, status: 'active' };
+        }
+
+        return node;
+      });
+      const completedNodes = updatedNodes.filter(node => node.status === 'completed').length;
+
+      return {
+        ...track,
+        xp: (track.xp || 0) + nodeXp,
+        completedNodes,
+        nodes: updatedNodes
+      };
+    });
+
+    const nextXp = xp + nodeXp;
+    const streakContinues = lastStreakDate === yesterdayKey();
+    const streakIncreased = lastStreakDate !== today;
+    const nextStreak = streakIncreased ? (!lastStreakDate || streakContinues ? streak + 1 : 1) : streak;
+    const nextAtsScore = category.includes('ATS') ? Math.min(atsScore + 5, 98) : atsScore;
+    const nextResumeScore = category.includes('Resume') ? Math.min(resumeScore + 8, 100) : resumeScore;
+    const nextInternshipScore = (
+      category.includes('Internship') || category.includes('Skills') || category.includes('Capstone')
+    ) ? Math.min(internshipScore + 6, 96) : internshipScore;
+    const nextFreelanceScore = category.includes('Freelanc') ? Math.min(freelanceScore + 7, 95) : freelanceScore;
+    const nextActiveTrack = updatedTracks.find(track => track.id === targetTrack.id) || updatedTracks[0];
+    const nextWorkspace = {
+      userData,
+      xp: nextXp,
+      streak: nextStreak,
+      atsScore: nextAtsScore,
+      resumeScore: nextResumeScore,
+      internshipScore: nextInternshipScore,
+      freelanceScore: nextFreelanceScore,
+      lastStreakDate: today,
+      tracksData: updatedTracks,
+      activeTrack: nextActiveTrack
+    };
+
+    setXp(nextXp);
+    setStreak(nextStreak);
+    setAtsScore(nextAtsScore);
+    setResumeScore(nextResumeScore);
+    setInternshipScore(nextInternshipScore);
+    setFreelanceScore(nextFreelanceScore);
+    setLastStreakDate(today);
+    setTracksData(updatedTracks);
+    setActiveTrack(nextActiveTrack);
+    persistWorkspace(nextWorkspace);
+
+    return { awardedXp: nodeXp, streakIncreased, alreadyCompleted: false };
   };
 
   // Handle Dark / Light Theme Toggle Class
@@ -254,6 +341,19 @@ export default function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
+
+  useEffect(() => {
+    if (isSignedIn) return;
+
+    const savedGuestWorkspace = localStorage.getItem(guestWorkspaceKey);
+    if (!savedGuestWorkspace) return;
+
+    try {
+      applyWorkspace(JSON.parse(savedGuestWorkspace));
+    } catch {
+      localStorage.removeItem(guestWorkspaceKey);
+    }
+  }, []);
 
   // Nav Links (Removed Internships and Freelance Hub)
   const navigationItems = [
@@ -569,6 +669,7 @@ export default function App() {
             setPage={setPage}
             userData={userData}
             tracksData={tracksData}
+            lastStreakDate={lastStreakDate}
             setActiveTrack={setActiveTrack}
             onSaveProfile={handleSaveUserProfile}
             authToken={authToken}
@@ -592,6 +693,7 @@ export default function App() {
             setAtsScore={setAtsScore} setResumeScore={setResumeScore}
             setInternshipScore={setInternshipScore} setFreelanceScore={setFreelanceScore}
             userData={userData}
+            onCompleteNode={handleCompleteNode}
           />
         );
       case 'projects':
