@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Prisma Embedded Codes mark">
+  <rect width="128" height="128" rx="24" fill="#000"/>
+  <g transform="translate(25 23)">
+    <path fill="#a63cf1" d="M39 0 18 54 39 42z"/>
+    <path fill="#6c23d9" d="M39 0 39 42 62 53z"/>
+    <path fill="#00d1ca" d="M39 42 62 53 40 78z"/>
+    <path fill="#006dff" d="M18 54 40 78 39 42z"/>
+    <path fill="#8e2ce6" d="M18 54 0 65 39 42z"/>
+    <path fill="#29e7b7" d="M39 42 77 65 62 53z"/>
+    <path fill="#4bd4ff" d="M0 65 40 78 18 54z"/>
+    <path fill="#00b3ff" d="M40 78 77 65 39 42z"/>
+    <path fill="#ffffff" opacity=".22" d="M39 0 31 45 18 54z"/>
+    <path fill="#ffffff" opacity=".16" d="M39 0 62 53 39 42z"/>
+  </g>
+  <g transform="translate(68 44)" stroke-linecap="round">
+    <path d="M0 10 44 2" stroke="#ff2b7a" stroke-width="5"/>
+    <path d="M0 16 50 14" stroke="#ffcf00" stroke-width="4"/>
+    <path d="M0 22 43 28" stroke="#19a7ff" stroke-width="4"/>
+    <path d="M27 6h10M31 25h8" stroke="#35ffcb" stroke-width="2"/>
+  </g>
+</svg>

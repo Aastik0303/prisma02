@@ -1,0 +1,358 @@
+{
+  "knowledge_base": [
+    {
+      "id": "platform-overview",
+      "category": "platform",
+      "title": "Platform Overview",
+      "content": "Prisma Embedded Codes is an advanced career and coding preparation ecosystem featuring Web Development, AI/ML, and Embedded Systems roadmaps. The platform is a React 19 frontend with a Fastify, Prisma, PostgreSQL, Redis, and Resend backend.",
+      "keywords": [
+        "Prisma Embedded Codes",
+        "platform",
+        "career preparation",
+        "roadmaps",
+        "React 19",
+        "Fastify",
+        "PostgreSQL",
+        "Redis",
+        "Resend"
+      ]
+    },
+    {
+      "id": "platform-features",
+      "category": "platform",
+      "title": "Platform Features",
+      "content": "Prisma Embedded Codes offers: AI Doubt Solver & Copilots; Interactive Sandbox Environments; Collaborative Team Space & Kanban Sprints; ATS Keyword Audits & Resume Scoring; and Mentorship & Community Placements.",
+      "keywords": [
+        "AI Doubt Solver",
+        "Copilots",
+        "Sandbox Environments",
+        "Kanban Sprints",
+        "ATS Keyword Audits",
+        "Resume Scoring",
+        "Mentorship",
+        "Placements"
+      ]
+    },
+    {
+      "id": "team-pranav-mistry",
+      "category": "team",
+      "title": "Team Member: Pranav Mistry",
+      "content": "Pranav Mistry is the Grandmaster Creator & Technical Lead of the Prisma Embedded Core Squad. He is an expert in full-stack architecture, bento-grid layouts, and interactive state management.",
+      "keywords": [
+        "Pranav Mistry",
+        "Technical Lead",
+        "full-stack architecture",
+        "bento-grid",
+        "state management",
+        "team"
+      ]
+    },
+    {
+      "id": "team-shreya-ghoshal",
+      "category": "team",
+      "title": "Team Member: Shreya Ghoshal",
+      "content": "Shreya Ghoshal is the AI Wizard & ML Lead of the Prisma Embedded Core Squad. She specializes in vector databases, LLM QLoRA fine-tuning, and RAG pipelines.",
+      "keywords": [
+        "Shreya Ghoshal",
+        "ML Lead",
+        "vector databases",
+        "QLoRA fine-tuning",
+        "RAG pipelines",
+        "team"
+      ]
+    },
+    {
+      "id": "team-amit-trivedi",
+      "category": "team",
+      "title": "Team Member: Amit Trivedi",
+      "content": "Amit Trivedi is the Firmware Guru & Embedded Lead of the Prisma Embedded Core Squad. He is a master of register-level microcontroller programming, FreeRTOS, and DMA streams.",
+      "keywords": [
+        "Amit Trivedi",
+        "Embedded Lead",
+        "firmware",
+        "microcontroller programming",
+        "FreeRTOS",
+        "DMA",
+        "team"
+      ]
+    },
+    {
+      "id": "team-davansh-singh",
+      "category": "team",
+      "title": "Team Member: Davansh Singh",
+      "content": "Davansh Singh is the General Manager of the Prisma Embedded Core Squad. He oversees operational efficiency, cross-team collaboration, sprint planning, and partnership alignments.",
+      "keywords": [
+        "Davansh Singh",
+        "General Manager",
+        "operations",
+        "sprint planning",
+        "partnerships",
+        "team"
+      ]
+    },
+    {
+      "id": "track-web-dev",
+      "category": "career_track",
+      "title": "Career Track: Web Development",
+      "content": "The Web Development track syllabus covers: HTML5 & Semantic Web; Modern CSS & Flexbox/Grid; JavaScript ES6+ Foundations; React Components, Hooks & State; TypeScript & Type-Safe APIs; Next.js Rendering & Data Fetching; and Secure Full-Stack Architecture. Recommended ATS keywords for this track: React, Next.js, TypeScript, Tailwind CSS, Incremental Static Regeneration (ISR), Server Actions, Framer Motion.",
+      "keywords": [
+        "Web Development",
+        "HTML5",
+        "CSS",
+        "JavaScript",
+        "React",
+        "TypeScript",
+        "Next.js",
+        "ISR",
+        "Server Actions",
+        "Framer Motion",
+        "syllabus",
+        "career track"
+      ]
+    },
+    {
+      "id": "track-ai-ml",
+      "category": "career_track",
+      "title": "Career Track: Artificial Intelligence & ML",
+      "content": "The Artificial Intelligence & ML track syllabus covers: Linear Algebra & Calculus; Python Numerical Ecosystem; Classical Machine Learning Models; Feature Engineering & Data Preprocessing; Deep Learning & Backpropagation; Model Serving, MLOps & Monitoring; and Retrieval Systems & LLM Evaluation. Recommended ATS keywords for this track: Python, PyTorch, FastAPI, Vector Embeddings, Retrieval-Augmented Generation (RAG), Cosine Distance, QLoRA Fine-tuning.",
+      "keywords": [
+        "AI/ML",
+        "Artificial Intelligence",
+        "Machine Learning",
+        "Python",
+        "PyTorch",
+        "FastAPI",
+        "Vector Embeddings",
+        "RAG",
+        "Cosine Distance",
+        "QLoRA",
+        "syllabus",
+        "career track"
+      ]
+    },
+    {
+      "id": "track-embedded",
+      "category": "career_track",
+      "title": "Career Track: Embedded Systems & IoT",
+      "content": "The Embedded Systems & IoT track syllabus covers: Basics of C & Assembly; Microcontroller Architecture; Communication Protocols (I2C, SPI, UART); ADC, Timers, DMA & Memory; FreeRTOS Scheduling & Synchronization; Hardware Debugging & Instrumentation; and Control Loops, DMA & RTOS Integration. Recommended ATS keywords for this track: C/C++, FreeRTOS, STM32, DMA Controller, I2C/SPI/UART, Preemptive Schedulers, SWD/JTAG.",
+      "keywords": [
+        "Embedded Systems",
+        "IoT",
+        "C",
+        "Assembly",
+        "Microcontroller",
+        "I2C",
+        "SPI",
+        "UART",
+        "DMA",
+        "FreeRTOS",
+        "STM32",
+        "JTAG",
+        "syllabus",
+        "career track"
+      ]
+    },
+    {
+      "id": "ats-scoring",
+      "category": "platform",
+      "title": "ATS Keyword Scoring",
+      "content": "The platform's ATS scoring threshold is 85%. To pass modern ATS filters, a resume should contain exact keywords from the user's active tracks, such as 'Preemptive Task Schedulers' or 'Incremental Static Regeneration (ISR)'. Users are advised to complete roadmaps and upload portfolio proof to unlock placement slots.",
+      "keywords": [
+        "ATS",
+        "ATS score",
+        "resume keywords",
+        "85%",
+        "placement slots",
+        "roadmap completion"
+      ]
+    },
+    {
+      "id": "resume-reviewer-overview",
+      "category": "feature",
+      "title": "AI Resume Reviewer",
+      "content": "The Resume Center includes a secure AI review flow for PDF and DOCX resumes. Files are validated, capped at 5 MB, processed in memory, and never written to disk. PDF and DOCX text extraction runs only in the Fastify backend. LangGraph coordinates extraction, analysis, scoring, problem detection, fixes, and rescoring. LangChain uses Groq structured output validated with Zod. The UI supports ATS scores, category insights, issue-level fixes, full AI rewrites, side-by-side comparison, manual editing, and debounced score updates. Resume endpoints use CSRF protection and route-level rate limiting.",
+      "keywords": [
+        "AI Resume Reviewer",
+        "Resume Center",
+        "PDF",
+        "DOCX",
+        "5 MB limit",
+        "in-memory processing",
+        "LangGraph",
+        "LangChain",
+        "Groq",
+        "Zod",
+        "ATS score",
+        "CSRF",
+        "rate limiting"
+      ]
+    },
+    {
+      "id": "resume-endpoints",
+      "category": "api",
+      "title": "Resume API Endpoints",
+      "content": "The backend exposes four resume endpoints: POST /api/resume/upload, POST /api/resume/analyze, POST /api/resume/fix, and POST /api/resume/recheck.",
+      "keywords": [
+        "resume endpoints",
+        "/api/resume/upload",
+        "/api/resume/analyze",
+        "/api/resume/fix",
+        "/api/resume/recheck",
+        "API"
+      ]
+    },
+    {
+      "id": "email-features-overview",
+      "category": "feature",
+      "title": "Email Features",
+      "content": "Registration creates a hashed, single-use verification token with a 24-hour expiry. Password users can sign in before email verification; verification links and verified status remain available. Successful password and MFA logins send a notification with time, IP address, and user agent. Email verification sends a welcome email. The public contact form sends validated requests to ADMIN_EMAIL. Contact submissions are protected by CSRF validation, a honeypot field, body limits, and per-IP/email rate limiting.",
+      "keywords": [
+        "email verification",
+        "verification token",
+        "24-hour expiry",
+        "MFA",
+        "login notification",
+        "welcome email",
+        "contact form",
+        "CSRF",
+        "honeypot",
+        "rate limiting"
+      ]
+    },
+    {
+      "id": "email-utility-functions",
+      "category": "code_structure",
+      "title": "Email Utility Functions",
+      "content": "Reusable email functions live in backend/src/utils/email.ts: sendVerificationEmail(), sendWelcomeEmail(), sendLoginNotification(), and sendContactRequestEmail().",
+      "keywords": [
+        "email.ts",
+        "sendVerificationEmail",
+        "sendWelcomeEmail",
+        "sendLoginNotification",
+        "sendContactRequestEmail",
+        "backend utils"
+      ]
+    },
+    {
+      "id": "repo-structure",
+      "category": "code_structure",
+      "title": "Relevant Project Structure",
+      "content": "Key project structure: root contains src/App.jsx and src/pages/ (ContactForm.jsx, HomeScreen.jsx). backend/ contains prisma/schema.prisma, src/app.ts, src/config/config.ts, src/modules/auth/, src/modules/contact/ (contact.routes.ts, contact.schema.ts), and src/utils/email.ts. Both root and backend/ have their own .env.example, plus a root package.json.",
+      "keywords": [
+        "project structure",
+        "App.jsx",
+        "ContactForm.jsx",
+        "HomeScreen.jsx",
+        "schema.prisma",
+        "app.ts",
+        "config.ts",
+        "auth module",
+        "contact module",
+        ".env.example"
+      ]
+    },
+    {
+      "id": "local-setup",
+      "category": "setup",
+      "title": "Local Setup Steps",
+      "content": "Local setup: 1) Install dependencies with 'npm install' at the root and inside backend/. 2) Start PostgreSQL and Redis, e.g. via 'docker compose up -d' using backend/docker-compose.yml. 3) Copy .env.example to .env at root and inside backend/. 4) In Resend, verify your sending domain and set RESEND_API_KEY, EMAIL_FROM, ADMIN_EMAIL, and FRONTEND_URL=http://localhost:5173 (use a Resend test sender only during initial testing; production mail needs a domain with SPF and DKIM). 5) Create a Groq API key and add GROQ_API_KEY and GROQ_MODEL=llama-3.3-70b-versatile only to backend/.env, never to a VITE_ variable since those are bundled into the browser. 6) Run 'node generate-keys.js', 'npx prisma generate', and 'npx prisma migrate dev' inside backend/, then add the generated keys to backend/.env. 7) Start both apps in separate terminals with 'npm run dev' at root and inside backend/.",
+      "keywords": [
+        "local setup",
+        "npm install",
+        "docker compose",
+        "PostgreSQL",
+        "Redis",
+        ".env",
+        "Resend",
+        "SPF",
+        "DKIM",
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+        "prisma migrate",
+        "generate-keys.js"
+      ]
+    },
+    {
+      "id": "local-urls",
+      "category": "setup",
+      "title": "Local Application URLs",
+      "content": "After setup, the frontend runs at http://localhost:5173, the backend runs at http://localhost:3001, and the admin content panel runs at http://127.0.0.1:5174. After signing in with an admin or super_admin account, use 'Publish Learning Content' to create courses and Project Hub items; published content is stored in PostgreSQL and appears automatically in the student Courses and Project Hub pages.",
+      "keywords": [
+        "localhost:5173",
+        "localhost:3001",
+        "127.0.0.1:5174",
+        "admin panel",
+        "super_admin",
+        "Publish Learning Content",
+        "Project Hub",
+        "Courses"
+      ]
+    },
+    {
+      "id": "api-flow",
+      "category": "api",
+      "title": "Core API Flow",
+      "content": "Core API endpoints include POST /api/v1/auth/register, POST /api/v1/auth/verify-email, POST /api/v1/auth/login, and POST /api/v1/contact/request. Mutating requests require a CSRF token obtained from GET /api/v1/auth/csrf-token along with its associated cookie.",
+      "keywords": [
+        "API flow",
+        "/api/v1/auth/register",
+        "/api/v1/auth/verify-email",
+        "/api/v1/auth/login",
+        "/api/v1/contact/request",
+        "csrf-token",
+        "CSRF"
+      ]
+    },
+    {
+      "id": "deployment-frontend",
+      "category": "deployment",
+      "title": "Production Deployment: Frontend",
+      "content": "For frontend production deployment, set VITE_API_BASE_URL=https://api.yourdomain.com/api/v1 in the frontend hosting provider, run 'npm run build', and deploy the resulting dist/ folder to Vercel, Netlify, Cloudflare Pages, or another static host.",
+      "keywords": [
+        "frontend deployment",
+        "VITE_API_BASE_URL",
+        "npm run build",
+        "dist",
+        "Vercel",
+        "Netlify",
+        "Cloudflare Pages"
+      ]
+    },
+    {
+      "id": "deployment-backend",
+      "category": "deployment",
+      "title": "Production Deployment: Backend",
+      "content": "Deploy the backend/ directory to a Node.js host such as Render, Railway, Fly.io, or a container platform, using Node 20 or newer. Run 'npm run build' then 'npm start'. Configure secrets (DATABASE_URL, REDIS_URL, JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, CSRF_SECRET, FIELD_ENCRYPTION_KEY, RESEND_API_KEY, EMAIL_FROM, ADMIN_EMAIL, GROQ_API_KEY, GROQ_MODEL, FRONTEND_URL, ALLOWED_ORIGINS) in the provider dashboard, never in Git. Set NODE_ENV=production, use managed PostgreSQL and Redis with TLS, run Prisma migrations during release, and set ALLOWED_ORIGINS to the exact frontend domains. FRONTEND_URL must be the public frontend origin so verification and reset links open the deployed React app.",
+      "keywords": [
+        "backend deployment",
+        "Node 20",
+        "Render",
+        "Railway",
+        "Fly.io",
+        "NODE_ENV=production",
+        "managed PostgreSQL",
+        "managed Redis",
+        "TLS",
+        "Prisma migrations",
+        "ALLOWED_ORIGINS",
+        "FRONTEND_URL",
+        "secrets"
+      ]
+    },
+    {
+      "id": "security-notes",
+      "category": "security",
+      "title": "Security Notes",
+      "content": "API keys must be kept only in backend environment variables; variables prefixed with VITE_ are public in the browser bundle. Resend errors are logged, and contact delivery errors are returned as server errors so the UI does not falsely claim a failed request was sent. Verification tokens are random, stored only as hashes, expire, and are marked used after consumption. Login notification emails never contain passwords, tokens, or other credentials.",
+      "keywords": [
+        "security",
+        "VITE_ variables",
+        "backend env vars",
+        "Resend errors",
+        "verification token hashing",
+        "login notification",
+        "no credentials in email"
+      ]
+    }
+  ]
+}

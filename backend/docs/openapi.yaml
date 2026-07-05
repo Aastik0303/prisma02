@@ -1,0 +1,462 @@
+openapi: 3.1.0
+info:
+  title: Prisma Embedded Codes — Authentication & Authorization System API
+  description: Security-hardened REST API for user registration, authentication, MFA (TOTP/Email), token rotation, and RBAC authorization.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Local Development Server
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Validates inputs, hashes password using Argon2id, creates user profile, and queues verification email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fullName
+                - email
+                - password
+              properties:
+                fullName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Aarav Sharma
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                  example: aarav@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                  example: Str0ng@Password!123
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Account created. Check your email to verify.
+                  userId:
+                    type: string
+                    format: uuid
+                    example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+
+  /auth/login:
+    post:
+      summary: Authenticate User
+      description: Authenticates user credentials. Returns JWT tokens, or prompts for MFA challenge.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: aarav@example.com
+                password:
+                  type: string
+                  example: Str0ng@Password!123
+                deviceFingerprint:
+                  type: string
+                  description: Optional base64-encoded device fingerprint
+                  example: dGVzdC1maW5nZXJwcmludC1kYXRh
+      responses:
+        '200':
+          description: Success (No MFA required, or MFA code verified successfully)
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=opaque-token; HttpOnly; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                      fullName:
+                        type: string
+                      role:
+                        type: string
+                        enum: [student, mentor, recruiter, admin]
+                  accessToken:
+                    type: string
+                    description: ES256 Signed JWT access token
+                  refreshToken:
+                    type: string
+                    description: Rotated opaque refresh token
+                  expiresIn:
+                    type: integer
+                    description: Access token lifespan in seconds (900)
+        '202':
+          description: MFA Challenge Required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requiresMfa:
+                    type: boolean
+                    example: true
+                  mfaToken:
+                    type: string
+                    format: uuid
+                    description: Temporary challenge token stored in Redis
+                  methods:
+                    type: array
+                    items:
+                      type: string
+                      enum: [totp, email_otp]
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '403':
+          description: Account locked due to failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+
+  /auth/logout:
+    post:
+      summary: Revoke session
+      description: Blacklists current JWT JTI, revokes refresh token, and clears HTTP cookies.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out successfully
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+  /auth/refresh:
+    post:
+      summary: Rotate refresh token
+      description: Validates current refresh token and returns a new rotated token pair. Protects against reuse theft.
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: Optional body fallback if cookies are blocked
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=new-opaque-token; HttpOnly; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+  /auth/verify-email:
+    post:
+      summary: Confirm email address
+      description: Submits the token received in email to verify and unlock full features.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  example: 32-byte-hex-verification-token
+      responses:
+        '200':
+          description: Verification success
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  /auth/forgot-password:
+    post:
+      summary: Initiate password reset
+      description: Sends reset link if email exists. Prevents user enumeration by returning a mock successful response regardless of account presence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: aarav@example.com
+      responses:
+        '200':
+          description: Link dispatched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: If that email exists, a reset link has been sent.
+
+  /auth/reset-password:
+    post:
+      summary: Complete password reset
+      description: Submits reset token and new password. Enforces password checks against breached accounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                  example: NewStrongPassword123!
+      responses:
+        '200':
+          description: Password updated. All user sessions invalidated.
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  /auth/verify-otp:
+    post:
+      summary: Submit MFA Code
+      description: Verifies 6-digit TOTP or email OTP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mfaToken
+                - code
+                - type
+              properties:
+                mfaToken:
+                  type: string
+                  format: uuid
+                  example: challenge-uuid-from-redis
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: '123456'
+                type:
+                  type: string
+                  enum: [totp, email_otp]
+      responses:
+        '200':
+          description: MFA successful. Tokens issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '400':
+          description: Invalid OTP code or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Lockout limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/csrf-token:
+    get:
+      summary: Get CSRF Token
+      description: Generates a CSRF token for the session, saves in Redis, and sets in Secure cookie.
+      responses:
+        '200':
+          description: Token generated
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: csrf_token=hash; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  csrfToken:
+                    type: string
+
+  /users/me:
+    get:
+      summary: Retrieve current profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                  fullName:
+                    type: string
+                  role:
+                    type: string
+
+  /users/admin/users:
+    get:
+      summary: Retrieve user list (Admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - error
+        - code
+        - message
+        - requestId
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Invalid inputs provided
+        details:
+          type: object
+        requestId:
+          type: string
+          format: uuid
+
+  responses:
+    400BadRequest:
+      description: Request schema validation failed or business logic check failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    401Unauthorized:
+      description: Authentication tokens are missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    429TooManyRequests:
+      description: Rate limits exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

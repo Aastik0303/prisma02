@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Prisma Embedded Codes admin panel for backend user information." />
+    <title>Prisma Embedded Codes Admin</title>
+    <script>
+      if (window.location.protocol === 'file:') {
+        window.location.replace('http://127.0.0.1:5174/')
+      }
+    </script>
+  </head>
+  <body class="dark bg-slate-950 text-slate-100 selection:bg-indigo-500/35">
+    <div id="admin-root">
+      <main style="min-height:100vh;display:grid;place-items:center;background:#020617;color:#e2e8f0;font-family:Arial,sans-serif;padding:24px;">
+        <section style="max-width:520px;border:1px solid #1e293b;background:#0f172a;border-radius:18px;padding:28px;box-shadow:0 24px 60px rgba(0,0,0,.35);">
+          <img src="/prisma-logo.svg" alt="Prisma Embedded Codes" style="display:block;width:180px;max-width:70%;height:auto;margin:0 0 18px;border-radius:14px;" />
+          <p style="margin:0 0 8px;color:#a5b4fc;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.18em;">Prisma Embedded Codes Admin</p>
+          <h1 style="margin:0 0 12px;color:white;font-size:28px;">Open the admin panel on localhost</h1>
+          <p style="margin:0 0 20px;color:#94a3b8;line-height:1.6;">This page is a Vite React app and cannot run from a direct file path. Use the local admin server instead.</p>
+          <a href="http://127.0.0.1:5174/" style="display:inline-block;background:#6366f1;color:white;text-decoration:none;border-radius:12px;padding:12px 16px;font-weight:800;">Open Admin Panel</a>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/admin/main.jsx"></script>
+  </body>
+</html>
