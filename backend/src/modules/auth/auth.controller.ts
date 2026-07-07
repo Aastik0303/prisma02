@@ -15,6 +15,11 @@ import { generateOpaqueToken, hashToken, generateNumericOtp } from '../../utils/
 import { sendEmail, sendLoginNotification, sendWelcomeEmail } from '../../utils/email.js';
 import { logAuditEvent } from '../../utils/audit.js';
 
+const crossSiteCookieOptions = {
+  secure: config.NODE_ENV === 'production',
+  sameSite: config.NODE_ENV === 'production' ? 'none' as const : 'strict' as const
+};
+
 export class AuthController {
   private authService: AuthService;
 
@@ -152,8 +157,7 @@ export class AuthController {
     // Set Refresh Token in HttpOnly cookie
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
-      secure: config.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...crossSiteCookieOptions,
       path: '/api/v1/auth/refresh',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
@@ -256,8 +260,7 @@ export class AuthController {
     // Set rotated Refresh Token in cookie
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
-      secure: config.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...crossSiteCookieOptions,
       path: '/api/v1/auth/refresh',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
@@ -555,8 +558,7 @@ export class AuthController {
     // Set Refresh Token in cookie
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
-      secure: config.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...crossSiteCookieOptions,
       path: '/api/v1/auth/refresh',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
@@ -606,16 +608,14 @@ export class AuthController {
     // Set session cookie
     reply.setCookie('csrf_session_id', sessionId, {
       httpOnly: true,
-      secure: config.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...crossSiteCookieOptions,
       path: '/',
       maxAge: 900
     });
 
     // Set double submit cookie
     reply.setCookie('csrf_token', csrfToken, {
-      secure: config.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...crossSiteCookieOptions,
       path: '/',
       maxAge: 900
     });
