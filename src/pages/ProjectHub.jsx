@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Code2, Layers, Cpu, Globe, Smartphone, Database, ShieldCheck,
-  Sparkles, ArrowRight, Eye, Download, Flame, ChevronRight, X, Mail, Phone, User, CheckCircle2
+  Sparkles, Eye, Download, Flame, ChevronRight, X, CheckCircle2, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeGeOHiOENm93xgiXILD1BdlNeMv1uhRkT1S2-PXuwYvhme9w/viewform?usp=publish-editor';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 /* ---------------------------------------------------------------------
    DESIGN TOKENS
@@ -74,10 +75,8 @@ const CATEGORIES = [
   },
 ];
 
-const TIERS = ['Basic', 'Intermediate', 'Advanced'];
-
 function makeProject(id, title, category, tier, desc, price, popular = false, free = false) {
-  return { id, title, category, tier, desc, price: 0, popular, free: true };
+  return { id, title, category, tier, desc, price, popular, free };
 }
 
 const PROJECTS = [
@@ -212,9 +211,12 @@ function ProjectCard({ project, onSee, enrolled = false }) {
       </div>
 
       <div
-        className="flex items-center justify-end px-6 py-3.5 border-t"
+        className="flex items-center justify-between gap-3 px-6 py-3.5 border-t"
         style={{ borderColor: TOKENS.line }}
       >
+        <span className="text-[11px] font-mono font-semibold" style={{ color: project.free ? TOKENS.teal : TOKENS.textDim }}>
+          {formatPrice(project.price)}
+        </span>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSee(project)}
@@ -224,7 +226,7 @@ function ProjectCard({ project, onSee, enrolled = false }) {
             <Eye className="w-3.5 h-3.5" /> See
           </button>
           <a
-            href={GOOGLE_FORM_URL}
+            href={project.actionUrl || GOOGLE_FORM_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
@@ -320,7 +322,7 @@ function DetailModal({ project, onClose }) {
 
             <div className="flex items-center justify-end pt-4 border-t" style={{ borderColor: TOKENS.line }}>
               <a
-                href={GOOGLE_FORM_URL}
+                href={project.actionUrl || GOOGLE_FORM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl"
@@ -342,13 +344,61 @@ function DetailModal({ project, onClose }) {
 export default function ProjectHub() {
   const [activeCategory, setActiveCategory] = useState(null); // null = landing/category-grid view
   const [seeProject, setSeeProject] = useState(null);
+  const [publishedProjects, setPublishedProjects] = useState([]);
+  const [projectSearch, setProjectSearch] = useState('');
 
-  const popularProjects = useMemo(() => PROJECTS.filter((p) => p.popular), []);
+  useEffect(() => {
+    let active = true;
+    fetch(`${API_BASE_URL}/catalog/projects`, { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(data => {
+        if (!active) return;
+        setPublishedProjects((data.projects || []).map(project => ({
+          ...project,
+          id: project.slug,
+          desc: project.description
+        })));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const allProjects = useMemo(() => [...PROJECTS, ...publishedProjects], [publishedProjects]);
+  const normalizedProjectSearch = projectSearch.trim().toLowerCase();
+  const searchedProjects = useMemo(() => {
+    if (!normalizedProjectSearch) return allProjects;
+
+    return allProjects.filter((project) => {
+      const category = CATEGORIES.find((cat) => cat.id === project.category);
+      return [
+        project.title,
+        project.desc,
+        project.category,
+        project.tier,
+        category?.label,
+        category?.blurb
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(normalizedProjectSearch));
+    });
+  }, [allProjects, normalizedProjectSearch]);
+  const searchedCategories = useMemo(() => {
+    if (!normalizedProjectSearch) return CATEGORIES;
+
+    return CATEGORIES.filter((category) => {
+      const categoryMatches = [category.label, category.blurb, category.id]
+        .some(value => value.toLowerCase().includes(normalizedProjectSearch));
+      const hasProjectMatches = searchedProjects.some((project) => project.category === category.id);
+      return categoryMatches || hasProjectMatches;
+    });
+  }, [normalizedProjectSearch, searchedProjects]);
+
+  const popularProjects = useMemo(() => searchedProjects.filter((p) => p.popular), [searchedProjects]);
 
   const categoryProjects = useMemo(() => {
     if (!activeCategory) return [];
-    return PROJECTS.filter((p) => p.category === activeCategory);
-  }, [activeCategory]);
+    return searchedProjects.filter((p) => p.category === activeCategory);
+  }, [activeCategory, searchedProjects]);
 
   const grouped = useMemo(() => {
     const g = { Basic: [], Intermediate: [], Advanced: [] };
@@ -357,6 +407,8 @@ export default function ProjectHub() {
   }, [categoryProjects]);
 
   const activeCategoryData = CATEGORIES.find((c) => c.id === activeCategory);
+  const hasProjectSearch = normalizedProjectSearch.length > 0;
+  const projectMatchCount = searchedProjects.length;
 
   return (
     <div className="min-h-screen w-full" style={{ background: TOKENS.ink }}>
@@ -382,6 +434,42 @@ export default function ProjectHub() {
         </p>
       </div>
 
+      <div className="px-6 max-w-6xl mx-auto mb-5">
+        <div
+          className="rounded-2xl border p-3"
+          style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}
+        >
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: TOKENS.textDim }} />
+            <input
+              type="search"
+              value={projectSearch}
+              onChange={(event) => setProjectSearch(event.target.value)}
+              placeholder="Search projects by title, tech, category, or difficulty..."
+              className="w-full rounded-xl border bg-transparent px-10 py-3 text-sm font-semibold outline-none transition-colors"
+              style={{ borderColor: TOKENS.line, color: TOKENS.paper }}
+            />
+          </label>
+          {hasProjectSearch && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono" style={{ color: TOKENS.textDim }}>
+              <span>
+                {projectMatchCount
+                  ? `${projectMatchCount} project match${projectMatchCount === 1 ? '' : 'es'}`
+                  : 'No projects match your search yet'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setProjectSearch('')}
+                className="rounded-lg px-3 py-1 font-semibold transition-colors"
+                style={{ color: TOKENS.paper, background: 'rgba(246,244,239,0.08)' }}
+              >
+                Clear search
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ============ CATEGORY RAIL ============ */}
       <div className="px-6 max-w-6xl mx-auto mb-4">
         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -394,7 +482,7 @@ export default function ProjectHub() {
               All categories
             </button>
           )}
-          {CATEGORIES.map((cat) => {
+          {searchedCategories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
             return (
@@ -421,9 +509,9 @@ export default function ProjectHub() {
           <>
             {/* Category grid (landing state) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-16">
-              {CATEGORIES.map((cat) => {
+              {searchedCategories.map((cat) => {
                 const Icon = cat.icon;
-                const count = PROJECTS.filter((p) => p.category === cat.id).length;
+                const count = searchedProjects.filter((p) => p.category === cat.id).length;
                 return (
                   <button
                     key={cat.id}
@@ -451,6 +539,19 @@ export default function ProjectHub() {
                 );
               })}
             </div>
+            {searchedCategories.length === 0 && (
+              <div className="rounded-2xl border p-8 text-center" style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}>
+                <h3
+                  className="text-base font-bold"
+                  style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  No categories found
+                </h3>
+                <p className="mt-2 text-sm" style={{ color: TOKENS.textDim }}>
+                  Clear the search or try another technology, topic, or difficulty.
+                </p>
+              </div>
+            )}
 
             {/* Most Popular Projects (scroll-revealed section) */}
             <div className="mb-4">
@@ -503,6 +604,19 @@ export default function ProjectHub() {
             <TierSection tier="Basic" projects={grouped.Basic} onSee={setSeeProject} />
             <TierSection tier="Intermediate" projects={grouped.Intermediate} onSee={setSeeProject} />
             <TierSection tier="Advanced" projects={grouped.Advanced} onSee={setSeeProject} />
+            {!categoryProjects.length && (
+              <div className="rounded-2xl border p-8 text-center" style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}>
+                <h3
+                  className="text-base font-bold"
+                  style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  No projects found in this category
+                </h3>
+                <p className="mt-2 text-sm" style={{ color: TOKENS.textDim }}>
+                  Try a different search term or switch back to all categories.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
