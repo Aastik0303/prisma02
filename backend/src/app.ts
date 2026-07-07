@@ -41,6 +41,15 @@ export class AppError extends Error {
   }
 }
 
+const normalizeOrigin = (value?: string | null) => {
+  if (!value) return '';
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.replace(/\/+$/, '');
+  }
+};
+
 export async function buildApp(opts = {}) {
   const app = fastify({
     logger: config.NODE_ENV !== 'test',
@@ -87,13 +96,18 @@ export async function buildApp(opts = {}) {
         return;
       }
 
-      const isAllowed = config.ALLOWED_ORIGINS.some(allowedOrigin => {
-        return origin === allowedOrigin || origin.startsWith(allowedOrigin);
-      });
+      const requestOrigin = normalizeOrigin(origin);
+      const allowedOrigins = new Set([
+        ...config.ALLOWED_ORIGINS.map(normalizeOrigin),
+        normalizeOrigin(config.FRONTEND_URL)
+      ].filter(Boolean));
+
+      const isAllowed = allowedOrigins.has(requestOrigin);
+      const isVercelPreviewOrigin = /^https:\/\/prisma02-[a-z0-9-]+\.vercel\.app$/i.test(requestOrigin);
 
       const isLocalDevOrigin = /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 
-      if (isAllowed || isLocalDevOrigin || config.NODE_ENV === 'test') {
+      if (isAllowed || isVercelPreviewOrigin || isLocalDevOrigin || config.NODE_ENV === 'test') {
         cb(null, true);
       } else {
         cb(new AppError(403, 'CORS_ERROR', 'Not allowed by CORS'), false);
