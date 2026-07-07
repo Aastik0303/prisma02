@@ -13,6 +13,8 @@ const cardStyleClass = `glass-panel p-6 rounded-3xl border border-indigo-500/10 
 const buttonPrimaryClass = `px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/10 transition-all`;
 const buttonSecondaryClass = `px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all`;
 const inputClass = `w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500/50 text-slate-900 dark:text-white text-xs`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   // UI Tabs
@@ -80,7 +82,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     setApiError('');
     try {
       // Fetch user's teams
-      const teamsRes = await fetch('/api/v1/teams', {
+      const teamsRes = await fetch(apiUrl('/teams'), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (teamsRes.ok) {
@@ -92,7 +94,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
       }
 
       // Fetch pending invitations
-      const invitesRes = await fetch('/api/v1/teams/invitations', {
+      const invitesRes = await fetch(apiUrl('/teams/invitations'), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (invitesRes.ok) {
@@ -115,7 +117,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     if (!selectedTeam || !authToken) return;
     try {
       // Get detailed team details (members + projects)
-      const res = await fetch(`/api/v1/teams/${selectedTeam.id}`, {
+      const res = await fetch(apiUrl(`/teams/${selectedTeam.id}`), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -125,7 +127,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
       }
 
       // Get dashboard metrics
-      const metricsRes = await fetch(`/api/v1/teams/${selectedTeam.id}/dashboard`, {
+      const metricsRes = await fetch(apiUrl(`/teams/${selectedTeam.id}/dashboard`), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (metricsRes.ok) {
@@ -150,12 +152,13 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
       socketRef.current.close();
     }
 
-    // Connect to WebSocket chat endpoint
+    const explicitWsBase = import.meta.env.VITE_WS_BASE_URL;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // E.g., localhost:5173
-    
-    // Connect to backend WS directly (assumes local proxy in development or port 3001)
-    const wsUrl = `${protocol}//${host.split(':')[0]}:3001/api/v1/chat/ws?token=${authToken}`;
+    const isViteDev = ['5173', '5174'].includes(window.location.port);
+    const inferredWsBase = isViteDev
+      ? `${protocol}//${window.location.hostname}:3001`
+      : `${protocol}//${window.location.host}`;
+    const wsUrl = `${explicitWsBase || inferredWsBase}/api/v1/chat/ws?token=${authToken}`;
 
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
@@ -199,11 +202,11 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const fetchChatHistory = async () => {
     if (!selectedTeam || !authToken) return;
     try {
-      let url = `/api/v1/chat/messages?teamId=${selectedTeam.id}`;
+      let url = apiUrl(`/chat/messages?teamId=${selectedTeam.id}`);
       if (selectedProject) {
-        url = `/api/v1/chat/messages?projectId=${selectedProject.id}`;
+        url = apiUrl(`/chat/messages?projectId=${selectedProject.id}`);
       } else if (chatType === 'dm' && dmTargetMember) {
-        url = `/api/v1/chat/messages?receiverId=${dmTargetMember.user.id}`;
+        url = apiUrl(`/chat/messages?receiverId=${dmTargetMember.user.id}`);
       }
 
       const res = await fetch(url, {
@@ -230,7 +233,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     if (!newTeamName.trim()) return;
     setApiError('');
     try {
-      const res = await fetch('/api/v1/teams', {
+      const res = await fetch(apiUrl('/teams'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -259,7 +262,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     if (!inviteEmail.trim() || !selectedTeam) return;
     setApiError('');
     try {
-      const res = await fetch(`/api/v1/teams/${selectedTeam.id}/invitations`, {
+      const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/invitations`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -283,7 +286,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const handleInviteResponse = async (inviteId, status) => {
     setApiError('');
     try {
-      const res = await fetch(`/api/v1/teams/invitations/${inviteId}/respond`, {
+      const res = await fetch(apiUrl(`/teams/invitations/${inviteId}/respond`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -308,7 +311,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     if (!selectedTeam) return;
     const nextRole = currentRole === 'LEADER' ? 'MEMBER' : 'LEADER';
     try {
-      const res = await fetch(`/api/v1/teams/${selectedTeam.id}/members/${memberUserId}`, {
+      const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/members/${memberUserId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -328,7 +331,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const handleRemoveMember = async (memberUserId) => {
     if (!selectedTeam || !confirm('Are you sure you want to remove this member from the team?')) return;
     try {
-      const res = await fetch(`/api/v1/teams/${selectedTeam.id}/members/${memberUserId}`, {
+      const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/members/${memberUserId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${authToken}` }
       });
@@ -344,7 +347,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const handleLeaveTeam = async () => {
     if (!selectedTeam || !confirm('Are you sure you want to leave this team?')) return;
     try {
-      const res = await fetch(`/api/v1/teams/${selectedTeam.id}/leave`, {
+      const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/leave`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` }
       });
@@ -366,7 +369,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     e.preventDefault();
     if (!newProjectTitle.trim() || !selectedTeam) return;
     try {
-      const res = await fetch('/api/v1/projects', {
+      const res = await fetch(apiUrl('/projects'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -396,7 +399,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const handleOpenProjectWorkspace = async (proj) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/v1/projects/${proj.id}`, {
+      const res = await fetch(apiUrl(`/projects/${proj.id}`), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -425,7 +428,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
         assigneeId: newTaskAssignee || null
       };
 
-      const res = await fetch('/api/v1/tasks', {
+      const res = await fetch(apiUrl('/tasks'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -451,7 +454,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   // Update Task Status
   const handleUpdateTaskStatus = async (taskId, nextStatus) => {
     try {
-      const res = await fetch(`/api/v1/tasks/${taskId}/status`, {
+      const res = await fetch(apiUrl(`/tasks/${taskId}/status`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -471,7 +474,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const handleSelectTask = async (task) => {
     setSelectedTask(task);
     try {
-      const res = await fetch(`/api/v1/tasks/${task.id}/comments`, {
+      const res = await fetch(apiUrl(`/tasks/${task.id}/comments`), {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -488,7 +491,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     e.preventDefault();
     if (!newComment.trim() || !selectedTask) return;
     try {
-      const res = await fetch(`/api/v1/tasks/${selectedTask.id}/comments`, {
+      const res = await fetch(apiUrl(`/tasks/${selectedTask.id}/comments`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -511,7 +514,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     e.preventDefault();
     if (!newDocTitle.trim() || !selectedProject) return;
     try {
-      const res = await fetch(`/api/v1/projects/${selectedProject.id}/documents`, {
+      const res = await fetch(apiUrl(`/projects/${selectedProject.id}/documents`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -574,7 +577,7 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
         url: `https://pec-storage.s3.amazonaws.com/${selectedProject.id}/${Date.now()}-${fileToUpload.name}`
       };
 
-      const res = await fetch(`/api/v1/projects/${selectedProject.id}/files`, {
+      const res = await fetch(apiUrl(`/projects/${selectedProject.id}/files`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
