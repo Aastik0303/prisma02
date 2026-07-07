@@ -16,6 +16,23 @@ const inputClass = `w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border bo
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
+const getCsrfToken = async () => {
+  const response = await fetch(apiUrl('/auth/csrf-token'), {
+    credentials: 'include'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || 'Unable to prepare secure request.');
+  return {
+    csrfToken: data.csrfToken,
+    csrfSessionId: data.csrfSessionId
+  };
+};
+
+const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
+  'X-CSRF-Token': csrfToken,
+  ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
+});
+
 export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   // UI Tabs
   const [teams, setTeams] = useState([]);
@@ -62,6 +79,12 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
   const [fileToUpload, setFileToUpload] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  const csrfAuthHeaders = async (headers = {}) => ({
+    ...headers,
+    ...buildCsrfHeaders(await getCsrfToken()),
+    Authorization: `Bearer ${authToken}`
+  });
 
   // Chat/Communication
   const [chatMessages, setChatMessages] = useState([]);
@@ -235,10 +258,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl('/teams'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: newTeamName, description: newTeamDesc })
       });
       const data = await res.json();
@@ -264,10 +285,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/invitations`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ inviteeEmail: inviteEmail, role: 'MEMBER' })
       });
       const data = await res.json();
@@ -288,10 +307,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/teams/invitations/${inviteId}/respond`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ status })
       });
       if (res.ok) {
@@ -313,10 +330,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/members/${memberUserId}`), {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ role: nextRole })
       });
       if (res.ok) {
@@ -333,7 +348,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/members/${memberUserId}`), {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` }
+        credentials: 'include',
+        headers: await csrfAuthHeaders()
       });
       if (res.ok) {
         loadTeamData();
@@ -349,7 +365,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/teams/${selectedTeam.id}/leave`), {
         method: 'POST',
-        headers: { Authorization: `Bearer ${authToken}` }
+        credentials: 'include',
+        headers: await csrfAuthHeaders()
       });
       if (res.ok) {
         const remaining = teams.filter((t) => t.id !== selectedTeam.id);
@@ -371,10 +388,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl('/projects'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           title: newProjectTitle,
           description: newProjectDesc,
@@ -430,10 +445,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
 
       const res = await fetch(apiUrl('/tasks'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -456,10 +469,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/tasks/${taskId}/status`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ status: nextStatus })
       });
       if (res.ok) {
@@ -493,10 +504,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/tasks/${selectedTask.id}/comments`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ content: newComment })
       });
       const data = await res.json();
@@ -516,10 +525,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
     try {
       const res = await fetch(apiUrl(`/projects/${selectedProject.id}/documents`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ title: newDocTitle, content: newDocContent })
       });
       if (res.ok) {
@@ -579,10 +586,8 @@ export default function TeamSpace({ isLoggedIn, userData, authToken }) {
 
       const res = await fetch(apiUrl(`/projects/${selectedProject.id}/files`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
+        credentials: 'include',
+        headers: await csrfAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
       

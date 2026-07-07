@@ -11,10 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+cookies.txt
+csrf.json
 .env
 .env.*
 backend/.env
 backend/.env.*
+!.env.example
+!backend/.env.example
 coverage
 .cache
 .parcel-cache

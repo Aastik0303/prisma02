@@ -66,7 +66,35 @@ describe('Authentication & Authorization System API Tests', () => {
       return newUser;
     });
 
-    app.prisma.user.findMany = vi.fn().mockImplementation(async () => mockUsers);
+    app.prisma.user.findMany = vi.fn().mockImplementation(async (args: any) => {
+      if (!args?.select?._count) return mockUsers;
+      return mockUsers.map(user => ({
+        ...user,
+        passwordHash: user.passwordHash || null,
+        metadata: user.metadata || {},
+        lastLoginAt: user.lastLoginAt || null,
+        lastLoginIp: user.lastLoginIp || null,
+        avatarUrl: user.avatarUrl || null,
+        refreshTokens: [],
+        auditLogs: [],
+        _count: {
+          refreshTokens: 0,
+          authTokens: 0,
+          auditLogs: 0,
+          teamMemberships: 0,
+          ownedProjects: 0,
+          assignedTasks: 0,
+          sentMessages: 0,
+          receivedMessages: 0
+        }
+      }));
+    });
+    app.prisma.user.count = vi.fn().mockImplementation(async (args: any) => {
+      if (args?.where?.emailVerified === true) return mockUsers.filter(user => user.emailVerified).length;
+      if (args?.where?.mfaEnabled === true) return mockUsers.filter(user => user.mfaEnabled).length;
+      if (args?.where?.lockedUntil) return mockUsers.filter(user => user.lockedUntil && user.lockedUntil > new Date()).length;
+      return mockUsers.length;
+    });
 
     app.prisma.user.update = vi.fn().mockImplementation(async (args: any) => {
       const { where, data } = args;
@@ -169,6 +197,7 @@ describe('Authentication & Authorization System API Tests', () => {
       mockAuditLogs.push(newLog);
       return newLog;
     });
+    app.prisma.auditLog.findMany = vi.fn().mockResolvedValue([]);
 
     // Make transaction calls resolve smoothly
     app.prisma.$transaction = vi.fn().mockImplementation(async (cb: any) => {
@@ -307,6 +336,28 @@ describe('Authentication & Authorization System API Tests', () => {
       // Cookie is set
       const cookies = response.headers['set-cookie'] || [];
       expect(cookies.some((c: string) => c.includes('refreshToken='))).toBe(true);
+      expect(sentEmailsTestBox.some(email => email.type === 'login_notification')).toBe(true);
+      expect(mockUsers[0].lastLoginAt).toBeInstanceOf(Date);
+    });
+
+    it('should allow login before the email address is verified', async () => {
+      mockUsers[0].emailVerified = false;
+      const { csrfToken, sessionCookie } = await getCsrfContext();
+      const response = await request(serverInstance)
+        .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          email: 'test@example.com',
+          password: 'Password123!'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body.user.email).toBe('test@example.com');
+      expect(mockRefreshTokens).toHaveLength(1);
+      expect(mockUsers[0].emailVerified).toBe(false);
+      expect(sentEmailsTestBox.some(email => email.type === 'login_notification')).toBe(true);
     });
 
     it('should fail with an incorrect password', async () => {
@@ -412,6 +463,29 @@ describe('Authentication & Authorization System API Tests', () => {
         });
 
       expect(regResponse.status).toBe(201);
+    });
+  });
+
+  describe('POST /api/v1/contact/request', () => {
+    it('should validate and dispatch a contact request email', async () => {
+      const { csrfToken, sessionCookie } = await getCsrfContext();
+      const response = await request(serverInstance)
+        .post('/api/v1/contact/request')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          name: 'Aarav Sharma',
+          email: 'aarav@example.com',
+          message: 'I would like to discuss a business partnership.',
+          website: ''
+        });
+
+      expect(response.status).toBe(202);
+      expect(sentEmailsTestBox.some(email => (
+        email.type === 'contact_request'
+        && email.to === 'admin@example.com'
+        && email.replyTo === 'aarav@example.com'
+      ))).toBe(true);
     });
   });
 
@@ -582,8 +656,8 @@ describe('Authentication & Authorization System API Tests', () => {
         .set('Authorization', `Bearer ${adminJwt}`);
 
       expect(adminAccess.status).toBe(200);
-      expect(adminAccess.body).toBeInstanceOf(Array);
-      expect(adminAccess.body).toHaveLength(2); // returns both seeded users
+      expect(adminAccess.body.users).toBeInstanceOf(Array);
+      expect(adminAccess.body.users).toHaveLength(2);
     });
   });
 });

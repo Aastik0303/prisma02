@@ -6,7 +6,6 @@ import { z } from 'zod';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load dotenv file
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const configSchema = z.object({
@@ -16,60 +15,41 @@ const configSchema = z.object({
   DATABASE_URL: z.string().url(),
   DATABASE_REPLICA_URL: z.string().url().optional(),
   REDIS_URL: z.string(),
-  JWT_PRIVATE_KEY_BASE64: z.string().min(1, 'Private key is required').or(z.literal('')),
-  JWT_PUBLIC_KEY_BASE64: z.string().min(1, 'Public key is required').or(z.literal('')),
+  JWT_PRIVATE_KEY: z.string().min(1, 'JWT_PRIVATE_KEY is required'),
+  JWT_PUBLIC_KEY: z.string().min(1, 'JWT_PUBLIC_KEY is required'),
   JWT_ACCESS_EXPIRY: z.coerce.number().default(900),
   JWT_REFRESH_EXPIRY: z.coerce.number().default(604800),
-  CSRF_SECRET: z.string().min(32, 'CSRF Secret must be at least 32 characters').default('csrf_secret_key_minimum_length_32_chars_fallback'),
+  CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must be at least 32 characters'),
   RESEND_API_KEY: z.string().default('re_mock_key'),
   EMAIL_FROM: z.string().email().default('noreply@prismaembedded.codes'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  BACKEND_URL: z.string().url().default('http://localhost:3001'),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  GROQ_API_KEY: z.string().trim().optional(),
+  GROQ_API_KEY2: z.string().trim().optional(),
+  GROQ_API_KEY3: z.string().trim().optional(),
+  GROQ_API_KEYS: z.string().trim().optional().transform(val => (
+    val ? val.split(',').map(key => key.trim()).filter(Boolean) : []
+  )),
+  GROQ_MODEL: z.string().trim().min(1).default('llama-3.3-70b-versatile'),
+  HUGGINGFACE_API_KEY: z.string().trim().optional(),
+  HUGGINGFACE_EMBEDDING_MODEL: z.string().trim().min(1).default('sentence-transformers/all-MiniLM-L6-v2'),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
-  ADMIN_FULL_NAME: z.string().min(1).default('Aastik Mishra'),
-  FIELD_ENCRYPTION_KEY: z.string().length(64, 'Encryption key must be 32-byte hex (64 hex characters)'),
+  ADMIN_FULL_NAME: z.string().min(1).default('System Administrator'),
+  FIELD_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/, 'FIELD_ENCRYPTION_KEY must be a 32-byte hex key (64 hex characters)'),
   BCRYPT_ROUNDS: z.coerce.number().default(12),
   LOCKOUT_THRESHOLD: z.coerce.number().default(5),
   LOCKOUT_DURATION_MINUTES: z.coerce.number().default(30)
 });
 
-const getEnvOrFallback = () => {
-  // If running in Vitest test environment, load default fallback values so tests don't fail for missing secrets
-  if (process.env.NODE_ENV === 'test') {
-    return {
-      NODE_ENV: 'test',
-      PORT: 3001,
-      ALLOWED_ORIGINS: 'http://localhost:5173',
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/prisma_auth?schema=public',
-      REDIS_URL: 'redis://localhost:6379/0',
-      JWT_PRIVATE_KEY_BASE64: 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgfXm/sXq62o/zFz/15W43YqH0gC4XpZ3zP/wK7Gg9R2qhRANCAARm7oX6nSfZfS6WqT92cZ3l8m+h4mBwL2P4uP8p1YyN7hUjT+VnQ37OQhC5V3V6J7cZ9Xz8QxY2U7f5Kz8O1k',
-      JWT_PUBLIC_KEY_BASE64: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZu6F+p0n2X0ulqk/dnGd5fJvoeJgcC9j+Lj/KdWMre4VI0/lZ0N+zkIQuVd1eie3GfV8/EMWNlO3+Ss/DtZH',
-      JWT_ACCESS_EXPIRY: 900,
-      JWT_REFRESH_EXPIRY: 604800,
-      CSRF_SECRET: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      RESEND_API_KEY: 're_test',
-      EMAIL_FROM: 'noreply@prismaembedded.codes',
-      ADMIN_EMAIL: undefined,
-      ADMIN_PASSWORD: undefined,
-      ADMIN_FULL_NAME: 'Test Admin',
-      FIELD_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      BCRYPT_ROUNDS: 4, // lower rounds for faster test execution
-      LOCKOUT_THRESHOLD: 5,
-      LOCKOUT_DURATION_MINUTES: 30
-    };
-  }
-
-  return process.env;
-};
-
-const parsedConfig = configSchema.safeParse(getEnvOrFallback());
+const parsedConfig = configSchema.safeParse(process.env);
 
 if (!parsedConfig.success) {
-  console.error('❌ Invalid environment configuration:', JSON.stringify(parsedConfig.error.format(), null, 2));
-  process.exit(1);
+  throw new Error(`Invalid environment configuration: ${JSON.stringify(parsedConfig.error.format(), null, 2)}`);
 }
 
 export const config = parsedConfig.data;

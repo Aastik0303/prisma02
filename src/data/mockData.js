@@ -7,7 +7,7 @@ export const CAREER_TRACKS = [
     description: "Master modern frontend and full stack architectures using React, Next.js, and TypeScript.",
     icon: "Globe",
     xp: 320,
-    totalNodes: 11,
+    totalNodes: 9,
     completedNodes: 4,
     nodes: [
       {
@@ -71,98 +71,63 @@ export const CAREER_TRACKS = [
         }
       },
       {
-        id: "wd-5",
-        title: "Resume Building: Professional Vercel-Style Resume",
-        description: "Draft your technical resume highlighting developer achievements, clean layouts, and core metrics.",
-        category: "Resume Building",
-        status: "active",
-        xp: 100,
-        type: "checkpoint",
-        quiz: {
-          question: "Which of the following describes the most impactful way to list a project on a developer resume?",
-          options: [
-            "Wrote CSS and JS files for a web application using React.",
-            "Created a React dashboard, leading to high ratings.",
-            "Architected a responsive React portal using Recharts, optimizing initial page load time by 34%.",
-            "Designed layout screens for mobile and desktop screens."
-          ],
-          answerIndex: 2,
-          explanation: "Action verbs combined with tangible, quantifiable metrics make technical achievements stand out to hiring managers."
-        }
-      },
-      {
         id: "wd-6",
-        title: "ATS Optimization: Semantic Matching",
-        description: "Optimize keywords, descriptions, and syntax for applicant tracking systems.",
-        category: "ATS Optimization",
+        title: "Core Skills: React Components, Hooks & State",
+        description: "Build reusable component systems with hooks, context, reducers, and predictable state flow.",
+        category: "Core Skills",
         status: "locked",
         xp: 120,
         type: "lesson",
         quiz: {
-          question: "Which format is widely considered the most reliable and readable for ATS scanners?",
-          options: ["Single-column clean PDF", "Multi-column highly styled PDF", "Image file (PNG)", "Word document with text frames"],
+          question: "When is useReducer generally preferable to several related useState calls?",
+          options: ["When state transitions are complex and depend on previous state", "Only when fetching CSS files", "When a component has no state", "Only for server components"],
           answerIndex: 0,
-          explanation: "A single-column layout without advanced tabular elements or drawing boxes scans perfectly on almost all ATS parsers."
+          explanation: "useReducer centralizes related state transitions and makes complex updates easier to reason about and test."
         }
       },
       {
         id: "wd-7",
-        title: "Mock Interviews: Frontend Coding Challenge",
-        description: "Pass a live simulated coding assessment on React state, hooks, and lifecycle.",
-        category: "Mock Interviews",
+        title: "Core Skills: TypeScript & Type-Safe APIs",
+        description: "Master interfaces, generics, unions, narrowing, and typed client-server contracts.",
+        category: "Core Skills",
         status: "locked",
         xp: 150,
-        type: "checkpoint",
+        type: "lesson",
         quiz: {
-          question: "When using React's useEffect hook, what occurs if you pass an empty array [] as the dependency list?",
-          options: ["It runs on every state change", "It never runs", "It runs once when the component mounts", "It triggers a memory leak"],
-          answerIndex: 2,
-          explanation: "An empty dependency list specifies that the effect does not rely on any reactive props/state, so it runs exactly once upon mounting."
+          question: "What does a TypeScript generic allow a function to do?",
+          options: ["Preserve type information while working with multiple input types", "Disable all compiler checks", "Convert every value to a string", "Run only in a browser"],
+          answerIndex: 0,
+          explanation: "Generics let reusable functions and components retain precise type relationships without falling back to any."
         }
       },
       {
         id: "wd-8",
-        title: "Internship Readiness: Tech Assessment Preparation",
-        description: "Master algorithm basics, system design for frontend, and performance metrics (LCP, FID).",
-        category: "Internship Readiness",
+        title: "Core Skills: Next.js Rendering & Data Fetching",
+        description: "Understand server components, route handlers, caching, streaming, SSR, SSG, and ISR.",
+        category: "Core Skills",
         status: "locked",
         xp: 200,
         type: "lesson",
         quiz: {
-          question: "What does Largest Contentful Paint (LCP) measure in web performance metrics?",
-          options: ["Visual load speed of the main page content", "Time it takes for a page to become fully interactive", "Total blocking time of main thread operations", "Layout shifts during rendering"],
+          question: "Which Next.js strategy regenerates static pages after a configured interval?",
+          options: ["Incremental Static Regeneration (ISR)", "Client-only rendering", "Forced browser reloads", "CSS hydration"],
           answerIndex: 0,
-          explanation: "LCP tracks when the primary, largest image or text block is fully rendered on the screen."
-        }
-      },
-      {
-        id: "wd-9",
-        title: "Freelancing Readiness: Building Upwork Profiles",
-        description: "Define your niche, project hourly rates, write high-converting cover letters, and curate portfolios.",
-        category: "Freelancing Readiness",
-        status: "locked",
-        xp: 180,
-        type: "checkpoint",
-        quiz: {
-          question: "What is the most effective element of a freelance project proposal?",
-          options: ["Stating you have the lowest price", "Explaining how your unique skills directly address the client's explicit problem statement within the first 2 sentences", "Listing all programming languages you know", "Copying and pasting a generic cover letter template"],
-          answerIndex: 1,
-          explanation: "Clients scan proposals quickly. Aligning immediately with their problem statement captures attention and establishes trust."
+          explanation: "ISR serves cached static output and refreshes it after the revalidation period without rebuilding the entire application."
         }
       },
       {
         id: "wd-10",
-        title: "Capstone: Next.js SaaS E-Commerce Platform",
-        description: "Implement a highly interactive capstone shop portal featuring ISR, Stripe billing, and localized cart systems.",
-        category: "Capstone Project",
+        title: "Core Skills: Secure Full-Stack Architecture",
+        description: "Strengthen server actions, route handlers, database transactions, authentication, and production API boundaries.",
+        category: "Core Skills",
         status: "locked",
         xp: 300,
-        type: "project",
+        type: "lesson",
         quiz: {
-          question: "Which database index strategy optimizes quick checks on Stripe transaction ids in e-commerce databases?",
-          options: ["Single field index on 'stripe_id'", "Full table scans", "Composite index on non-key elements", "In-memory session mapping"],
+          question: "Which approach best protects a production Next.js mutation from client-side tampering?",
+          options: ["Validate authorization and inputs inside the server-side handler", "Trust hidden form fields", "Store secrets in localStorage", "Run database writes directly from the browser"],
           answerIndex: 0,
-          explanation: "A standard index on 'stripe_id' enables direct B-Tree search, avoiding slow linear table scans for payment confirmations."
+          explanation: "Server-side validation keeps privileged checks and secrets away from the browser while enforcing the real business rules."
         }
       },
       {
@@ -188,7 +153,7 @@ export const CAREER_TRACKS = [
     description: "Build intelligence engines. Train models with Python, Pandas, TensorFlow, and PyTorch.",
     icon: "Cpu",
     xp: 0,
-    totalNodes: 11,
+    totalNodes: 9,
     completedNodes: 0,
     nodes: [
       {
@@ -252,48 +217,28 @@ export const CAREER_TRACKS = [
         }
       },
       {
-        id: "ai-5",
-        title: "Resume Building: AI/ML Engineering Highlight",
-        description: "Structure model metrics, dataset scales, and algorithmic improvements clearly.",
-        category: "Resume Building",
-        status: "locked",
-        xp: 100,
-        type: "checkpoint",
-        quiz: {
-          question: "What is the best way to write model training results on your resume?",
-          options: [
-            "Trained models using PyTorch for classification.",
-            "Engineered a ResNet50 vision classifier using PyTorch, achieving 94.2% test accuracy and cutting inference time by 18%.",
-            "Wrote neural networks for computer vision.",
-            "Worked on data analysis models."
-          ],
-          answerIndex: 1,
-          explanation: "Explaining the architecture, final accuracy, and inference enhancements demonstrates specialized ML mastery."
-        }
-      },
-      {
         id: "ai-6",
-        title: "ATS Optimization: Keyword Structuring",
-        description: "Identify and position key library terms like PyTorch, Scikit-Learn, and NLP parameters.",
-        category: "ATS Optimization",
+        title: "Core Skills: Feature Engineering & Data Preprocessing",
+        description: "Handle missing values, scaling, encoding, leakage prevention, and reproducible data pipelines.",
+        category: "Core Skills",
         status: "locked",
         xp: 120,
         type: "lesson",
         quiz: {
-          question: "How should technical abbreviations be written for ATS compliance?",
-          options: ["Only the abbreviations", "Only the long-form words", "Both abbreviation and long-form e.g. Natural Language Processing (NLP)", "Capitalized bullet points without spacing"],
-          answerIndex: 2,
-          explanation: "Writing both forms ensures matching regardless of whether the recruiter's system scans for the abbreviation or full term."
+          question: "Why must preprocessing transformers be fitted only on training data?",
+          options: ["To prevent information from the validation or test set leaking into training", "To make files larger", "To remove labels", "To disable cross-validation"],
+          answerIndex: 0,
+          explanation: "Fitting preprocessing on all data leaks information from held-out examples and produces misleading evaluation results."
         }
       },
       {
         id: "ai-7",
-        title: "Mock Interviews: Machine Learning Fundamentals",
-        description: "Pass technical quiz and system-design rounds covering backpropagation and CNNs.",
-        category: "Mock Interviews",
+        title: "Core Skills: Deep Learning & Backpropagation",
+        description: "Understand neural layers, activation functions, loss functions, CNNs, and gradient-based training.",
+        category: "Core Skills",
         status: "locked",
         xp: 150,
-        type: "checkpoint",
+        type: "lesson",
         quiz: {
           question: "What mathematical component computes updates during neural network training backpropagation?",
           options: ["Forward pass weights", "Partial derivatives (gradients) using the Chain Rule", "Categorical cross-entropy static values", "ReLu activation cutoff"],
@@ -303,9 +248,9 @@ export const CAREER_TRACKS = [
       },
       {
         id: "ai-8",
-        title: "Internship Readiness: MLOps and Deployment",
-        description: "Understand model containerization with Docker and deployment via FastAPI.",
-        category: "Internship Readiness",
+        title: "Core Skills: Model Serving, MLOps & Monitoring",
+        description: "Package models with FastAPI and Docker, version artifacts, and monitor inference quality.",
+        category: "Core Skills",
         status: "locked",
         xp: 200,
         type: "lesson",
@@ -317,33 +262,18 @@ export const CAREER_TRACKS = [
         }
       },
       {
-        id: "ai-9",
-        title: "Freelancing Readiness: AI Automation Services",
-        description: "Leverage OpenAI APIs and custom agent scripts to bid on freelance AI automation tasks.",
-        category: "Freelancing Readiness",
-        status: "locked",
-        xp: 180,
-        type: "checkpoint",
-        quiz: {
-          question: "Which of the following is highly profitable for AI freelancing today?",
-          options: ["Typing simple datasets", "Writing standard web scraping algorithms", "Building custom retrieval-augmented generation (RAG) agents linked to enterprise internal files", "Explaining standard models in MS Word"],
-          answerIndex: 2,
-          explanation: "Enterprise RAG development is highly demanded and yields premium contract budgets."
-        }
-      },
-      {
         id: "ai-10",
-        title: "Capstone: Enterprise RAG Chatbot Integration",
-        description: "Build, configure, and evaluate an enterprise vector search agent linked to Pinecone databases.",
-        category: "Capstone Project",
+        title: "Core Skills: Retrieval Systems & LLM Evaluation",
+        description: "Master embeddings, vector search, retrieval quality metrics, grounded generation, and evaluation loops.",
+        category: "Core Skills",
         status: "locked",
         xp: 300,
-        type: "project",
+        type: "lesson",
         quiz: {
-          question: "What metric evaluates retrieval quality in a RAG pipeline?",
-          options: ["Top-K Cosine Similarity threshold score", "File size in MBs", "Total epoch iteration count", "API ping delays"],
+          question: "What signal is most useful when judging whether retrieved context is relevant to an LLM query?",
+          options: ["Top-K similarity score against the query embedding", "The PDF file size", "The total number of model epochs", "The API server uptime"],
           answerIndex: 0,
-          explanation: "Cosine similarity measures vector proximity to filter relevant database documents before sending queries to LLMs."
+          explanation: "Embedding similarity helps rank chunks by semantic closeness before they are used as grounded context for generation."
         }
       },
       {
@@ -369,7 +299,7 @@ export const CAREER_TRACKS = [
     description: "Write ultra-low power firmware in C/C++ for microcontrollers and real-time systems.",
     icon: "Cpu",
     xp: 0,
-    totalNodes: 11,
+    totalNodes: 9,
     completedNodes: 0,
     nodes: [
       {
@@ -433,48 +363,28 @@ export const CAREER_TRACKS = [
         }
       },
       {
-        id: "emb-5",
-        title: "Resume Building: Hardware & Firmware Integration",
-        description: "Document hardware platforms, firmware optimizations, RTOS details, and protocol interfaces.",
-        category: "Resume Building",
-        status: "locked",
-        xp: 100,
-        type: "checkpoint",
-        quiz: {
-          question: "What is the best way to list a firmware project on a resume?",
-          options: [
-            "Wrote code to blink LEDs and measure heat.",
-            "Programmed Arduino processors with simple functions.",
-            "Designed STM32-based RTOS firmware in C, utilizing DMA channels to optimize ADC collection rates by 40% with zero core intervention.",
-            "Wrote SPI interface functions for low speed cards."
-          ],
-          answerIndex: 2,
-          explanation: "Using technical specifics (STM32, RTOS, DMA, ADC) and quantifiable results highlights industrial readiness."
-        }
-      },
-      {
         id: "emb-6",
-        title: "ATS Optimization: Hardware/Firmware Keywords",
-        description: "Incorporate critical terms (RTOS, MCU, Oscilloscopes, Git) to appeal to hardware hiring bots.",
-        category: "ATS Optimization",
+        title: "Core Skills: ADC, Timers, DMA & Memory",
+        description: "Configure peripheral clocks, sample analog signals, stream buffers with DMA, and manage memory safely.",
+        category: "Core Skills",
         status: "locked",
         xp: 120,
         type: "lesson",
         quiz: {
-          question: "Why should firmware engineers list toolchains like Keil, IAR, or GCC on their resume?",
-          options: ["To show they write guides", "Because recruiters and ATS filters check for specific proprietary compiler environments", "They are coding languages", "They look aesthetic on page dividers"],
-          answerIndex: 1,
-          explanation: "Many hardware groups have established toolchains and look for immediate familiarity with Keil, STM32CubeIDE, or GCC."
+          question: "What is the main benefit of DMA for high-rate peripheral transfers?",
+          options: ["It moves data between peripherals and memory with minimal CPU intervention", "It increases source-code font size", "It replaces all interrupts", "It permanently stores data in flash"],
+          answerIndex: 0,
+          explanation: "DMA transfers buffers independently of the CPU, leaving processor time available for control and application tasks."
         }
       },
       {
         id: "emb-7",
-        title: "Mock Interviews: Real-Time Operating Systems (RTOS)",
-        description: "Ace questions on task schedulers, semaphores, mutexes, and deadlocks.",
-        category: "Mock Interviews",
+        title: "Core Skills: FreeRTOS Scheduling & Synchronization",
+        description: "Master tasks, priorities, queues, semaphores, mutexes, notifications, and deadlock prevention.",
+        category: "Core Skills",
         status: "locked",
         xp: 150,
-        type: "checkpoint",
+        type: "lesson",
         quiz: {
           question: "What is priority inversion in RTOS environments?",
           options: [
@@ -489,9 +399,9 @@ export const CAREER_TRACKS = [
       },
       {
         id: "emb-8",
-        title: "Internship Readiness: Hardware Debugging",
+        title: "Core Skills: Hardware Debugging & Instrumentation",
         description: "Learn to read logic analyzer traces, configure oscilloscope triggers, and run JTAG debugging.",
-        category: "Internship Readiness",
+        category: "Core Skills",
         status: "locked",
         xp: 200,
         type: "lesson",
@@ -503,33 +413,18 @@ export const CAREER_TRACKS = [
         }
       },
       {
-        id: "emb-9",
-        title: "Freelancing Readiness: Prototyping Services",
-        description: "How to draft schematic designs, layout PCBs using KiCad, and contract micro-firmware jobs.",
-        category: "Freelancing Readiness",
-        status: "locked",
-        xp: 180,
-        type: "checkpoint",
-        quiz: {
-          question: "What file package is standard for PCB fabrication houses?",
-          options: ["PDF schematics", "Gerber files (RS-274X or Gerber X2)", "KiCad project formats", "Excel bill of materials"],
-          answerIndex: 1,
-          explanation: "Fabrication houses require standardized vector Gerber files detailing copper layers, soldermasks, and drills."
-        }
-      },
-      {
         id: "emb-10",
-        title: "Capstone: STM32 Dual-Task RTOS Drone Stabilizer",
-        description: "Interface sensor telemetry via high-speed SPI DMA, compute PID loop controls, and adjust multi-channel PWM outputs.",
-        category: "Capstone Project",
+        title: "Core Skills: Control Loops, DMA & RTOS Integration",
+        description: "Deepen PID control, DMA telemetry, task timing, synchronization, and PWM output coordination.",
+        category: "Core Skills",
         status: "locked",
         xp: 300,
-        type: "project",
+        type: "lesson",
         quiz: {
-          question: "What STM32 peripheral moves data directly from peripheral registries to SRAM without calling CPU instructions?",
+          question: "What STM32 peripheral moves data directly from peripheral registers to SRAM with minimal CPU intervention?",
           options: ["DMA Controller", "NVIC controller", "External GPIO triggers", "RTC clocks"],
           answerIndex: 0,
-          explanation: "Direct Memory Access (DMA) routes high-speed data stream payloads directly into memory buffers, reducing CPU consumption."
+          explanation: "Direct Memory Access routes high-speed peripheral payloads directly into memory buffers, preserving CPU time for control logic."
         }
       },
       {

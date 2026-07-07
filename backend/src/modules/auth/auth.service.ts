@@ -2,7 +2,7 @@ import { PrismaClient, User, RefreshToken, UserRole } from '@prisma/client';
 import crypto from 'crypto';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
 import { generateOpaqueToken, hashToken } from '../../utils/crypto.js';
-import { sendEmail } from '../../utils/email.js';
+import { sendEmail, sendVerificationEmail } from '../../utils/email.js';
 import { logAuditEvent } from '../../utils/audit.js';
 import { config } from '../../config/config.js';
 
@@ -108,8 +108,8 @@ export class AuthService {
     });
 
     // 5. Send Email (via queue)
-    const verificationLink = `https://prismaembedded.codes/verify-email?token=${verificationToken}`;
-    await sendEmail(user.email, 'verification', {
+    const verificationLink = `${config.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    await sendVerificationEmail(user.email, {
       fullName: user.fullName,
       verificationLink
     });
@@ -148,7 +148,7 @@ export class AuthService {
         }
       });
 
-      const unlockLink = `https://prismaembedded.codes/unlock-account?token=${unlockToken}`;
+      const unlockLink = `${config.FRONTEND_URL}/unlock-account?token=${unlockToken}`;
       await sendEmail(user.email, 'account_locked', {
         fullName: user.fullName,
         unlockLink

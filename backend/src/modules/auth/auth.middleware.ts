@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { UserRole } from '@prisma/client';
+import { errors as joseErrors } from 'jose';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -82,11 +83,14 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
       fullName: user.fullName
     };
   } catch (error: any) {
+    const isExpired = error instanceof joseErrors.JWTExpired || error?.code === 'ERR_JWT_EXPIRED';
     return reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
-      code: 'UNAUTHORIZED',
-      message: error.message || 'Authentication failed'
+      code: isExpired ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED',
+      message: isExpired
+        ? 'Your session has expired. Please refresh your session or sign in again.'
+        : 'Authentication failed'
     });
   }
 }

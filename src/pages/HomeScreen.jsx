@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Compass, ShieldCheck, Users, FolderGit2, Sparkles, ArrowRight, Target,
   ChevronDown, Eye, Zap, Globe, Award, Cpu, Rocket, Heart,
-  Phone, MapPin, Mail, Send, TrendingUp,
+  Phone, Mail, TrendingUp,
   Hexagon, Triangle, Circle, Square, Pentagon, Octagon, Diamond,
   Fingerprint, BrainCircuit, Code2,
   Crown
 } from 'lucide-react';
-import { motion, useScroll, useTransform, useSpring, useInView, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useSpring, useInView } from 'framer-motion';
+import ContactForm from './ContactForm';
 
 /* ═══════════════════════════════════════════════════════════════
    FLOATING SHAPE - Decorative animated geometric element
@@ -495,7 +496,7 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
               { value: 500, suffix: '+', label: 'Projects' },
               { value: 98, suffix: '%', label: 'Success Rate' },
               { value: 50, suffix: '+', label: 'Mentors' }
-            ].map((stat, i) => (
+            ].map(stat => (
               <div key={stat.label} className="text-center">
                 <div className="text-2xl sm:text-3xl font-black text-slate-900">
                   <AnimatedCounter value={stat.value} suffix={stat.suffix} />
@@ -857,89 +858,13 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
               })}
             </div>
 
-            {/* Address Card */}
+            {/* Contact Form */}
             <ScrollReveal delay={0.3} direction="right">
               <TiltCard intensity={8}>
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-                  {/* Glow */}
-                  <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/20 rounded-full blur-[60px]" />
-                  <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-[60px]" />
-
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                        <MapPin className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-white text-xl">Headquarters</h3>
-                        <p className="text-sm text-slate-400">Visit us anytime</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 mt-1">
-                          <MapPin className="w-5 h-5 text-indigo-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-300 mb-1">Address</p>
-                          <p className="text-white leading-relaxed">
-                            Aonla, Bareilly<br />
-                            Uttar Pradesh, 243301<br />
-                            <span className="text-indigo-400">India</span>
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 mt-1">
-                          <Phone className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-300 mb-1">Phone Numbers</p>
-                          <div className="space-y-1">
-                            {team.map(m => (
-                              <div key={m.phone} className="flex items-center gap-2 text-white">
-                                <span className="text-slate-500 text-xs">{m.name.split(' ')[0]}:</span>
-                                <span className="font-mono text-sm">{m.phone}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 mt-1">
-                          <Mail className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-300 mb-1">Email Addresses</p>
-                          <div className="space-y-1.5">
-                            {team.map(member => (
-                              <a
-                                key={member.email}
-                                href={`mailto:${member.email}`}
-                                className="flex items-center gap-2 text-white transition-colors hover:text-indigo-300"
-                              >
-                                <span className="text-slate-500 text-xs">{member.name.split(' ')[0]}:</span>
-                                <span className="text-sm font-medium">{member.email}</span>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CTA */}
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={onStartJourney}
-                      className="w-full mt-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25"
-                    >
-                      <Send className="w-4 h-4" /> Get in Touch
-                    </motion.button>
-                  </div>
+                <div className="rounded-lg border border-white/10 bg-white p-8 text-left shadow-2xl dark:bg-slate-950">
+                  <h3 className="mb-2 text-xl font-black text-slate-950 dark:text-white">Send a request</h3>
+                  <p className="mb-7 text-sm text-slate-500 dark:text-slate-400">We usually reply by email within one business day.</p>
+                  <ContactForm />
                 </div>
               </TiltCard>
             </ScrollReveal>

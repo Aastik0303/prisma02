@@ -1,6 +1,7 @@
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -59,8 +60,56 @@ model User {
   uploadedFiles      SharedFile[]
   sentMessages       ChatMessage[]    @relation("SentMessages")
   receivedMessages   ChatMessage[]    @relation("ReceivedMessages")
+  createdCatalogCourses CatalogCourse[] @relation("CreatedCatalogCourses")
+  createdCatalogProjects CatalogProject[] @relation("CreatedCatalogProjects")
 
   @@map("users")
+}
+
+model CatalogCourse {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String   @unique
+  title        String
+  subtitle     String
+  description  String
+  syllabus     String[]
+  duration     String
+  rating       Float    @default(0)
+  modulesCount Int      @default(1) @map("modules_count")
+  badge        String?
+  accent       String   @default("indigo")
+  actionUrl    String?  @map("action_url")
+  published    Boolean  @default(true)
+  creatorId    String   @db.Uuid @map("creator_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  creator User @relation("CreatedCatalogCourses", fields: [creatorId], references: [id], onDelete: Restrict)
+
+  @@index([published, createdAt])
+  @@map("catalog_courses")
+}
+
+model CatalogProject {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique
+  title       String
+  category    String
+  tier        String
+  description String
+  price       Int      @default(0)
+  popular     Boolean  @default(false)
+  free        Boolean  @default(false)
+  actionUrl   String?  @map("action_url")
+  published   Boolean  @default(true)
+  creatorId   String   @db.Uuid @map("creator_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  creator User @relation("CreatedCatalogProjects", fields: [creatorId], references: [id], onDelete: Restrict)
+
+  @@index([published, category, tier])
+  @@map("catalog_projects")
 }
 
 model RefreshToken {

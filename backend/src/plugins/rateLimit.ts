@@ -74,4 +74,31 @@ export const csrfTokenRateLimit: RateLimitOptions = {
   keyGenerator: (request) => `rl:csrf:ip:${request.ip}`
 };
 
+export const contactRequestRateLimit: RateLimitOptions = {
+  max: 5,
+  timeWindow: 60 * 60 * 1000,
+  keyGenerator: (request: any) => {
+    const email = String(request.body?.email || '').toLowerCase().trim();
+    return `rl:contact:${request.ip}:${email}`;
+  }
+};
+
+export const resumeUploadRateLimit: RateLimitOptions = {
+  max: 8,
+  timeWindow: 15 * 60 * 1000,
+  keyGenerator: request => `rl:resume:upload:${request.ip}`
+};
+
+export const resumeAiRateLimit: RateLimitOptions = {
+  max: 20,
+  timeWindow: 15 * 60 * 1000,
+  keyGenerator: request => `rl:resume:ai:${request.ip}`
+};
+
+export const learningChatAiRateLimit: RateLimitOptions = {
+  max: 30,
+  timeWindow: 15 * 60 * 1000,
+  keyGenerator: (request: any) => `rl:learning-chat:ai:${request.user?.id || request.ip}`
+};
+
 export default rateLimitPlugin;

@@ -1,4 +1,19 @@
-const base = 'http://127.0.0.1:3001';
+const args = new Map(
+  process.argv.slice(2).map((arg) => {
+    const [key, ...valueParts] = arg.replace(/^--/, '').split('=');
+    return [key, valueParts.join('=')];
+  })
+);
+
+const base = args.get('base-url') || process.env.AUTH_BASE_URL || 'http://127.0.0.1:3001';
+const email = args.get('email') || process.env.ADMIN_EMAIL || process.env.AUTH_EMAIL;
+const password = args.get('password') || process.env.ADMIN_PASSWORD || process.env.AUTH_PASSWORD;
+
+if (!email || !password) {
+  throw new Error(
+    'Missing credentials. Set ADMIN_EMAIL/ADMIN_PASSWORD or pass --email=user@example.com --password=your_password.'
+  );
+}
 
 function getSetCookie(headers) {
   return headers.get('set-cookie') || '';
@@ -32,8 +47,8 @@ function parseCookies(headers) {
       Cookie: csrfCookies
     },
     body: JSON.stringify({
-      email: 'aastikmishra20@gmail.com',
-      password: 'aastik0003'
+      email,
+      password
     })
   });
 

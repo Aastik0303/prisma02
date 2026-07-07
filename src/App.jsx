@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Compass, ShieldCheck, Users, FolderGit2, Award, Flame, 
-  Sun, Moon, Sparkles, Menu, X, LayoutDashboard, Home, BookOpen,
-  MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Shield, Key, CheckCircle2, RefreshCw, Mail
+  Compass, ShieldCheck, Users, FolderGit2, Award,
+  Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
+  MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Shield, Key, CheckCircle2, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 
 // Import Pages
@@ -20,7 +20,21 @@ import {
   CAREER_TRACKS, PROJECTS, MENTORS, LEADERBOARD 
 } from './data/mockData';
 
-const cloneTracks = (tracks = CAREER_TRACKS) => JSON.parse(JSON.stringify(tracks));
+const orderLearningNodes = (nodes = []) => {
+  const coreLessons = nodes.filter(node => (
+    node.type !== 'project'
+    && node.category !== 'Final Test'
+  ));
+  const projects = nodes.filter(node => node.type === 'project');
+  const finalTests = nodes.filter(node => node.category === 'Final Test');
+
+  return [...coreLessons, ...projects, ...finalTests];
+};
+
+const cloneTracks = (tracks = CAREER_TRACKS) => JSON.parse(JSON.stringify(tracks)).map(track => ({
+  ...track,
+  nodes: orderLearningNodes(track.nodes)
+}));
 const toDateKey = (date = new Date()) => {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -43,6 +57,57 @@ const createFreshTracks = () => cloneTracks().map((track, trackIndex) => ({
     status: trackIndex === 0 && nodeIndex === 0 ? 'active' : 'locked'
   }))
 }));
+
+const syncTrackCurriculum = (savedTracks) => {
+  if (!Array.isArray(savedTracks)) return createFreshTracks();
+
+  const syncedBuiltInTracks = cloneTracks().map((track, trackIndex) => {
+    const savedTrack = savedTracks.find(item => item.id === track.id);
+    const completedNodeIds = new Set(
+      (savedTrack?.nodes || [])
+        .filter(node => node.status === 'completed')
+        .map(node => node.id)
+    );
+    const firstIncompleteIndex = track.nodes.findIndex(node => !completedNodeIds.has(node.id));
+    const nodes = track.nodes.map((node, nodeIndex) => {
+      const savedNode = savedTrack?.nodes?.find(item => item.id === node.id);
+      return {
+        ...node,
+        status: completedNodeIds.has(node.id)
+          ? 'completed'
+          : (
+            savedTrack?.enrolled && nodeIndex === firstIncompleteIndex
+              ? 'active'
+              : savedNode?.status === 'active' && firstIncompleteIndex === -1
+                ? 'active'
+                : trackIndex === 0 && nodeIndex === 0 && !savedTrack
+                  ? 'active'
+                  : 'locked'
+          )
+      };
+    });
+
+    return {
+      ...track,
+      enrolled: Boolean(savedTrack?.enrolled),
+      xp: savedTrack?.xp || 0,
+      completedNodes: nodes.filter(node => node.status === 'completed').length,
+      nodes
+    };
+  });
+
+  const customTracks = savedTracks
+    .filter(savedTrack => savedTrack?.id && !syncedBuiltInTracks.some(track => track.id === savedTrack.id))
+    .map(savedTrack => ({
+      ...savedTrack,
+      enrolled: Boolean(savedTrack.enrolled || (savedTrack.completedNodes || 0) > 0),
+      totalNodes: savedTrack.totalNodes || savedTrack.nodes?.length || 0,
+      completedNodes: savedTrack.completedNodes || savedTrack.nodes?.filter(node => node.status === 'completed').length || 0,
+      nodes: Array.isArray(savedTrack.nodes) ? savedTrack.nodes : []
+    }));
+
+  return [...syncedBuiltInTracks, ...customTracks];
+};
 
 const createWorkspace = (name = 'New Learner', email = '') => {
   const tracks = createFreshTracks();
@@ -99,11 +164,19 @@ const getCsrfToken = async () => {
     throw new Error(data.message || 'Unable to prepare secure authentication.');
   }
 
-  return data.csrfToken;
+  return {
+    csrfToken: data.csrfToken,
+    csrfSessionId: data.csrfSessionId
+  };
 };
 
+const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
+  'X-CSRF-Token': csrfToken,
+  ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
+});
+
 const authRequest = async (path, body, accessToken) => {
-  const csrfToken = await getCsrfToken();
+  const csrf = await getCsrfToken();
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -111,7 +184,7 @@ const authRequest = async (path, body, accessToken) => {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': csrfToken,
+        ...buildCsrfHeaders(csrf),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
       },
       body: JSON.stringify(body)
@@ -132,15 +205,34 @@ const authRequest = async (path, body, accessToken) => {
   return data;
 };
 
+const getOAuthRedirectUrl = (provider) => {
+  const apiBase = API_BASE_URL.replace(/\/+$/, '');
+  return `${apiBase}/auth/oauth/${provider}`;
+};
+
+const createUserProjectId = () => `user-project-${Date.now()}`;
+
 const createWorkspaceFromAuthUser = (authUser) => {
   const savedWorkspace = localStorage.getItem(workspaceKey(authUser.email));
   const workspace = savedWorkspace
     ? JSON.parse(savedWorkspace)
     : createWorkspace(authUser.fullName || authUser.email.split('@')[0], authUser.email);
   const metadata = authUser.metadata && typeof authUser.metadata === 'object' ? authUser.metadata : {};
+  const metadataTracks = Array.isArray(metadata.tracksData) ? metadata.tracksData : null;
+  const nextTracksData = metadataTracks || workspace.tracksData;
+  const nextActiveTrack = metadata.activeTrack || workspace.activeTrack;
 
   return {
     ...workspace,
+    xp: Number.isFinite(Number(metadata.xp)) ? Number(metadata.xp) : workspace.xp,
+    streak: Number.isFinite(Number(metadata.streak)) ? Number(metadata.streak) : workspace.streak,
+    atsScore: Number.isFinite(Number(metadata.atsScore)) ? Number(metadata.atsScore) : workspace.atsScore,
+    resumeScore: Number.isFinite(Number(metadata.resumeScore)) ? Number(metadata.resumeScore) : workspace.resumeScore,
+    internshipScore: Number.isFinite(Number(metadata.internshipScore)) ? Number(metadata.internshipScore) : workspace.internshipScore,
+    freelanceScore: Number.isFinite(Number(metadata.freelanceScore)) ? Number(metadata.freelanceScore) : workspace.freelanceScore,
+    lastStreakDate: metadata.lastStreakDate || workspace.lastStreakDate || '',
+    tracksData: nextTracksData,
+    activeTrack: nextActiveTrack,
     userData: {
       ...workspace.userData,
       name: authUser.fullName || workspace.userData.name,
@@ -199,6 +291,8 @@ export default function App() {
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
   // Sign Up - Personal Profile Fields (shown directly on Dashboard after signup)
   const [signUpCollege, setSignUpCollege] = useState('');
@@ -220,9 +314,58 @@ export default function App() {
   const [tracksData, setTracksData] = useState(() => createFreshTracks());
   const [activeTrack, setActiveTrack] = useState(() => createFreshTracks()[0]); // Default to Web Dev
 
-  const persistWorkspace = (workspace) => {
+  const buildWorkspaceMetadata = (workspace) => ({
+    college: workspace.userData.college,
+    degree: workspace.userData.degree,
+    year: workspace.userData.year,
+    location: workspace.userData.location,
+    bio: workspace.userData.bio,
+    backgroundImage: workspace.userData.backgroundImage,
+    projects: workspace.userData.projects || [],
+    xp: workspace.xp || 0,
+    streak: workspace.streak || 0,
+    atsScore: workspace.atsScore || 0,
+    resumeScore: workspace.resumeScore || 0,
+    internshipScore: workspace.internshipScore || 0,
+    freelanceScore: workspace.freelanceScore || 0,
+    lastStreakDate: workspace.lastStreakDate || '',
+    tracksData: workspace.tracksData || [],
+    activeTrack: workspace.activeTrack || null,
+    enrolledCourseIds: (workspace.tracksData || [])
+      .filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
+      .map(track => track.id)
+  });
+
+  const syncWorkspaceToBackend = async (workspace, token = authToken) => {
+    if (!token || !workspace?.userData?.email) return;
+
+    try {
+      const csrf = await getCsrfToken();
+      await fetch(`${API_BASE_URL}/users/me`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildCsrfHeaders(csrf),
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fullName: workspace.userData.name,
+          avatarUrl: workspace.userData.avatarUrl,
+          metadata: buildWorkspaceMetadata(workspace)
+        })
+      });
+    } catch {
+      // Local workspace remains the offline fallback if the backend is unavailable.
+    }
+  };
+
+  const persistWorkspace = (workspace, options = {}) => {
     const key = workspace.userData.email ? workspaceKey(workspace.userData.email) : guestWorkspaceKey;
     localStorage.setItem(key, JSON.stringify(workspace));
+    if (options.syncBackend !== false) {
+      void syncWorkspaceToBackend(workspace, options.token);
+    }
   };
 
   const persistRegisteredSession = ({ email, accessToken = authToken, refreshTokenValue = refreshToken }) => {
@@ -236,6 +379,10 @@ export default function App() {
   };
 
   const applyWorkspace = (workspace) => {
+    const syncedTracks = syncTrackCurriculum(workspace.tracksData);
+    const syncedActiveTrack = syncedTracks.find(track => track.id === workspace.activeTrack?.id)
+      || syncedTracks[0];
+
     setUserData(workspace.userData);
     setXp(workspace.xp || 0);
     setStreak(workspace.streak || 0);
@@ -244,8 +391,8 @@ export default function App() {
     setInternshipScore(workspace.internshipScore || 0);
     setFreelanceScore(workspace.freelanceScore || 0);
     setLastStreakDate(workspace.lastStreakDate || '');
-    setTracksData(workspace.tracksData || createFreshTracks());
-    setActiveTrack(workspace.activeTrack || workspace.tracksData?.[0] || createFreshTracks()[0]);
+    setTracksData(syncedTracks);
+    setActiveTrack(syncedActiveTrack);
   };
 
   const handleSaveUserProfile = async (profileData) => {
@@ -269,22 +416,20 @@ export default function App() {
 
     if (authToken) {
       try {
+        const csrf = await getCsrfToken();
         await fetch(`${API_BASE_URL}/users/me`, {
           method: 'PATCH',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            ...buildCsrfHeaders(csrf),
             Authorization: `Bearer ${authToken}`
           },
           body: JSON.stringify({
             fullName: nextUserData.name,
             avatarUrl: nextUserData.avatarUrl,
             metadata: {
-              college: nextUserData.college,
-              degree: nextUserData.degree,
-              year: nextUserData.year,
-              location: nextUserData.location,
-              bio: nextUserData.bio,
-              backgroundImage: nextUserData.backgroundImage,
+              ...buildWorkspaceMetadata(nextWorkspace),
               projects: nextUserData.projects || []
             }
           })
@@ -299,7 +444,7 @@ export default function App() {
 
   const handleAddUserProject = async (projectData) => {
     const project = {
-      id: `user-project-${Date.now()}`,
+      id: createUserProjectId(),
       title: projectData.title,
       desc: projectData.desc,
       status: projectData.status || 'In Progress',
@@ -311,15 +456,37 @@ export default function App() {
       uploadedAt: new Date().toISOString()
     };
 
-    await handleSaveUserProfile({
-      projects: [project, ...(userData.projects || [])]
-    });
+    const nextProjects = [project, ...(userData.projects || [])];
+    const nextUserData = { ...userData, projects: nextProjects };
+
+    await handleSaveUserProfile({ projects: nextProjects });
+
+    const learningNode = sessionStorage.getItem('prisma:project-learning-node');
+    if (learningNode) {
+      sessionStorage.removeItem('prisma:project-learning-node');
+      try {
+        const parsedNode = JSON.parse(learningNode);
+        handleCompleteNode(parsedNode.id, Number(parsedNode.xp) || 0, 'Projects', nextUserData);
+      } catch {
+        // Ignore malformed navigation state; the uploaded project is still saved.
+      }
+    }
 
     return project;
   };
 
-  const handleEnrollTrack = (courseId) => {
-    const updatedTracks = tracksData.map(track => {
+  const handleEnrollTrack = (courseId, courseTrack = null) => {
+    const hasExistingTrack = tracksData.some(track => track.id === courseId);
+    const normalizedCourseTrack = courseTrack ? {
+      ...courseTrack,
+      id: courseId,
+      enrolled: true,
+      totalNodes: courseTrack.totalNodes || courseTrack.nodes?.length || 0,
+      completedNodes: courseTrack.completedNodes || 0,
+      nodes: Array.isArray(courseTrack.nodes) ? courseTrack.nodes : []
+    } : null;
+
+    const updatedTracks = hasExistingTrack ? tracksData.map(track => {
       if (track.id !== courseId) return track;
 
       const hasUnlockedNode = track.nodes.some(node => node.status !== 'locked');
@@ -334,8 +501,12 @@ export default function App() {
             status: index === 0 ? 'active' : node.status
           }))
       };
-    });
-    const nextActiveTrack = updatedTracks.find(track => track.id === courseId) || updatedTracks[0];
+    }) : (
+      normalizedCourseTrack
+        ? [...tracksData, normalizedCourseTrack]
+        : tracksData
+    );
+    const nextActiveTrack = updatedTracks.find(track => track.id === courseId) || normalizedCourseTrack || updatedTracks[0];
     const nextWorkspace = {
       userData,
       xp,
@@ -355,7 +526,7 @@ export default function App() {
     return nextActiveTrack;
   };
 
-  const handleCompleteNode = (nodeId, nodeXp, category = '') => {
+  const handleCompleteNode = (nodeId, nodeXp, category = '', userDataOverride = null) => {
     const today = toDateKey();
     const targetTrack = tracksData.find(track => track.nodes.some(node => node.id === nodeId));
     const targetNode = targetTrack?.nodes.find(node => node.id === nodeId);
@@ -394,13 +565,13 @@ export default function App() {
     const nextStreak = streakIncreased ? (!lastStreakDate || streakContinues ? streak + 1 : 1) : streak;
     const nextAtsScore = category.includes('ATS') ? Math.min(atsScore + 5, 98) : atsScore;
     const nextResumeScore = category.includes('Resume') ? Math.min(resumeScore + 8, 100) : resumeScore;
-    const nextInternshipScore = (
-      category.includes('Internship') || category.includes('Skills') || category.includes('Capstone')
-    ) ? Math.min(internshipScore + 6, 96) : internshipScore;
-    const nextFreelanceScore = category.includes('Freelanc') ? Math.min(freelanceScore + 7, 95) : freelanceScore;
+    const nextInternshipScore = category.includes('Skills')
+      ? Math.min(internshipScore + 6, 96)
+      : internshipScore;
+    const nextFreelanceScore = freelanceScore;
     const nextActiveTrack = updatedTracks.find(track => track.id === targetTrack.id) || updatedTracks[0];
     const nextWorkspace = {
-      userData,
+      userData: userDataOverride || userData,
       xp: nextXp,
       streak: nextStreak,
       atsScore: nextAtsScore,
@@ -439,19 +610,93 @@ export default function App() {
     }
   }, [theme]);
 
+  async function handleEmailVerification(token) {
+    setVerifyStatus('verifying');
+    setActiveModal('verify_status');
+    try {
+      const csrf = await getCsrfToken();
+      const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildCsrfHeaders(csrf)
+        },
+        body: JSON.stringify({ token })
+      });
+      setVerifyStatus(res.ok ? 'success' : 'error');
+    } catch {
+      setVerifyStatus('error');
+    }
+  }
+
   // Handle email verification and password reset links from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const oauthError = params.get('error');
+    const oauthAccessToken = params.get('accessToken');
+    const oauthRefreshToken = params.get('refreshToken');
+
+    if (oauthError) {
+      queueMicrotask(() => {
+        setAuthError('Google sign in could not be completed. Please try again.');
+        setActiveModal('signin');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      });
+      return;
+    }
+
+    if (oauthAccessToken && oauthRefreshToken) {
+      queueMicrotask(async () => {
+        setAuthLoading(true);
+        setAuthError('');
+        try {
+          const response = await fetch(`${API_BASE_URL}/users/me`, {
+            headers: {
+              Authorization: `Bearer ${oauthAccessToken}`
+            }
+          });
+          const authUser = response.ok ? await response.json() : null;
+          if (!authUser?.email) {
+            throw new Error('Unable to load your Google profile.');
+          }
+
+          const workspace = createWorkspaceFromAuthUser(authUser);
+          applyWorkspace(workspace);
+          persistWorkspace(workspace, { token: oauthAccessToken });
+          setAuthToken(oauthAccessToken);
+          setRefreshToken(oauthRefreshToken);
+          persistRegisteredSession({
+            email: workspace.userData.email,
+            accessToken: oauthAccessToken,
+            refreshTokenValue: oauthRefreshToken
+          });
+          setIsSignedIn(true);
+          setPage('dashboard');
+          setActiveModal(null);
+          setAuthSuccess(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          setAuthError(error.message || 'Google sign in failed. Please try again.');
+          setActiveModal('signin');
+        } finally {
+          setAuthLoading(false);
+        }
+      });
+      return;
+    }
 
     if (window.location.href.includes('verify-email') || window.location.href.includes('verify')) {
       if (token) {
-        handleEmailVerification(token);
+        queueMicrotask(() => handleEmailVerification(token));
       }
     } else if (window.location.href.includes('reset-password') || window.location.href.includes('reset')) {
       if (token) {
-        setResetTokenState(token);
-        setActiveModal('reset_password');
+        queueMicrotask(() => {
+          setResetTokenState(token);
+          setActiveModal('reset_password');
+        });
       }
     }
   }, []);
@@ -461,20 +706,57 @@ export default function App() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('accessToken') && params.get('refreshToken')) {
+      return;
+    }
+
     const savedSession = localStorage.getItem(authSessionKey);
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
         const savedWorkspace = session.email ? localStorage.getItem(workspaceKey(session.email)) : null;
 
-        if (savedWorkspace) {
-          applyWorkspace(JSON.parse(savedWorkspace));
-          setAuthToken(session.accessToken || '');
-          setRefreshToken(session.refreshToken || '');
-          setIsSignedIn(true);
-          setPage('dashboard');
-          return;
-        }
+        queueMicrotask(async () => {
+          try {
+            const refreshed = await authRequest('/auth/refresh', {
+              refreshToken: session.refreshToken || ''
+            });
+            let workspace;
+
+            if (savedWorkspace) {
+              workspace = JSON.parse(savedWorkspace);
+            } else {
+              const response = await fetch(`${API_BASE_URL}/users/me`, {
+                headers: {
+                  Authorization: `Bearer ${refreshed.accessToken || ''}`
+                }
+              });
+              const authUser = response.ok ? await response.json() : null;
+              workspace = authUser
+                ? createWorkspaceFromAuthUser(authUser)
+                : createWorkspace(session.email?.split('@')[0] || 'Learner', session.email || '');
+            }
+
+            applyWorkspace(workspace);
+            persistWorkspace(workspace, { token: refreshed.accessToken || '' });
+            setAuthToken(refreshed.accessToken || '');
+            setRefreshToken(refreshed.refreshToken || '');
+            persistRegisteredSession({
+              email: session.email,
+              accessToken: refreshed.accessToken || '',
+              refreshTokenValue: refreshed.refreshToken || ''
+            });
+            setIsSignedIn(true);
+            setPage('dashboard');
+          } catch {
+            localStorage.removeItem(authSessionKey);
+            setAuthToken('');
+            setRefreshToken('');
+            setIsSignedIn(false);
+          }
+        });
+        return;
       } catch {
         localStorage.removeItem(authSessionKey);
       }
@@ -484,7 +766,7 @@ export default function App() {
     if (!savedGuestWorkspace) return;
 
     try {
-      applyWorkspace(JSON.parse(savedGuestWorkspace));
+      queueMicrotask(() => applyWorkspace(JSON.parse(savedGuestWorkspace)));
     } catch {
       localStorage.removeItem(guestWorkspaceKey);
     }
@@ -524,7 +806,7 @@ export default function App() {
 
       const workspace = createWorkspaceFromAuthUser(authData.user);
       applyWorkspace(workspace);
-      persistWorkspace(workspace);
+      persistWorkspace(workspace, { token: authData.accessToken || '' });
       setAuthToken(authData.accessToken || '');
       setRefreshToken(authData.refreshToken || '');
       persistRegisteredSession({
@@ -570,7 +852,7 @@ export default function App() {
 
       const workspace = createWorkspaceFromAuthUser(authData.user);
       applyWorkspace(workspace);
-      persistWorkspace(workspace);
+      persistWorkspace(workspace, { token: authData.accessToken || '' });
       setAuthToken(authData.accessToken || '');
       setRefreshToken(authData.refreshToken || '');
       persistRegisteredSession({
@@ -636,36 +918,16 @@ export default function App() {
     }
   };
 
-  const handleEmailVerification = async (token) => {
-    setVerifyStatus('verifying');
-    setActiveModal('verify_status');
-    try {
-      const csrfToken = await getCsrfToken();
-      const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({ token })
-      });
-      if (res.ok) {
-        setVerifyStatus('success');
-      } else {
-        setVerifyStatus('error');
-      }
-    } catch {
-      setVerifyStatus('error');
-    }
-  };
-
   const handleMfaSetupInit = async () => {
     setMfaConfigError('');
     setMfaSetupData(null);
     try {
+      const csrf = await getCsrfToken();
       const res = await fetch(`${API_BASE_URL}/users/mfa/setup`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
+          ...buildCsrfHeaders(csrf),
           Authorization: `Bearer ${authToken}`
         }
       });
@@ -685,10 +947,13 @@ export default function App() {
     if (!mfaVerificationCode) return;
     setMfaConfigError('');
     try {
+      const csrf = await getCsrfToken();
       const res = await fetch(`${API_BASE_URL}/users/mfa/enable`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          ...buildCsrfHeaders(csrf),
           Authorization: `Bearer ${authToken}`
         },
         body: JSON.stringify({ code: mfaVerificationCode })
@@ -710,9 +975,12 @@ export default function App() {
     if (!confirm('Are you sure you want to disable Multi-Factor Authentication? This reduces your account security.')) return;
     setMfaConfigError('');
     try {
+      const csrf = await getCsrfToken();
       const res = await fetch(`${API_BASE_URL}/users/mfa/disable`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
+          ...buildCsrfHeaders(csrf),
           Authorization: `Bearer ${authToken}`
         }
       });
@@ -743,23 +1011,7 @@ export default function App() {
         password: signUpPassword
       });
 
-      let registeredAuthData = null;
-      try {
-        registeredAuthData = await authRequest('/auth/login', {
-          email: signUpEmail,
-          password: signUpPassword
-        });
-      } catch {
-        registeredAuthData = null;
-      }
-
-      setAuthSuccess(true);
-
-      // Build the workspace AND fold in the personal details collected
-      // during signup so they appear directly on the Dashboard.
-      const workspace = registeredAuthData?.user
-        ? createWorkspaceFromAuthUser(registeredAuthData.user)
-        : createWorkspace(signUpName, signUpEmail);
+      const workspace = createWorkspace(signUpName, signUpEmail);
       workspace.userData = {
         ...workspace.userData,
         name: signUpName,
@@ -771,31 +1023,11 @@ export default function App() {
         bio: signUpBio || workspace.userData.bio
       };
 
-      applyWorkspace(workspace);
       persistWorkspace(workspace);
-      setAuthToken(registeredAuthData?.accessToken || '');
-      setRefreshToken(registeredAuthData?.refreshToken || '');
-      persistRegisteredSession({
-        email: workspace.userData.email,
-        accessToken: registeredAuthData?.accessToken || '',
-        refreshTokenValue: registeredAuthData?.refreshToken || ''
-      });
-      setIsSignedIn(true);
-      setPage('dashboard');
+      setSignInEmail(signUpEmail);
+      setSignInPassword('');
+      setActiveModal('signin');
       setAuthLoading(false);
-      setTimeout(() => {
-        setAuthSuccess(false);
-        setActiveModal(null);
-        setAuthError('');
-        setSignUpName('');
-        setSignUpEmail('');
-        setSignUpPassword('');
-        setSignUpCollege('');
-        setSignUpDegree('');
-        setSignUpYear('');
-        setSignUpLocation('');
-        setSignUpBio('');
-      }, 1000);
     } catch (error) {
       setAuthLoading(false);
       if (error.code === 'EMAIL_ALREADY_EXISTS') {
@@ -804,6 +1036,12 @@ export default function App() {
         setAuthError(error.message || 'Sign up failed. Please check your details and try again.');
       }
     }
+  };
+
+  const handleGoogleOAuth = () => {
+    setAuthError('');
+    setAuthLoading(true);
+    window.location.assign(getOAuthRedirectUrl('google'));
   };
 
   const handleSignOut = async () => {
@@ -873,6 +1111,7 @@ export default function App() {
             tracksData={tracksData} 
             setTracksData={setTracksData}
             onEnrollTrack={handleEnrollTrack}
+            authToken={authToken}
           />
         );
       case 'roadmap':
@@ -883,10 +1122,11 @@ export default function App() {
             activeTrack={activeTrack} setActiveTrack={setActiveTrack}
             tracksData={tracksData} setTracksData={setTracksData}
             setAtsScore={setAtsScore} setResumeScore={setResumeScore}
-            setInternshipScore={setInternshipScore} setFreelanceScore={setFreelanceScore}
+            setInternshipScore={setInternshipScore}
             userData={userData}
             setPage={setPage}
             onCompleteNode={handleCompleteNode}
+            authToken={authToken}
           />
         );
       case 'projects':
@@ -902,7 +1142,7 @@ export default function App() {
       case 'mentorship':
         return <Mentorship mentors={MENTORS} />;
       case 'community':
-        return <Community leaderboard={LEADERBOARD} authToken={authToken} userData={userData} isSignedIn={isSignedIn} />;
+        return <Community leaderboard={LEADERBOARD} authToken={authToken} userData={userData} isSignedIn={isSignedIn} onSaveUserProfile={handleSaveUserProfile} />;
       default:
         return (
           <StudentDashboard 
@@ -1211,8 +1451,8 @@ export default function App() {
 
       {/* 2. SIGN IN MODAL */}
       {activeModal === 'signin' && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
-          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-start sm:items-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm my-4 sm:my-8 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
             <button 
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
@@ -1307,6 +1547,22 @@ export default function App() {
                   <span className="text-[10px] text-slate-455 mt-1 block">Access your verified roadmap milestones and badges.</span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={handleGoogleOAuth}
+                  disabled={authLoading}
+                  className="w-full min-h-11 px-3 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center gap-2 text-xs font-extrabold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors disabled:opacity-60"
+                >
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-sm font-black text-slate-900 shadow-sm">G</span>
+                  Continue with Google
+                </button>
+
+                <div className="flex items-center gap-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                  or use email
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                </div>
+
                 <div className="space-y-3.5 text-xs">
                   <div className="space-y-1">
                     <label className="font-bold text-slate-550 dark:text-slate-450 block">Email Address</label>
@@ -1331,14 +1587,24 @@ export default function App() {
                         Forgot Password?
                       </button>
                     </div>
-                    <input 
-                      type="password" 
-                      required
-                      value={signInPassword}
-                      onChange={(e) => setSignInPassword(e.target.value)}
-                      placeholder="Enter secure passcode..."
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-800 dark:text-white"
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showSignInPassword ? 'text' : 'password'} 
+                        required
+                        value={signInPassword}
+                        onChange={(e) => setSignInPassword(e.target.value)}
+                        placeholder="Enter secure passcode..."
+                        className="w-full min-h-11 px-3 py-2.5 pr-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-800 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignInPassword(prev => !prev)}
+                        aria-label={showSignInPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+                      >
+                        {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1369,8 +1635,8 @@ export default function App() {
 
       {/* 3. SIGN UP MODAL — collects personal details that show up directly on the Dashboard */}
       {activeModal === 'signup' && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm my-8 p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-start sm:items-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm my-4 sm:my-8 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
             <button 
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
@@ -1378,21 +1644,28 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
 
-            {authSuccess ? (
-              <div className="flex flex-col items-center text-center py-6">
-                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Registration Complete!</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Compiling profile workspace databases...</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSignUpSubmit} className="space-y-4">
+            <form onSubmit={handleSignUpSubmit} className="space-y-4">
                 <div>
                   <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
                     <UserPlus className="w-5 h-5 text-brand-secondary" /> Create Explorer Account
                   </h3>
                   <span className="text-[10px] text-slate-455 mt-1 block">Define your study track and claim free roadmap nodes access.</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleOAuth}
+                  disabled={authLoading}
+                  className="w-full min-h-11 px-3 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center gap-2 text-xs font-extrabold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors disabled:opacity-60"
+                >
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-sm font-black text-slate-900 shadow-sm">G</span>
+                  Register with Google
+                </button>
+
+                <div className="flex items-center gap-3 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                  or create manually
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
                 </div>
 
                 <div className="space-y-3.5 text-xs">
@@ -1422,14 +1695,24 @@ export default function App() {
 
                   <div className="space-y-1">
                     <label className="font-bold text-slate-550 dark:text-slate-455 block">Secure Password</label>
-                    <input 
-                      type="password" 
-                      required
-                      value={signUpPassword}
-                      onChange={(e) => setSignUpPassword(e.target.value)}
-                      placeholder="Configure minimum 8 characters..."
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showSignUpPassword ? 'text' : 'password'} 
+                        required
+                        value={signUpPassword}
+                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        placeholder="Configure minimum 8 characters..."
+                        className="w-full min-h-11 px-3 py-2 pr-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignUpPassword(prev => !prev)}
+                        aria-label={showSignUpPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+                      >
+                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Personal Profile Details — these will appear directly on the Dashboard */}
@@ -1448,7 +1731,7 @@ export default function App() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="font-bold text-slate-550 dark:text-slate-455 block">Degree / Major</label>
                         <input 
@@ -1517,8 +1800,7 @@ export default function App() {
                     <>Deploy Candidate Workspace</>
                   )}
                 </button>
-              </form>
-            )}
+            </form>
           </div>
         </div>
       )}

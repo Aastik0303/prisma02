@@ -15,10 +15,16 @@ export function getCookie(cookieHeader: string | undefined, name: string): strin
   return match ? decodeURIComponent(match[2]) : null;
 }
 
+const getHeaderValue = (value: string | string[] | undefined): string | null => {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
+};
+
 const csrfPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // Extract or establish the CSRF session ID before validation hooks run.
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    let sessionId = getCookie(request.headers.cookie, 'csrf_session_id');
+  fastify.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
+    let sessionId = getCookie(request.headers.cookie, 'csrf_session_id')
+      || getHeaderValue(request.headers['x-csrf-session-id']);
 
     if (!sessionId) {
       sessionId = crypto.randomUUID();

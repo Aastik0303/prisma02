@@ -4,10 +4,32 @@ import {
   ArrowRight, MessageSquare, Send, Cpu, Briefcase,
   Globe, CheckCircle2, CheckSquare, ChevronRight, Search,
   Bell, Mail, MapPin, Calendar, Edit3, X, Play, BookOpen,
-  Code2, Users, FileText, ExternalLink, Clock, Check, Upload, Image, Link
+  Code2, Users, FileText, ExternalLink, Clock, Check, Upload, Image, Link,
+  Trash2, Maximize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PROJECTS } from '../data/mockData';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+const getCsrfToken = async () => {
+  const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
+    credentials: 'include'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to prepare secure AI copilot.');
+  }
+  return {
+    csrfToken: data.csrfToken,
+    csrfSessionId: data.csrfSessionId
+  };
+};
+
+const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
+  'X-CSRF-Token': csrfToken,
+  ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
+});
 
 const GithubIcon = (props) => (
   <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -25,6 +47,12 @@ const LinkedinIcon = (props) => (
 );
 
 const cardStyleClass = `rounded-[24px] bg-white/85 dark:bg-slate-900/78 backdrop-blur-[22px] border border-white/70 dark:border-slate-800/80 shadow-[0_18px_50px_rgba(15,23,42,0.07)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(79,70,229,0.14)] hover:border-indigo-300/70 dark:hover:border-indigo-500/35 transition-all duration-[350ms] ease-out`;
+const initialCopilotMessages = [
+  {
+    role: 'assistant',
+    text: "Hello! I am your AI Career Copilot. I can audit your ATS keywords, suggest professional portfolio repositories, or run mock code assessments. What should we tackle today?"
+  }
+];
 
 const readImageFile = (file) => new Promise((resolve, reject) => {
   if (!file) {
@@ -42,13 +70,12 @@ export default function StudentDashboard({
   xp, streak, atsScore, resumeScore,
   internshipScore, freelanceScore,
   activeTrack, setPage, userData, tracksData, setActiveTrack,
-  lastStreakDate, onSaveProfile, onAddProject
+  lastStreakDate, onSaveProfile, onAddProject, authToken
 }) {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: "Hello! I am your AI Career Copilot. I can audit your ATS keywords, suggest professional portfolio repositories, or run mock code assessments. What should we tackle today?" }
-  ]);
+  const [messages, setMessages] = useState(initialCopilotMessages);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [uploadProjectOpen, setUploadProjectOpen] = useState(false);
   const [selectedBadge, setSelectedBadge] = useState(null);
@@ -140,33 +167,88 @@ export default function StudentDashboard({
 
   const copilotPrompts = [
     { text: "Suggest 3 resume keywords.", query: "keywords" },
-    { text: "Recommend an RTOS project.", query: "rtos" },
     { text: "Audit my placement score.", query: "audit" }
   ];
 
-  const handleSend = (textToSend) => {
+  const askCopilotRag = async (question) => {
+    if (!authToken) {
+      return 'Please sign in again so I can securely run the RAG copilot for your dashboard.';
+    }
+
+    const csrf = await getCsrfToken();
+    const recentHistory = messages.slice(-6).map(message => ({
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: message.text
+    }));
+
+    const response = await fetch(`${API_BASE_URL}/chat/copilot-rag`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildCsrfHeaders(csrf),
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        message: question,
+        history: recentHistory,
+        dashboard: {
+          studentName,
+          role: studentRole,
+          activeTrack: activeTrack?.name,
+          xp,
+          streak,
+          atsScore,
+          resumeScore,
+          internshipScore,
+          freelanceScore,
+          placementReadyScore,
+          tracks: (tracksData || []).map(track => ({
+            name: track.name,
+            completedNodes: track.completedNodes || 0,
+            totalNodes: track.totalNodes || 0
+          })),
+          projects: userProjects.map(project => ({
+            title: project.title,
+            status: project.status,
+            tags: project.tags
+          }))
+        }
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'AI Copilot RAG request failed.');
+    }
+
+    return data.answer || 'I could not generate an answer yet.';
+  };
+
+  const handleSend = async (textToSend) => {
     if (!textToSend.trim()) return;
+    setCopilotOpen(true);
     setMessages(prev => [...prev, { role: 'user', text: textToSend }]);
     setInput('');
     setTyping(true);
 
-    setTimeout(() => {
-      let reply = "Processing active profile metrics...";
-      const query = textToSend.toLowerCase();
-
-      if (query.includes("keyword") || query.includes("keywords")) {
-        reply = "Add these keywords to pass modern ATS filters: 'Incremental Static Regeneration (ISR)', 'Preemptive Task Schedulers', and 'Vector Embedding Collections'. These align with your active Web Dev and AI/ML tracks!";
-      } else if (query.includes("rtos") || query.includes("embedded")) {
-        reply = "Recommended Project: Design a 'Dual-Core STM32 FreeRTOS telemetry board'. Write custom register-level drivers for SPI, collect DMA buffers, and balance task queues with binary semaphores.";
-      } else if (query.includes("audit") || query.includes("placement")) {
-        reply = `Audit Result: Your Placement Readiness is currently at ${Math.floor((atsScore + resumeScore + internshipScore) / 3)}%. Completing 2 more project check level nodes will push your score above the 85% placement threshold!`;
-      } else {
-        reply = `Outstanding inquiry! With your current XP points (${xp}) and level accomplishments, you are matching 4 premium remote developer listings on the platform.`;
-      }
-
+    try {
+      const reply = await askCopilotRag(textToSend.trim());
       setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        text: error.message || 'The RAG copilot could not answer right now. Please try again.'
+      }]);
+    } finally {
       setTyping(false);
-    }, 1100);
+    }
+  };
+
+  const clearCopilotHistory = () => {
+    setMessages(initialCopilotMessages);
+    setInput('');
+    setTyping(false);
   };
 
   const handleSaveProfile = async (e) => {
@@ -842,60 +924,60 @@ export default function StudentDashboard({
           </div>
 
           {/* AI COPILOT */}
-          <div className={`${cardStyleClass} p-4 text-left relative overflow-hidden flex-1`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-cyan-500/10" />
-            <div className="relative flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-950 dark:text-white flex items-center gap-1.5 font-sora">
-                <MessageSquare className="w-4 h-4 text-violet-500" /> AI Copilot
-              </h4>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]" />
+          <div
+            className="dashboard-copilot-card text-left relative overflow-hidden cursor-pointer"
+            role="button"
+            tabIndex={0}
+            onClick={() => setCopilotOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setCopilotOpen(true);
+              }
+            }}
+          >
+            <div className="dashboard-copilot-glow" />
+            <div className="relative flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h4 className="dashboard-copilot-title">
+                  <MessageSquare className="w-4 h-4" /> AI Copilot
+                </h4>
+                <p className="dashboard-copilot-subtitle">Resume, ATS and placement guidance</p>
+              </div>
+              <span className="dashboard-copilot-status">Live</span>
             </div>
-            <div className="relative space-y-2 max-h-40 overflow-y-auto pr-1">
-              {messages.slice(-2).map((message, index) => (
+            <div className="dashboard-copilot-messages relative space-y-2 pr-1">
+              {messages.slice(-1).map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
-                  className={`rounded-2xl px-3 py-2 text-[10px] font-semibold leading-relaxed ${message.role === 'assistant'
-                    ? 'bg-white/80 text-slate-600 ring-1 ring-slate-200/70 dark:bg-slate-950/70 dark:text-slate-300 dark:ring-slate-800'
-                    : 'bg-indigo-600 text-white ml-5 shadow-lg shadow-indigo-500/20'
+                  className={`dashboard-copilot-bubble ${message.role === 'assistant'
+                    ? 'is-assistant'
+                    : 'is-user'
                     }`}
                 >
                   {message.text}
                 </div>
               ))}
-              {typing && (
-                <div className="w-fit rounded-2xl bg-white/80 px-3 py-2 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                  Thinking...
-                </div>
-              )}
             </div>
-            <div className="relative mt-3 flex flex-wrap gap-1">
+            <div className="relative mt-3 grid grid-cols-1 gap-1.5">
               {copilotPrompts.slice(0, 2).map(prompt => (
                 <button
                   key={prompt.query}
-                  onClick={() => handleSend(prompt.query)}
-                  className="rounded-full bg-white/80 px-2 py-1 text-[8px] font-extrabold text-indigo-600 ring-1 ring-indigo-100 hover:bg-indigo-50 dark:bg-slate-950 dark:text-cyan-300 dark:ring-slate-800"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleSend(prompt.query);
+                  }}
+                  className="dashboard-copilot-prompt"
                 >
                   {prompt.text}
                 </button>
               ))}
             </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSend(input);
-              }}
-              className="relative mt-2 flex gap-2"
-            >
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask..."
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/85 px-3 py-2 text-[10px] font-semibold text-slate-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-              />
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500">
-                <Send className="h-3 w-3" />
-              </button>
-            </form>
+            <div className="dashboard-copilot-open relative mt-3">
+              <Maximize2 className="h-3.5 w-3.5" />
+              Open AI Copilot
+            </div>
           </div>
 
           {/* NOTIFICATIONS */}
@@ -924,6 +1006,102 @@ export default function StudentDashboard({
           </div>
         </div>
       </div>
+
+      {/* AI COPILOT MODAL */}
+      <AnimatePresence>
+        {copilotOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.96 }}
+              className="dashboard-copilot-modal"
+            >
+              <div className="dashboard-copilot-modal-header">
+                <div>
+                  <h3 className="dashboard-copilot-modal-title">
+                    <MessageSquare className="h-4 w-4" />
+                    AI Career Copilot
+                  </h3>
+                  <p className="dashboard-copilot-modal-subtitle">
+                    Ask for ATS keywords, project direction, interview prep, and placement next steps.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={clearCopilotHistory}
+                    className="dashboard-copilot-clear"
+                    aria-label="Clear copilot chat history"
+                    title="Clear chat history"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopilotOpen(false)}
+                    className="dashboard-copilot-close"
+                    aria-label="Close AI Copilot"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="dashboard-copilot-modal-messages">
+                {messages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`dashboard-copilot-bubble ${message.role === 'assistant'
+                      ? 'is-assistant'
+                      : 'is-user'
+                      }`}
+                  >
+                    {message.text}
+                  </div>
+                ))}
+                {typing && (
+                  <div className="dashboard-copilot-bubble is-assistant w-fit">
+                    Thinking...
+                  </div>
+                )}
+              </div>
+
+              <div className="dashboard-copilot-modal-prompts">
+                {copilotPrompts.map(prompt => (
+                  <button
+                    key={prompt.query}
+                    type="button"
+                    onClick={() => handleSend(prompt.query)}
+                    className="dashboard-copilot-prompt"
+                  >
+                    {prompt.text}
+                  </button>
+                ))}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSend(input);
+                }}
+                className="dashboard-copilot-form flex gap-2"
+              >
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask the copilot..."
+                  className="dashboard-copilot-input"
+                />
+                <button className="dashboard-copilot-send" aria-label="Send copilot message">
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* EDIT PROFILE MODAL */}
       <AnimatePresence>

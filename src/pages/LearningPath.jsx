@@ -6,6 +6,159 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+const getCsrfToken = async () => {
+  const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
+    credentials: 'include'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to prepare secure AI chat.');
+  }
+  return {
+    csrfToken: data.csrfToken,
+    csrfSessionId: data.csrfSessionId
+  };
+};
+
+const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
+  'X-CSRF-Token': csrfToken,
+  ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
+});
+
+const getTrackStudyContext = (trackId) => {
+  if (trackId === 'web-dev') {
+    return {
+      domain: 'web engineering',
+      example: 'a production dashboard, portfolio, or full-stack feature',
+      workflow: 'read the requirement, design the interface, connect data safely, test responsive behavior, and polish edge states',
+      mistakes: 'unclear HTML structure, fragile CSS, unhandled loading states, insecure client-side assumptions, and components that do too many jobs',
+      practice: 'build a tiny UI or API slice, explain each decision, then refactor it for readability and reuse'
+    };
+  }
+
+  if (trackId === 'ai-ml') {
+    return {
+      domain: 'AI and machine learning',
+      example: 'a notebook, training pipeline, inference API, or retrieval workflow',
+      workflow: 'define the problem, inspect data, choose a baseline, train carefully, evaluate honestly, and document model limits',
+      mistakes: 'data leakage, weak baselines, unclear metrics, overfitting, and trusting model output without validation',
+      practice: 'run a small experiment, compare the result with a baseline, and write what improved or failed'
+    };
+  }
+
+  if (trackId === 'embedded') {
+    return {
+      domain: 'embedded systems',
+      example: 'a firmware module, sensor loop, RTOS task, driver, or hardware validation routine',
+      workflow: 'read the datasheet, identify registers and timing constraints, write the smallest driver, test signals, then harden failure cases',
+      mistakes: 'blocking delays, missed volatile usage, unsafe shared buffers, unmeasured timing, and interrupt handlers that do too much work',
+      practice: 'simulate the control logic, trace the timing, and explain which hardware resource each line of code touches'
+    };
+  }
+
+  return {
+    domain: 'software engineering',
+    example: 'a focused project component',
+    workflow: 'understand the concept, see an example, practice the skill, review mistakes, and explain the result',
+    mistakes: 'skipping fundamentals, copying patterns blindly, and moving forward without testing',
+    practice: 'build a small artifact and describe the reasoning behind it'
+  };
+};
+
+const createDetailedStudySlides = ({ node, trackId, baseSlides }) => {
+  const context = getTrackStudyContext(trackId);
+  const topicTitle = node?.title || 'This topic';
+  const category = node?.category || 'Lesson';
+  const nodeType = node?.type || 'lesson';
+  const isFinal = category.includes('Final') || nodeType === 'milestone';
+  const isProject = category.includes('Project') || nodeType === 'project';
+  const learningTarget = isFinal
+    ? 'prove that you can connect concepts, solve practical questions, and explain your decisions under exam conditions'
+    : isProject
+      ? 'turn the concept into a portfolio artifact that shows practical judgment'
+      : 'understand the idea clearly enough to use it without step-by-step help';
+
+  const enrichedBaseSlides = baseSlides.map((slide, index) => ({
+    ...slide,
+    bullets: [
+      ...(slide.bullets || []),
+      index === 0
+        ? `Plain meaning: this topic teaches how ${topicTitle.toLowerCase()} fits into real ${context.domain} work.`
+        : `Study goal: connect this slide to ${context.example} instead of memorizing isolated terms.`
+    ]
+  }));
+
+  return [
+    ...enrichedBaseSlides,
+    {
+      title: 'Learning Target',
+      bullets: [
+        `By the end of this node, you should be able to ${learningTarget}.`,
+        `Focus on the purpose of ${topicTitle}, the problem it solves, and the situations where it becomes useful.`,
+        'Keep notes in three columns: definition, real example, and mistake to avoid.'
+      ]
+    },
+    {
+      title: 'Mental Model',
+      bullets: [
+        `Think of ${topicTitle} as one layer inside a larger ${context.domain} workflow.`,
+        `The concept becomes easier when you connect it to ${context.example}.`,
+        'Ask: what input comes in, what transformation happens, and what output should be trusted?'
+      ]
+    },
+    {
+      title: 'Step-by-Step Study Flow',
+      bullets: [
+        `First, rewrite the topic in your own words: "${topicTitle} helps me..."`,
+        `Next, follow this workflow: ${context.workflow}.`,
+        'Finally, test yourself by explaining the concept without looking at the slide.'
+      ]
+    },
+    {
+      title: 'Worked Example',
+      bullets: [
+        `Example scenario: apply ${topicTitle} while building ${context.example}.`,
+        'Identify the smallest useful implementation before adding advanced features.',
+        'Compare the first version with an improved version and name exactly what became clearer, safer, or faster.'
+      ]
+    },
+    {
+      title: 'Common Mistakes',
+      bullets: [
+        `Watch for these mistakes: ${context.mistakes}.`,
+        'If your solution works only for the happy path, add one failure case and one edge case.',
+        'If you cannot explain why a line exists, simplify it or write the reason in your notes.'
+      ]
+    },
+    {
+      title: 'Practice Task',
+      bullets: [
+        `Do this now: ${context.practice}.`,
+        'Keep the task small enough to finish in 20-30 minutes, then improve the naming and structure.',
+        'Use the sandbox to test a tiny version before attempting the full assessment.'
+      ]
+    },
+    {
+      title: 'Interview Explanation',
+      bullets: [
+        `A strong answer starts with the problem, then explains how ${topicTitle} solves it.`,
+        'Use one concrete example, mention one tradeoff, and finish with how you would test it.',
+        'Avoid buzzwords alone; explain the behavior in simple language.'
+      ]
+    },
+    {
+      title: 'Assessment Readiness',
+      bullets: [
+        'You are ready for the quiz when you can define the concept, use it in a small task, and catch one common mistake.',
+        'Review the sandbox code, ask the AI tutor for a simpler example, and then attempt the assessment.',
+        'After the quiz, revisit any wrong option and write why it was tempting but incorrect.'
+      ]
+    }
+  ];
+};
+
 // Mock helper to generate customized slide deck PPTs, starter code, and smart AI chat responder parameters for every stage
 const getWorkspaceData = (node, trackId) => {
   const id = node.id;
@@ -163,50 +316,49 @@ fetchStudentTelemetry();`;
         { q: "Explain try-catch asynchronous handling.", a: "Async functions return promises. Placing an 'await' inside try-catch guarantees that promise rejections are intercepted locally, preventing uncaught runtime errors." }
       ];
     } else if (id === 'wd-10') {
-      pptTitle = "Capstone: Next.js SaaS E-Commerce Platform";
+      pptTitle = "Secure Full-Stack Architecture";
       slides = [
         {
-          title: "SaaS Full-Stack Infrastructure",
+          title: "Server-Side Trust Boundaries",
           bullets: [
-            "Next.js 14 App Router streams HTML sections using React Server Components.",
-            "Redis cache clusters store shopping carts in-memory for low-latency retrieval.",
-            "PostgreSQL database grids mapped and validated via Prisma ORM schemas."
+            "Keep privileged validation inside server actions and route handlers.",
+            "Validate inputs before database writes and isolate authorization checks.",
+            "Use typed contracts so client requests cannot bypass backend rules."
           ]
         },
         {
-          title: "Secure Stripe Billing Integration",
+          title: "Production Data Integrity",
           bullets: [
-            "Initiate verified checkout sessions securely inside React Server Actions.",
-            "Configure webhook endpoints to intercept Stripe charge success triggers.",
-            "Mutate relational tables and increment candidate freelancer scores post-validation."
+            "Wrap related writes in transactions to prevent partial state updates.",
+            "Index lookup fields used by high-volume APIs and audit trails.",
+            "Return minimal response payloads to reduce sensitive data exposure."
           ]
         }
       ];
       sandboxLanguage = "javascript";
-      sandboxCode = `// Capstone: Stripe Webhook handler mock audit
-// Implement a Prisma transaction update post successful charge
-async function verifyOrderFulfillment(chargeEvent) {
-  console.log("Verifying Stripe webhook signature...");
-  const orderId = chargeEvent.data.object.metadata.orderId;
+      sandboxCode = `// Practice: Validate a secure server-side mutation
+async function updateEnrollmentProgress(request) {
+  console.log("Checking authenticated user and payload...");
+  if (!request.userId || !request.nodeId) {
+    throw new Error("Invalid request payload");
+  }
   
-  console.log("Updating order database record to PAID...");
-  const updatedOrder = {
-    id: orderId,
-    status: 'PAID',
+  console.log("Writing progress inside a trusted server handler...");
+  const updatedProgress = {
+    userId: request.userId,
+    nodeId: request.nodeId,
+    status: 'COMPLETED',
     fulfilledAt: new Date().toISOString()
   };
   
-  console.log("Database status updated successfully:", updatedOrder);
-  return updatedOrder;
+  console.log("Progress updated successfully:", updatedProgress);
+  return updatedProgress;
 }
 
-const mockStripeEvent = {
-  data: { object: { metadata: { orderId: "ord_next889ea" } } }
-};
-verifyOrderFulfillment(mockStripeEvent);`;
+updateEnrollmentProgress({ userId: "learner_1024", nodeId: "wd-10" });`;
       chatbotDoubts = [
-        { q: "Why poll Stripe details in webhooks rather than client redirects?", a: "Webhooks run server-to-server. A client might close their browser before the redirect finishes, but Stripe's webhook guarantees delivery, preventing unpaid fulfillments." },
-        { q: "How does composite indexing help orders?", a: "Indexing composite keys (like 'userId' + 'status') allows instant, efficient DB searches for active purchases in O(log N) instead of checking tables linearly in O(N)." }
+        { q: "Why validate inside server handlers?", a: "Server handlers run in a trusted environment. They can check authorization, sanitize inputs, and keep secrets away from browser code." },
+        { q: "How do transactions protect progress updates?", a: "Transactions group related database writes so the system avoids half-saved progress when one operation fails." }
       ];
     } else if (id === 'wd-11') {
       pptTitle = "Final Full-Stack Web Certification Exam";
@@ -224,7 +376,7 @@ verifyOrderFulfillment(mockStripeEvent);`;
           bullets: [
             "Yields a unique verification token mapped to your student profile details.",
             "Boosts your student dashboard ATS, Resume, and Internship readiness stats by 15%.",
-            "Unlocks advanced Upwork freelancing options in the console panels."
+            "Unlocks advanced portfolio and project opportunities in the console panels."
           ]
         }
       ];
@@ -288,26 +440,26 @@ print(f"Optimizer updated weight: {weight:.4f}")`;
         { q: "Why transpose matrices before dot products?", a: "To multiply two matrices A and B, the columns of A must match the rows of B. Transposing flips dimensions to align them." }
       ];
     } else if (id === 'ai-10') {
-      pptTitle = "Capstone: Enterprise RAG Chatbot Integration";
+      pptTitle = "Retrieval Systems & LLM Evaluation";
       slides = [
         {
-          title: "Retrieval-Augmented Generation (RAG)",
+          title: "Embedding Retrieval Fundamentals",
           bullets: [
-            "Parse large PDF manual volumes and slice into semantic chunks.",
-            "Convert text strings into multi-dimensional floating vectors using embedding APIs.",
-            "Index and upload vector listings to Pinecone database tables."
+            "Chunk source material into semantically useful passages.",
+            "Convert user queries and documents into comparable embedding vectors.",
+            "Rank retrieved context before passing it to language models."
           ]
         },
         {
-          title: "Semantic Context Queries",
+          title: "Evaluation & Grounding",
           bullets: [
-            "Calculate cosine distance values to return vector matches for queries.",
-            "Inject the closest matched reference text directly into LLM prompts.",
-            "Retrieve highly accurate answers with 0% model hallucinations."
+            "Track retrieval precision, recall, and answer faithfulness.",
+            "Reject low-confidence context instead of forcing unsupported answers.",
+            "Compare generated answers against source-backed evaluation cases."
           ]
         }
       ];
-      sandboxCode = `# Capstone: Simulate a RAG semantic search matching
+      sandboxCode = `# Practice: Simulate a retrieval relevance check
 import math
 
 def cosine_similarity(v1, v2):
@@ -341,7 +493,7 @@ print("Status: PASS" if confidence > 0.8 else "Status: REJECT")`;
           bullets: [
             "Your student profile receives a unique cryptographic API verification token.",
             "Updates global stats and boosts ATS/Resume and Mentorship visibility.",
-            "Enables you to apply for high-value AI automation freelancing gigs."
+            "Enables you to showcase verified AI automation projects in your portfolio."
           ]
         }
       ];
@@ -404,26 +556,26 @@ int main() {
         { q: "What does (1 << 5) calculate?", a: "It shifts the integer 1 left by 5 spots, producing a binary mask '00100000' representing pin 5 of the port register." }
       ];
     } else if (id === 'emb-10') {
-      pptTitle = "Capstone: STM32 Drone Stabilizer";
+      pptTitle = "Control Loops, DMA & RTOS Integration";
       slides = [
         {
-          title: "RTOS Task Schedules & Semaphores",
+          title: "RTOS Timing & DMA Streams",
           bullets: [
-            "Set up separate tasks for high-frequency telemetry polling and calculations.",
-            "Configure task priorities: Polling sensors via SPI DMA takes peak priority.",
-            "Leverage semaphores and mutex locks to prevent memory collision threads."
+            "Separate high-frequency telemetry polling from lower-priority processing.",
+            "Use DMA streams so peripheral transfers do not stall control tasks.",
+            "Coordinate shared buffers with semaphores, queues, and critical sections."
           ]
         },
         {
-          title: "PID Loop Computations & PWM",
+          title: "Control Loop Computations",
           bullets: [
-            "Proportional, Integral, Derivative (PID) control algorithm updates.",
-            "Transmit computed correction weights directly to multi-channel PWM timers.",
-            "Audit raw telemetry values using high-frequency logic analyzers."
+            "Compute proportional, integral, and derivative corrections predictably.",
+            "Transmit bounded correction values to timer-driven PWM outputs.",
+            "Audit timing jitter with logic analyzers and trace instrumentation."
           ]
         }
       ];
-      sandboxCode = `// Capstone: PID loops calculations pseudo-code
+      sandboxCode = `// Practice: PID loop calculation in embedded C
 #include <stdio.h>
 
 typedef struct {
@@ -489,9 +641,11 @@ int main() {
     }
   }
 
+  const detailedSlides = createDetailedStudySlides({ node, trackId, baseSlides: slides });
+
   return {
     pptTitle,
-    slides,
+    slides: detailedSlides,
     sandbox: {
       language: sandboxLanguage,
       code: sandboxCode
@@ -503,14 +657,15 @@ int main() {
 export default function LearningPath({
   xp, setXp, streak, setStreak,
   activeTrack, setActiveTrack, tracksData, setTracksData,
-  setAtsScore, setResumeScore, setInternshipScore, setFreelanceScore,
-  userData, setPage, onCompleteNode
+  setAtsScore, setResumeScore, setInternshipScore,
+  userData, setPage, onCompleteNode, authToken
 }) {
   const messageIdRef = useRef(0);
   const [selectedNode, setSelectedNode] = useState(null);
   const [userAnswer, setUserAnswer] = useState(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [showRewardAnimation, setShowRewardAnimation] = useState(false);
+  const [completedBurstNodeId, setCompletedBurstNodeId] = useState(null);
 
   // Classroom Workspace Panel states
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -532,6 +687,9 @@ export default function LearningPath({
 
   // Certificate Modal state
   const [showCertificate, setShowCertificate] = useState(false);
+  const [showTrackDetail, setShowTrackDetail] = useState(() => {
+    return Boolean(sessionStorage.getItem('prisma:open-journey-detail'));
+  });
   const nextMessageId = (prefix = 'm') => {
     messageIdRef.current += 1;
     return `${prefix}-${messageIdRef.current}`;
@@ -540,12 +698,100 @@ export default function LearningPath({
     ? tracksData.filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
     : [];
   const currentTrack = enrolledTracks.find(track => track.id === activeTrack?.id) || enrolledTracks[0] || null;
+  const buildPixelPath = (nodes = [], unlockedOnly = false) => {
+    const points = nodes
+      .map((node, index) => ({
+        status: node.status,
+        x: 8 + Math.sin(index * 1.2) * 90,
+        y: index * 144 + 40
+      }))
+      .filter(point => !unlockedOnly || point.status !== 'locked');
+
+    if (!points.length) return 'M 8,0';
+
+    return points.reduce((path, point, index) => {
+      if (index === 0) {
+        return `${path} L ${point.x},${point.y}`;
+      }
+
+      const previous = points[index - 1];
+      const midY = previous.y + ((point.y - previous.y) / 2);
+      return `${path} L ${previous.x},${midY} L ${point.x},${midY} L ${point.x},${point.y}`;
+    }, 'M 8,0');
+  };
+
+  const getCategoryIcon = (category = '') => {
+    if (category.includes('Project')) return Terminal;
+    if (category.includes('Final')) return Award;
+    if (category.includes('Core') || category.includes('Skills')) return Cpu;
+    return BookOpen;
+  };
+
+  const askAiTutor = async (message) => {
+    if (!authToken) {
+      return 'Please sign in again so I can securely use the AI tutor for this lesson.';
+    }
+
+    const workspace = selectedNode && activeTrack ? getWorkspaceData(selectedNode, activeTrack.id) : null;
+    const currentSlideData = workspace?.slides?.[currentSlide];
+    const recentHistory = chatMessages
+      .filter(msg => msg.id !== 'm-init')
+      .slice(-6)
+      .map(msg => ({
+        role: msg.sender === 'ai' ? 'assistant' : 'user',
+        content: msg.text
+      }));
+    const csrf = await getCsrfToken();
+
+    const response = await fetch(`${API_BASE_URL}/chat/ai`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildCsrfHeaders(csrf),
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        message,
+        history: recentHistory,
+        context: {
+          surface: 'learning_path',
+          trackTitle: activeTrack?.name,
+          courseTitle: activeTrack?.name,
+          lessonTitle: selectedNode?.title,
+          slideTitle: currentSlideData?.title,
+          syllabus: currentSlideData?.bullets,
+          sandboxLanguage: workspace?.sandbox?.language,
+          sandboxCode
+        }
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || 'AI tutor could not answer right now.');
+    }
+
+    return data.answer || 'I could not form an answer for that. Try asking with a little more detail.';
+  };
 
   useEffect(() => {
     if (currentTrack && activeTrack?.id !== currentTrack.id) {
       setActiveTrack(currentTrack);
     }
   }, [currentTrack, activeTrack?.id, setActiveTrack]);
+
+  useEffect(() => {
+    const requestedTrackId = sessionStorage.getItem('prisma:open-journey-detail');
+    if (!requestedTrackId) return;
+
+    const requestedTrack = enrolledTracks.find(track => track.id === requestedTrackId);
+    if (requestedTrack) {
+      setActiveTrack(requestedTrack);
+      setShowTrackDetail(true);
+      sessionStorage.removeItem('prisma:open-journey-detail');
+    }
+  }, [enrolledTracks, setActiveTrack]);
 
   // Dynamic sound synthesis using the Web Audio API (zero external assets needed!)
   const playVictorySound = () => {
@@ -588,11 +834,23 @@ export default function LearningPath({
     const matched = enrolledTracks.find(t => t.id === trackId);
     if (matched) {
       setActiveTrack(matched);
+      setShowTrackDetail(true);
     }
   };
 
   const handleNodeClick = (node) => {
     if (node.status === 'locked') return;
+
+    if (node.type === 'project') {
+      sessionStorage.setItem('prisma:open-project-upload', 'true');
+      sessionStorage.setItem('prisma:project-learning-node', JSON.stringify({
+        id: node.id,
+        xp: node.xp
+      }));
+      setPage?.('dashboard');
+      return;
+    }
+
     setSelectedNode(node);
     setUserAnswer(null);
     setQuizSubmitted(false);
@@ -619,46 +877,50 @@ export default function LearningPath({
   }, [selectedNode, activeTrack]);
 
   // Doubt bubble click response
-  const handleDoubtClick = (doubt) => {
+  const handleDoubtClick = async (doubt) => {
     const userMsg = { id: nextMessageId(), sender: "user", text: doubt.q };
     setChatMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const answer = await askAiTutor(doubt.q);
       setIsTyping(false);
-      const aiMsg = { id: nextMessageId('m-ai'), sender: "ai", text: doubt.a };
+      const aiMsg = { id: nextMessageId('m-ai'), sender: "ai", text: answer };
       setChatMessages(prev => [...prev, aiMsg]);
-    }, 600);
+    } catch (error) {
+      setIsTyping(false);
+      setChatMessages(prev => [...prev, {
+        id: nextMessageId('m-ai'),
+        sender: "ai",
+        text: error.message || doubt.a
+      }]);
+    }
   };
 
   // Custom text doubt input responder
-  const handleSendCustomMessage = (e) => {
+  const handleSendCustomMessage = async (e) => {
     e.preventDefault();
     if (!customInput.trim()) return;
 
-    const userMsg = { id: nextMessageId(), sender: "user", text: customInput };
+    const question = customInput.trim();
+    const userMsg = { id: nextMessageId(), sender: "user", text: question };
     setChatMessages(prev => [...prev, userMsg]);
-    const query = customInput.trim().toLowerCase();
     setCustomInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const responseText = await askAiTutor(question);
       setIsTyping(false);
-      let responseText = "Excellent technical question! To optimize your operations here, ensure you isolate registry streams, write modular logic modules, and clear state caches after calls. Would you like a compiler test example in your sandbox?";
-
-      if (query.includes("compile") || query.includes("error") || query.includes("fail") || query.includes("bug")) {
-        responseText = "Compilation anomalies usually stem from incomplete bitwise registers configurations or incorrect packages imports. Restructure your code template in the editor and click 'Execute Code' to verify standard diagnostics output.";
-      } else if (query.includes("stripe") || query.includes("pay") || query.includes("checkout")) {
-        responseText = "Stripe routing is handled securely inside server actions to prevent clients from tampering with pricing values. Fulfill transactions inside webhooks using direct secure payload verification keys.";
-      } else if (query.includes("rtos") || query.includes("task") || query.includes("priority")) {
-        responseText = "In FreeRTOS multitask schedulers, task priority manages preemption paths. Poll critical telemetry peripherals via SPI DMA at highest priority, allocating proper stack sizes to prevent overflows.";
-      } else if (query.includes("rag") || query.includes("vector") || query.includes("embedding")) {
-        responseText = "RAG queries convert user prompts into floating array embeddings, checking similarity against Pinecone databases using cosine distance calculations to retrieve precise semantic reference blocks.";
-      }
-
       const aiMsg = { id: nextMessageId('m-ai'), sender: "ai", text: responseText };
       setChatMessages(prev => [...prev, aiMsg]);
-    }, 850);
+    } catch (error) {
+      setIsTyping(false);
+      setChatMessages(prev => [...prev, {
+        id: nextMessageId('m-ai'),
+        sender: "ai",
+        text: error.message || 'AI tutor could not answer right now. Please try again.'
+      }]);
+    }
   };
 
   // Sandbox Compiler Code Executor
@@ -737,6 +999,8 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
     if (isCorrect) {
       playVictorySound();
       setShowRewardAnimation(true);
+      setCompletedBurstNodeId(selectedNode.id);
+      setTimeout(() => setCompletedBurstNodeId(null), 900);
 
       if (onCompleteNode) {
         onCompleteNode(selectedNode.id, selectedNode.xp, selectedNode.category);
@@ -780,10 +1044,8 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
           setAtsScore(prev => Math.min(prev + 5, 98));
         } else if (selectedNode.category.includes("Resume")) {
           setResumeScore(prev => Math.min(prev + 8, 100));
-        } else if (selectedNode.category.includes("Internship") || selectedNode.category.includes("Skills") || selectedNode.category.includes("Capstone")) {
+        } else if (selectedNode.category.includes("Skills")) {
           setInternshipScore(prev => Math.min(prev + 6, 96));
-        } else if (selectedNode.category.includes("Freelanc")) {
-          setFreelanceScore(prev => Math.min(prev + 7, 95));
         }
       }
 
@@ -830,17 +1092,102 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
     );
   };
 
+  if (!showTrackDetail) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6 text-left">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-950 dark:text-white font-sora">My Courses</h2>
+          <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500 dark:text-slate-400">
+            Select an enrolled course to open its learning path, track overview, and milestone badges.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {enrolledTracks.map(track => {
+            const totalNodes = track.totalNodes || track.nodes?.length || 1;
+            const percent = Math.floor(((track.completedNodes || 0) / totalNodes) * 100);
+            const nextNode = track.nodes?.find(node => node.status === 'active')
+              || track.nodes?.find(node => node.status !== 'completed')
+              || track.nodes?.[0];
+
+            return (
+              <button
+                key={track.id}
+                onClick={() => handleTrackChange(track.id)}
+                className="glass-panel group relative overflow-hidden rounded-2xl border border-slate-200/60 p-5 text-left transition-all hover:-translate-y-1 hover:border-indigo-300 dark:border-slate-800/80"
+              >
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <span className="mb-2 block text-[10px] font-extrabold uppercase tracking-wider text-indigo-500 dark:text-brand-accent">
+                      Enrolled Course
+                    </span>
+                    <h3 className="truncate text-lg font-extrabold text-slate-950 dark:text-white font-sora">
+                      {track.name}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                      {track.description}
+                    </p>
+                  </div>
+                  <div className="shrink-0 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-500">
+                    {track.id === 'web-dev' ? <Compass className="h-5 w-5" /> : track.id === 'ai-ml' ? <Sparkles className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-white/80 bg-white/75 p-3 dark:border-slate-800/70 dark:bg-slate-950/45">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-slate-500 dark:text-slate-400">Progress</span>
+                    <span className="text-indigo-600 dark:text-brand-accent">{percent}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${percent}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    <span>{track.completedNodes || 0} of {totalNodes} milestones complete</span>
+                    <span className="truncate text-right">{nextNode?.title || 'Ready to start'}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-extrabold text-white transition-colors group-hover:bg-indigo-700">
+                  Open Journey
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 relative text-left">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 text-left">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-950 dark:text-white font-sora">
+            {currentTrack?.name}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-medium text-slate-500 dark:text-slate-400">
+            {currentTrack?.description}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowTrackDetail(false)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/60 bg-white/60 px-4 py-2.5 text-xs font-extrabold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          My Courses
+        </button>
+      </div>
 
       {/* TOP DYNAMIC ACHIEVEMENT COURSE BADGES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="hidden">
         {enrolledTracks.map(track => {
           const isSelected = currentTrack?.id === track.id;
           const percent = Math.floor((track.completedNodes / track.totalNodes) * 100);
 
           let cardBorder = isSelected ? "border-indigo-500 shadow-md ring-2 ring-indigo-500/10 dark:bg-slate-900/60" : "border-slate-205 dark:border-slate-800/80 hover:border-slate-350 dark:hover:border-slate-700 bg-white/40 dark:bg-slate-905/30";
-          let badgeText = isSelected ? "Active Journey" : "Resume Track";
+          let badgeText = isSelected ? '▶ live' : '■ idle';
           let accentText = isSelected ? "text-indigo-650 dark:text-brand-accent" : "text-slate-500 dark:text-slate-400";
           let iconBg = isSelected ? "bg-indigo-500/10 text-brand-primary border-indigo-500/20" : "bg-slate-105 dark:bg-slate-900 text-slate-400 border-slate-200/50 dark:border-slate-800/30";
 
@@ -856,7 +1203,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
               <div className="space-y-3.5 w-full relative z-10">
                 <div className="flex justify-between items-center">
-                  <span className={`text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-full border ${isSelected ? 'bg-indigo-500/15 border-indigo-500/20 text-brand-primary dark:text-brand-accent' : 'bg-slate-105 dark:bg-slate-900/60 border-slate-200/30 dark:border-slate-800/30 text-slate-450'}`}>
+                  <span className={`text-[9.5px] font-extrabold uppercase px-2.5 py-1 rounded-full border ${isSelected ? 'bg-indigo-500/15 border-indigo-500/20 text-brand-primary dark:text-brand-accent' : 'bg-slate-105 dark:bg-slate-900/60 border-slate-200/30 dark:border-slate-800/30 text-violet-500 dark:text-violet-400'}`}>
                     {badgeText}
                   </span>
 
@@ -893,51 +1240,245 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
       </div>
 
       {/* Snake Roadmap & Sidebar grid layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px] gap-8 items-start">
         {/* Left Columns (2/3): Snake Roadmap path */}
-        <div className="lg:col-span-2 space-y-6 flex flex-col items-center">
+        <div className="min-w-0 space-y-6 flex flex-col items-center">
 
           {/* The Snake Vertical Roadmap Layout */}
-          <div className="relative roadmap-container py-12 flex flex-col items-center gap-12 w-full">
+          <div className="relative roadmap-container garden-roadmap learning-sim-stage py-20 flex flex-col items-center gap-16 w-full overflow-hidden rounded-[2rem]">
+            <div className="win95-titlebar" aria-hidden="true">
+              <span>Learning Path</span>
+              <div className="win95-window-controls">
+                <button type="button">_</button>
+                <button type="button">□</button>
+                <button type="button">X</button>
+              </div>
+            </div>
+            <div className="win95-menubar" aria-hidden="true">
+              <span>File</span>
+              <span>Edit</span>
+              <span>View</span>
+              <span>Help</span>
+            </div>
+            <div className="learning-abstract-scene" aria-hidden="true">
+              <div className="learning-way-ribbon learning-way-ribbon-one" />
+              <div className="learning-way-ribbon learning-way-ribbon-two" />
+              <div className="learning-way-ribbon learning-way-ribbon-three" />
+              <div className="learning-target-halo learning-target-halo-one" />
+              <div className="learning-target-halo learning-target-halo-two" />
+            </div>
+            <div className="learning-sim-header">
+              <span>Target Way</span>
+              <strong>{currentTrack?.completedNodes || 0}/{currentTrack?.totalNodes || currentTrack?.nodes?.length || 0}</strong>
+            </div>
 
-            {/* Vertical Connecting SVG Line */}
-            <div className="absolute top-16 bottom-16 left-1/2 w-4 -translate-x-1/2 pointer-events-none z-0">
+            {/* ═══ EXTREME REALISTIC GARDEN BACKGROUND ═══ */}
+            {/* ═══ NEURAL NET / DATA PIPELINE BACKGROUND ═══ */}
+            <div className="learning-sim-backdrop absolute inset-0 pointer-events-none" aria-hidden="true">
+              <svg className="absolute inset-0 w-full h-full opacity-100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="hexPat" x="0" y="0" width="52" height="60" patternUnits="userSpaceOnUse">
+                    <polygon
+                      points="26,2 50,15 50,45 26,58 2,45 2,15"
+                      fill="none"
+                      className="stroke-teal-200/50 dark:stroke-teal-200/40"
+                      strokeWidth="0.7"
+                    />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#hexPat)" />
+              </svg>
+
+              <div className="absolute w-3/4 h-px bg-teal-300/25 dark:bg-teal-200/20 top-[22%] left-[5%] -rotate-6" style={{ animation: 'graph-line-fade 7s ease-in-out infinite' }} />
+              <div className="absolute w-1/2 h-px bg-white/45 dark:bg-white/30 top-[52%] left-[20%] rotate-3" style={{ animation: 'graph-line-fade 9s ease-in-out infinite', animationDelay: '-2s' }} />
+              <div className="absolute w-3/5 h-px bg-orange-300/20 dark:bg-orange-200/20 top-[76%] left-[8%] -rotate-2" style={{ animation: 'graph-line-fade 11s ease-in-out infinite', animationDelay: '-5s' }} />
+
+              <div className="absolute top-0 left-[4%] text-[8px] font-mono leading-[14px] text-teal-500/20 dark:text-teal-200/30 select-none" style={{ animation: 'binary-fall 6s linear infinite' }}>1<br />0<br />1<br />1<br />0<br />0<br />1<br />0</div>
+              <div className="absolute top-0 left-[88%] text-[8px] font-mono leading-[14px] text-orange-400/18 dark:text-orange-200/25 select-none" style={{ animation: 'binary-fall 8s linear infinite', animationDelay: '-2s' }}>0<br />1<br />0<br />0<br />1<br />1<br />0<br />1</div>
+              <div className="absolute top-0 left-[50%] text-[8px] font-mono leading-[14px] text-white/30 dark:text-white/25 select-none" style={{ animation: 'binary-fall 11s linear infinite', animationDelay: '-5s' }}>1<br />1<br />0<br />1<br />0<br />1<br />1</div>
+              <div className="absolute top-0 left-[72%] text-[8px] font-mono leading-[14px] text-teal-400/18 dark:text-teal-200/20 select-none" style={{ animation: 'binary-fall 13s linear infinite', animationDelay: '-8s' }}>0<br />1<br />1<br />0<br />1<br />0</div>
+
+              <div className="absolute inset-x-0 h-16 bg-gradient-to-b from-transparent via-white/35 dark:via-white/20 to-transparent pointer-events-none" style={{ animation: 'scanline 8s linear infinite' }} />
+            </div>
+
+            <div className="hidden" aria-hidden="true">
+
+              {/* Wooden fence at top */}
+              <div className="garden-fence"></div>
+
+              {/* Drifting clouds */}
+              <div className="garden-cloud garden-cloud-1"></div>
+              <div className="garden-cloud garden-cloud-2"></div>
+              <div className="garden-cloud garden-cloud-3"></div>
+
+              {/* Sunbeams */}
+              <div className="garden-sunbeam garden-sunbeam-1"></div>
+              <div className="garden-sunbeam garden-sunbeam-2"></div>
+              <div className="garden-sunbeam garden-sunbeam-3"></div>
+
+              {/* Background trees */}
+              <div className="garden-tree garden-tree-left"></div>
+              <div className="garden-tree garden-tree-right"></div>
+
+              {/* Dense bushes (bottom edges) */}
+              <div className="garden-bush garden-bush-dense-1"></div>
+              <div className="garden-bush garden-bush-dense-2"></div>
+
+              {/* Small shrubs scattered */}
+              <div className="garden-bush garden-bush-small garden-bush-small-1"></div>
+              <div className="garden-bush garden-bush-small garden-bush-small-2"></div>
+              <div className="garden-bush garden-bush-small garden-bush-small-3"></div>
+
+              {/* Ivy climbing edges */}
+              <div className="garden-ivy garden-ivy-left"></div>
+              <div className="garden-ivy garden-ivy-right"></div>
+
+              {/* Realistic CSS flowers */}
+              <div className="garden-flower-rose flower-pos-1"></div>
+              <div className="garden-flower-sunflower flower-pos-2"></div>
+              <div className="garden-flower-lavender flower-pos-3"></div>
+              <div className="garden-flower-daisy flower-pos-4"></div>
+              <div className="garden-flower-rose flower-pos-5" style={{transform: 'scale(0.8)'}}></div>
+              <div className="garden-flower-daisy flower-pos-6" style={{transform: 'scale(0.7)'}}></div>
+
+              {/* Scattered wildflowers */}
+              <div className="garden-wildflower wf-pink" style={{top:'15%',left:'20%',transform:'scale(0.7)'}}></div>
+              <div className="garden-wildflower wf-yellow" style={{top:'35%',right:'18%'}}></div>
+              <div className="garden-wildflower wf-blue" style={{top:'50%',left:'22%'}}></div>
+              <div className="garden-wildflower wf-purple" style={{top:'68%',right:'20%',transform:'scale(0.8)'}}></div>
+              <div className="garden-wildflower wf-white" style={{top:'85%',left:'18%'}}></div>
+              <div className="garden-wildflower wf-pink" style={{top:'22%',right:'22%',transform:'scale(0.6)'}}></div>
+              <div className="garden-wildflower wf-yellow" style={{top:'75%',left:'25%',transform:'scale(0.75)'}}></div>
+              <div className="garden-wildflower wf-blue" style={{top:'45%',right:'25%',transform:'scale(0.65)'}}></div>
+
+              {/* Mushrooms */}
+              <div className="garden-mushroom" style={{bottom:'15%',left:'20%'}}></div>
+              <div className="garden-mushroom" style={{top:'65%',right:'18%',transform:'scale(0.8)'}}></div>
+
+              {/* Grass tufts */}
+              <div className="garden-grass" style={{top:'20%',left:'3%',transform:'scale(0.9)'}}></div>
+              <div className="garden-grass" style={{top:'48%',right:'2%'}}></div>
+              <div className="garden-grass" style={{bottom:'10%',left:'6%'}}></div>
+              <div className="garden-grass" style={{top:'72%',left:'2%',transform:'scale(0.8)'}}></div>
+
+              {/* Realistic pebbles */}
+              <div className="garden-pebble garden-pebble-1"></div>
+              <div className="garden-pebble garden-pebble-2"></div>
+              <div className="garden-pebble garden-pebble-3"></div>
+              <div className="garden-pebble garden-pebble-4"></div>
+              <div className="garden-pebble garden-pebble-5"></div>
+
+              {/* Water pond */}
+              <div className="garden-pond"></div>
+
+              {/* Dewdrops on grass */}
+              <div className="garden-dewdrop" style={{top:'25%',left:'15%',animationDelay:'0s'}}></div>
+              <div className="garden-dewdrop" style={{top:'42%',right:'12%',animationDelay:'-1s'}}></div>
+              <div className="garden-dewdrop" style={{top:'60%',left:'20%',animationDelay:'-2s'}}></div>
+              <div className="garden-dewdrop" style={{top:'80%',right:'18%',animationDelay:'-0.5s'}}></div>
+
+              {/* Butterflies */}
+              <div className="garden-butterfly" style={{top:'18%',left:'25%'}}></div>
+              <div className="garden-butterfly garden-butterfly-2" style={{top:'55%',right:'20%'}}></div>
+
+              {/* Bee */}
+              <div className="garden-bee" style={{top:'35%',left:'40%'}}></div>
+
+              {/* Dragonfly */}
+              <div className="garden-dragonfly" style={{top:'70%',right:'10%'}}></div>
+
+              {/* Fireflies */}
+              <div className="garden-firefly" style={{top:'30%',left:'30%'}}></div>
+              <div className="garden-firefly garden-firefly-2" style={{top:'50%',right:'25%'}}></div>
+              <div className="garden-firefly garden-firefly-3" style={{top:'70%',left:'35%'}}></div>
+              <div className="garden-firefly garden-firefly-4" style={{top:'20%',right:'30%'}}></div>
+              <div className="garden-firefly garden-firefly-5" style={{top:'85%',left:'40%'}}></div>
+
+              {/* Falling petals */}
+              <div className="garden-petal" style={{top:'8%',left:'35%'}}></div>
+              <div className="garden-petal garden-petal-2" style={{top:'25%',right:'30%'}}></div>
+              <div className="garden-petal garden-petal-3" style={{top:'45%',left:'45%'}}></div>
+
+              {/* Falling leaves */}
+              <div className="garden-leaf" style={{top:'5%',left:'50%'}}></div>
+              <div className="garden-leaf garden-leaf-2" style={{top:'30%',right:'35%'}}></div>
+              <div className="garden-leaf garden-leaf-3" style={{top:'60%',left:'55%'}}></div>
+
+              {/* Dirt path texture overlay */}
+              <div className="garden-path"></div>
+            </div>
+
+            {/* Vertical Connecting SVG Line (stone path trail) */}
+            <div className="absolute top-20 bottom-20 left-1/2 w-4 -translate-x-1/2 pointer-events-none z-0">
               <svg className="w-full h-full" overflow="visible">
+                <defs>
+                  <linearGradient id="pipeGradDone" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.95" />
+                    <stop offset="35%" stopColor="#8b5cf6" stopOpacity="0.88" />
+                    <stop offset="68%" stopColor="#14b8a6" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity="0.78" />
+                  </linearGradient>
+                  <linearGradient id="pipeGradLocked" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c4b5fd" stopOpacity="0.42" />
+                    <stop offset="100%" stopColor="#67e8f9" stopOpacity="0.22" />
+                  </linearGradient>
+                </defs>
+
                 <path
-                  d={`M 8,0 ${currentTrack?.nodes.map((_, i) => {
-                    const xOffset = Math.sin(i * 1.2) * 45;
-                    const yVal = i * 96 + 32;
-                    return `L ${8 + xOffset},${yVal}`;
-                  }).join(' ')}`}
+                  className="pixel-path-bed"
+                  d={buildPixelPath(currentTrack?.nodes || [])}
                   fill="none"
-                  stroke="#cbd5e1"
-                  className="dark:stroke-slate-800"
-                  strokeWidth="6"
-                  strokeLinecap="round"
+                  stroke="#808080"
+                  strokeWidth="1"
+                  strokeLinecap="butt"
+                  strokeLinejoin="miter"
+                  strokeDasharray="1 5"
                 />
                 <path
-                  d={`M 8,0 ${currentTrack?.nodes.map((n, i) => {
-                    if (n.status === 'locked') return '';
-                    const xOffset = Math.sin(i * 1.2) * 45;
-                    const yVal = i * 96 + 32;
-                    return `L ${8 + xOffset},${yVal}`;
-                  }).filter(Boolean).join(' ')}`}
+                  d={buildPixelPath(currentTrack?.nodes || [], true)}
                   fill="none"
-                  stroke="#6366f1"
-                  strokeWidth="6"
-                  strokeLinecap="round"
+                  stroke="#000080"
+                  strokeWidth="2"
+                  strokeLinecap="butt"
+                  strokeLinejoin="miter"
+                  className="pipeline-path-animated"
+                />
+                <path
+                  className="pixel-path-studs"
+                  d={buildPixelPath(currentTrack?.nodes || [])}
+                  fill="none"
+                  stroke="#808080"
+                  strokeWidth="1"
+                  strokeLinecap="butt"
+                  strokeLinejoin="miter"
+                  strokeDasharray="1 5"
                 />
               </svg>
             </div>
 
-            {/* Level Nodes */}
+            {/* ═══ LEVEL STONE NODES ═══ */}
             {currentTrack?.nodes.map((node, idx) => {
               const isCompleted = node.status === 'completed';
               const isActive = node.status === 'active';
               const isLocked = node.status === 'locked';
 
               // Sinusoidal horizontal displacement to offset nodes into a curved roadmap path
-              const xOffset = Math.sin(idx * 1.2) * 45;
+              const xOffset = Math.sin(idx * 1.2) * 90;
+              const LabelIcon = getCategoryIcon(node.category);
+              const NodeIcon = node.category.includes('Final')
+                ? Award
+                : node.category.includes('Core') || node.category.includes('Skills')
+                  ? Cpu
+                  : node.type === 'project'
+                    ? Sparkles
+                    : BookOpen;
+              const nodeTone = node.category.includes('Final')
+                ? 'node-tone-final'
+                : node.type === 'project'
+                  ? 'node-tone-project'
+                  : node.category.includes('Core') || node.category.includes('Skills')
+                    ? 'node-tone-core'
+                    : 'node-tone-foundation';
 
               return (
                 <div
@@ -945,33 +1486,60 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                   className="relative flex flex-col items-center z-10"
                   style={{ transform: `translateX(${xOffset}px)` }}
                 >
-                  {/* Level Node Button */}
+                  {/* Pixel block milestone button */}
                   <button
                     onClick={() => handleNodeClick(node)}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-white transition-all transform active:scale-95 ${isCompleted
-                      ? 'bg-emerald-500 hover:bg-emerald-600 node-glow-completed ring-4 ring-emerald-500/10 cursor-pointer'
+                    disabled={isLocked}
+                    className={`journey-stone w-20 h-20 flex items-center justify-center font-bold ${nodeTone} ${isCompleted
+                      ? 'stone-completed cursor-pointer text-white'
                       : isActive
-                        ? 'bg-brand-primary hover:bg-indigo-600 node-glow-active ring-4 ring-indigo-500/20 cursor-pointer animate-pulse'
-                        : 'bg-slate-205 dark:bg-slate-800 text-slate-400 border border-slate-350 dark:border-slate-750 cursor-not-allowed'
-                      }`}
+                        ? 'stone-active cursor-pointer text-white'
+                        : 'stone-locked cursor-not-allowed text-slate-400 dark:text-slate-500'
+                    }`}
+                    style={{ animationDelay: `${idx * 0.3}s` }}
                   >
+                    {isActive && <div className="node-ping" />}
+                    {completedBurstNodeId === node.id && (
+                      <div className="pixel-burst" aria-hidden="true">
+                        {Array.from({ length: 10 }).map((_, particleIndex) => (
+                          <span key={particleIndex} style={{ '--i': particleIndex }} />
+                        ))}
+                      </div>
+                    )}
+
                     {isCompleted ? (
-                      <Check className="w-7 h-7 stroke-[3.5]" />
+                      <>
+                        <span className="pixel-check-badge"><Check className="h-4 w-4" strokeWidth={3} /></span>
+                        <span className="pixel-node-core pixel-node-grass" aria-hidden="true">
+                          <NodeIcon className="h-8 w-8" strokeWidth={2.25} />
+                        </span>
+                        <span className="sr-only">Completed milestone</span>
+                      </>
                     ) : isLocked ? (
-                      <Lock className="w-5 h-5 text-slate-400 dark:text-slate-650" />
+                      <>
+                        <Lock className="pixel-lock h-6 w-6" strokeWidth={3} />
+                        <span className="sr-only">Locked milestone</span>
+                      </>
                     ) : (
-                      <span className="text-base font-extrabold">{idx + 1}</span>
+                      <>
+                        <span className="pixel-node-core pixel-node-diamond" aria-hidden="true">
+                          <NodeIcon className="h-8 w-8" strokeWidth={2.25} />
+                        </span>
+                        <span className="pixel-active-label">READY</span>
+                      </>
                     )}
                   </button>
 
-                  {/* Floating tooltip/label */}
-                  <div className="absolute top-18 bg-slate-900/90 dark:bg-slate-950/95 text-white text-[10px] font-bold py-1 px-3 rounded-full border border-slate-700/40 shadow-md whitespace-nowrap z-20">
-                    {node.category}
+                  {/* Pixel item-tooltip label */}
+                  <div className="stone-label">
+                    <LabelIcon className="h-3 w-3" strokeWidth={2.6} />
+                    <span>{node.category}</span>
                   </div>
                 </div>
               );
             })}
           </div>
+
         </div>
 
         {/* Right Column (1/3): Track details panel & stats */}
@@ -1054,7 +1622,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
         {/* High-Fidelity Ultimate Classroom Interactive Workspace Overlay */}
         <AnimatePresence>
           {selectedNode && (
-            <div className="fixed inset-0 z-40 bg-darknavy/95 backdrop-blur-md flex flex-col text-slate-100 font-sans overflow-hidden">
+            <div className="learning-workspace fixed inset-0 z-40 flex flex-col text-slate-100 font-sans overflow-hidden">
 
               {/* Ambient Background Glow matching the active track theme color */}
               <div
@@ -1075,16 +1643,16 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
               ></div>
 
               {/* Header section */}
-              <div className="sticky top-0 h-18 bg-darknavy-card border-b border-slate-800 px-6 py-4 flex items-center justify-between z-10">
+              <div className="learning-workspace-header sticky top-0 h-18 px-6 py-4 flex items-center justify-between z-10">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-extrabold bg-indigo-500/10 text-brand-primary px-3 py-1 rounded-full border border-indigo-500/20 uppercase tracking-wide">
+                  <span className="learning-workspace-chip">
                     {selectedNode.category}
                   </span>
                   <div>
-                    <h3 className="text-sm font-extrabold text-white leading-tight font-sora">
+                    <h3 className="text-sm font-extrabold text-white leading-tight font-sora learning-workspace-title">
                       {selectedNode.title}
                     </h3>
-                    <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                    <span className="text-[10px] text-slate-300 font-bold block mt-0.5">
                       {activeTrack.name} Track &bull; Stage{' '}
                       {activeTrack.nodes.findIndex((n) => n.id === selectedNode.id) + 1} of 11
                     </span>
@@ -1095,7 +1663,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                   {/* Take Stage Assessment Button */}
                   <button
                     onClick={() => setShowQuizOverlay(true)}
-                    className="px-5 py-2 bg-gradient-to-r from-indigo-500 to-brand-primary text-white font-extrabold text-[11px] rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-650/15 hover:shadow-lg hover:scale-[1.02] transition-all active:scale-[0.98]"
+                    className="learning-workspace-primary-btn"
                   >
                     <Award className="w-3.5 h-3.5" />
                     Take Assessment Quiz
@@ -1103,7 +1671,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
                   <button
                     onClick={() => setSelectedNode(null)}
-                    className="p-2 hover:bg-slate-805 rounded-xl text-slate-400 hover:text-white transition-colors"
+                    className="p-2 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1114,11 +1682,11 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
               <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
 
                 {/* Left Column: PowerPoint presentation slides */}
-                <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between overflow-y-auto min-w-0">
+                <div className="learning-workspace-main flex-1 p-6 sm:p-8 flex flex-col justify-between overflow-y-auto min-w-0">
                   <div>
                     {/* Title card */}
-                    <div className="mb-6">
-                      <span className="text-[9px] uppercase font-bold text-slate-500">
+                    <div className="learning-module-heading mb-6">
+                      <span className="text-[9px] uppercase font-bold text-cyan-300/80 tracking-[0.18em]">
                         Presentation Module
                       </span>
                       <h2 className="text-2xl font-extrabold text-white tracking-tight font-sora mt-1">
@@ -1127,7 +1695,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                     </div>
 
                     {/* PPT Card Frame */}
-                    <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-805 bg-darknavy-card/65 relative overflow-hidden min-h-[280px] flex flex-col justify-between shadow-2xl">
+                    <div className="lesson-slide-card p-6 sm:p-8 relative overflow-hidden min-h-[460px] flex flex-col justify-between">
                       <div className="space-y-4">
                         {/* Active Slide details */}
                         <AnimatePresence mode="wait">
@@ -1137,20 +1705,20 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.15 }}
-                            className="space-y-4 text-left"
+                            className="space-y-5 text-left relative z-10"
                           >
-                            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-550/10 text-brand-primary text-[9px] font-extrabold uppercase border border-indigo-500/10">
+                            <div className="lesson-slide-kicker">
                               Slide {currentSlide + 1} of{' '}
                               {getWorkspaceData(selectedNode, activeTrack.id).slides.length}
                             </div>
-                            <h4 className="text-lg font-bold text-white font-sora">
+                            <h4 className="text-2xl font-extrabold text-white font-sora leading-tight">
                               {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].title}
                             </h4>
-                            <div className="space-y-3 pt-2 text-xs leading-relaxed text-slate-350">
+                            <div className="space-y-3 pt-2 text-sm leading-relaxed text-slate-100 max-w-5xl">
                               {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].bullets.map(
                                 (b, i) => (
-                                  <div key={i} className="flex gap-2 items-start">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5"></div>
+                                  <div key={i} className="lesson-slide-bullet flex gap-3 items-start">
+                                    <div className="lesson-slide-bullet-dot shrink-0 mt-1.5"></div>
                                     <span>{b}</span>
                                   </div>
                                 )
@@ -1161,16 +1729,17 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                       </div>
 
                       {/* Pagination */}
-                      <div className="pt-6 border-t border-slate-800/50 mt-6 flex justify-between items-center">
+                      <div className="lesson-slide-footer pt-6 mt-6 flex justify-between items-center relative z-10">
                         <div className="flex gap-1.5">
                           {getWorkspaceData(selectedNode, activeTrack.id).slides.map((_, i) => (
                             <button
                               key={i}
                               onClick={() => setCurrentSlide(i)}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${currentSlide === i
-                                ? 'w-5 bg-indigo-500'
-                                : 'w-1.5 bg-slate-700 hover:bg-slate-500'
+                              className={`lesson-slide-dot ${currentSlide === i
+                                ? 'is-active'
+                                : ''
                                 }`}
+                              aria-label={`Go to slide ${i + 1}`}
                             ></button>
                           ))}
                         </div>
@@ -1179,9 +1748,9 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                           <button
                             disabled={currentSlide === 0}
                             onClick={() => setCurrentSlide((prev) => prev - 1)}
-                            className={`p-1.5 border rounded-lg text-xs font-bold transition-all ${currentSlide === 0
-                              ? 'border-slate-800 text-slate-600 cursor-not-allowed'
-                              : 'border-slate-700 text-slate-350 hover:bg-slate-800 hover:text-white'
+                            className={`lesson-slide-nav ${currentSlide === 0
+                              ? 'is-disabled'
+                              : ''
                               }`}
                           >
                             <ChevronLeft className="w-4 h-4" />
@@ -1192,10 +1761,10 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                               getWorkspaceData(selectedNode, activeTrack.id).slides.length - 1
                             }
                             onClick={() => setCurrentSlide((prev) => prev + 1)}
-                            className={`p-1.5 border rounded-lg text-xs font-bold transition-all ${currentSlide ===
+                            className={`lesson-slide-nav ${currentSlide ===
                               getWorkspaceData(selectedNode, activeTrack.id).slides.length - 1
-                              ? 'border-slate-800 text-slate-600 cursor-not-allowed'
-                              : 'border-slate-700 text-slate-350 hover:bg-slate-800 hover:text-white'
+                              ? 'is-disabled'
+                              : ''
                               }`}
                           >
                             <ChevronRight className="w-4 h-4" />
@@ -1206,9 +1775,9 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                   </div>
 
                   {/* Bottom workspace hint */}
-                  <div className="pt-6 border-t border-slate-900 mt-6 text-[10px] text-slate-500 flex justify-between items-center">
-                    <span>Prisma High-Fidelity Classroom Environment &bull; May 2026</span>
-                    <span>Use custom sandboxes & AI solvers to clear assessments.</span>
+                  <div className="learning-workspace-footer pt-6 mt-6 text-[10px] flex justify-between items-center">
+                    <span>Prisma Classroom Workspace &bull; Structured lesson deck</span>
+                    <span>Use the sandbox and AI tutor before taking the assessment.</span>
                   </div>
                 </div>
 
@@ -1216,10 +1785,10 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                 <div className="absolute bottom-6 left-6 z-25">
                   <button
                     onClick={() => setShowSandbox(true)}
-                    className="px-5 py-3 bg-darknavy-card border border-slate-800 hover:border-indigo-500/40 text-white font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-2xl transition-all hover:scale-105 active:scale-95"
+                    className="learning-floating-tool"
                   >
                     <Terminal className="w-4 h-4 text-emerald-400" />
-                    💻 Code Sandbox Practice
+                    Code Sandbox Practice
                   </button>
                 </div>
 
@@ -1565,7 +2134,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
           {/* ↑ closes selectedNode conditional div (fullscreen overlay) */}
         </AnimatePresence>
 
-        {/* Live Generated Print-Ready High-Fidelity SVG Certificate Modal Overlay */}
+        {/* Live Generated Print-Ready Certificate Modal Overlay */}
         <AnimatePresence>
           {showCertificate && (
             <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg">
@@ -1573,72 +2142,119 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="w-full max-w-2xl bg-white text-slate-900 border-8 border-indigo-950 p-8 sm:p-12 rounded-3xl relative shadow-2xl text-center overflow-hidden"
-                style={{ fontFamily: 'Georgia, serif' }}
+                className="w-full max-w-5xl bg-[#f8f3e9] text-slate-950 p-5 sm:p-8 relative shadow-2xl text-center overflow-hidden"
+                style={{ fontFamily: 'Georgia, Times New Roman, serif' }}
               >
-                {/* Gold seal accent */}
-                <div className="absolute top-4 left-4 right-4 bottom-4 border-2 border-indigo-900/30 pointer-events-none"></div>
+                <div className="relative min-h-[620px] border-[3px] border-[#a77724] bg-[#fbf7ef] px-8 py-8 sm:px-14 sm:py-10">
+                  <div className="pointer-events-none absolute inset-3 border border-[#a77724]/80"></div>
+                  <div className="pointer-events-none absolute inset-5 border border-[#a77724]/55"></div>
+                  <div className="pointer-events-none absolute left-7 top-7 h-16 w-16 border-l-[5px] border-t-[5px] border-[#a77724]"></div>
+                  <div className="pointer-events-none absolute right-7 top-7 h-16 w-16 border-r-[5px] border-t-[5px] border-[#a77724]"></div>
+                  <div className="pointer-events-none absolute bottom-7 left-7 h-16 w-16 border-b-[5px] border-l-[5px] border-[#a77724]"></div>
+                  <div className="pointer-events-none absolute bottom-7 right-7 h-16 w-16 border-b-[5px] border-r-[5px] border-[#a77724]"></div>
 
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-550/10 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-550/10 rounded-full blur-3xl pointer-events-none"></div>
+                  <div className="relative z-10 mx-auto flex h-full max-w-4xl flex-col">
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
+                      <div className="flex items-start gap-4 text-left">
+                        <img
+                          src="/prisma-logo.svg"
+                          alt="Prisma Embedded Codes"
+                          className="h-24 w-24 rounded-lg object-cover shadow-sm"
+                        />
+                        <div>
+                          <p className="text-3xl sm:text-4xl font-bold tracking-[0.08em] text-[#10162f] leading-none">
+                            PRISMA
+                          </p>
+                          <p className="mt-1 text-lg sm:text-xl font-bold tracking-[0.08em] text-[#10162f] leading-none">
+                            EMBEDDED CODES
+                          </p>
+                          <p className="mt-1 text-[11px] font-bold tracking-[0.18em] text-slate-700">
+                            LEARNING PATH CERTIFICATION
+                          </p>
+                        </div>
+                      </div>
 
-                <div className="space-y-6 relative z-10">
-                  <div>
-                    <span className="text-[10px] tracking-[0.25em] text-indigo-700 font-extrabold uppercase font-sans">
-                      PRISMA EMBEDDED CODES PLATFORM
-                    </span>
-                    <h2 className="text-3xl sm:text-4xl font-bold text-indigo-950 mt-2 font-serif">
-                      Certificate of Completion
-                    </h2>
-                    <div className="w-24 h-0.5 bg-indigo-500 mx-auto mt-4"></div>
-                  </div>
+                      <div className="hidden sm:block"></div>
 
-                  <p className="text-xs text-slate-500 italic mt-6 font-sans">
-                    This document proudly certifies that the explorer candidate
-                  </p>
-
-                  <h3 className="text-2xl sm:text-3xl font-bold text-indigo-900 mt-2 italic font-serif">
-                    {userData?.name || "Aastik Srivastava"}
-                  </h3>
-
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed mt-4 font-sans">
-                    has successfully resolved all 11 technical stages, completed capstone project audits, and passed the final comprehensive evaluation for the career track:
-                  </p>
-
-                  <h4 className="text-sm font-extrabold text-indigo-950 tracking-wide uppercase mt-2 font-sans">
-                    {activeTrack?.name || "Full-Stack Web Architectures"}
-                  </h4>
-
-                  <div className="grid grid-cols-2 gap-8 pt-8 text-left border-t border-slate-205 mt-8 font-sans">
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Verification Token ID</span>
-                      <code className="text-[9px] text-indigo-700 font-bold font-mono truncate block max-w-[200px]">
-                        {userData?.apiKey || "pec_live_89e41942c4c1_secure7790"}
-                      </code>
+                      <div className="justify-self-end rounded-md bg-[#10162f] px-4 py-2 text-white shadow-md">
+                        <p className="text-[9px] font-bold uppercase tracking-wide">Verified with</p>
+                        <p className="text-xl font-bold tracking-wide">A GRADE</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Date of Issue</span>
-                      <strong className="text-[9px] text-slate-800 font-extrabold">May 31, 2026</strong>
+
+                    <div className="mt-16 text-center">
+                      <h2 className="text-5xl sm:text-7xl font-serif tracking-[0.22em] text-[#a77724] drop-shadow-sm">
+                        CERTIFICATE
+                      </h2>
+                      <div className="mt-3 flex items-center justify-center gap-4 text-[#a77724]">
+                        <span className="h-px w-20 bg-[#a77724]"></span>
+                        <span className="h-2 w-2 rounded-full bg-[#a77724]"></span>
+                        <span className="text-lg sm:text-2xl font-bold tracking-[0.45em]">OF ACHIEVEMENT</span>
+                        <span className="h-2 w-2 rounded-full bg-[#a77724]"></span>
+                        <span className="h-px w-20 bg-[#a77724]"></span>
+                      </div>
+                    </div>
+
+                    <div className="mx-auto mt-12 max-w-3xl text-center">
+                      <p className="text-lg font-bold text-slate-900">
+                        This is to certify that
+                      </p>
+                      <h3 className="mt-5 border-b border-slate-600 pb-1 text-4xl sm:text-6xl italic text-slate-950">
+                        {userData?.name || "Aastik Srivastava"}
+                      </h3>
+                      <p className="mt-4 text-xl font-bold text-slate-900">
+                        of {activeTrack?.name || "Full-Stack Web Architectures"}
+                      </p>
+                      <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold leading-relaxed text-slate-900">
+                        has been awarded completion achievement for resolving all 9 technical stages,
+                        strengthening the required core skills, and passing the final comprehensive evaluation.
+                      </p>
+                      <p className="mt-4 text-base font-semibold text-slate-900">
+                        held on {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}.
+                      </p>
+                    </div>
+
+                    <div className="mt-14 grid grid-cols-1 gap-8 text-center sm:grid-cols-3">
+                      {[
+                        ['Dr. Nisha Singh', 'Director'],
+                        ['Dr. Urvashi Makkar', 'Dean Academics'],
+                        ['Ms. Taruna Tyagi', 'HOD - Learning Path']
+                      ].map(([name, role], index) => (
+                        <div key={name} className="mx-auto w-44">
+                          <p className="h-10 text-2xl italic text-[#172554]">
+                            {index === 0 ? 'Singh' : index === 1 ? 'Urvashi' : 'Taruna'}
+                          </p>
+                          <div className="border-t border-slate-700 pt-2">
+                            <p className="text-sm font-bold text-slate-950">{name}</p>
+                            <p className="text-sm font-semibold text-slate-800">{role}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#a77724]/30 pt-4 font-sans text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                      <span>Verification Token: {userData?.apiKey || "pec_live_89e41942c4c1_secure7790"}</span>
+                      <span>Prisma Embedded Codes Platform</span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="pt-8 flex justify-center gap-4 font-sans">
-                    <button
-                      onClick={() => window.print()}
-                      className="px-6 py-2.5 bg-indigo-950 hover:bg-indigo-900 text-white font-bold text-xs rounded-xl shadow transition-all active:scale-[0.98]"
-                    >
-                      🖨️ Print Certificate
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCertificate(false);
-                        setSelectedNode(null);
-                      }}
-                      className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
-                    >
-                      Return to Roadmap
-                    </button>
-                  </div>
+                <div className="relative z-20 mt-5 flex justify-center gap-4 font-sans">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-6 py-2.5 bg-indigo-950 hover:bg-indigo-900 text-white font-bold text-xs rounded-xl shadow transition-all active:scale-[0.98]"
+                  >
+                    Print Certificate
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCertificate(false);
+                      setSelectedNode(null);
+                    }}
+                    className="px-6 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                  >
+                    Return to Roadmap
+                  </button>
                 </div>
               </motion.div>
             </div>

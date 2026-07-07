@@ -1,9 +1,7 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 import { hashPassword, verifyPassword } from './password.js';
 
-const DEV_ADMIN_EMAIL = 'aastikmishra20@gmail.com';
-const DEV_ADMIN_PASSWORD = 'aastik0003';
-const DEV_ADMIN_NAME = 'Aastik Mishra';
+const DEFAULT_ADMIN_NAME = 'System Administrator';
 
 type AdminBootstrapOptions = {
   nodeEnv: string;
@@ -13,13 +11,12 @@ type AdminBootstrapOptions = {
 };
 
 export async function ensureAdminUser(prisma: PrismaClient, options: AdminBootstrapOptions) {
-  const useDevDefault = options.nodeEnv === 'development';
-  const email = (options.email || (useDevDefault ? DEV_ADMIN_EMAIL : '')).toLowerCase().trim();
-  const password = options.password || (useDevDefault ? DEV_ADMIN_PASSWORD : '');
-  const fullName = (options.fullName || DEV_ADMIN_NAME).trim();
+  const email = (options.email ?? process.env.ADMIN_EMAIL ?? '').toLowerCase().trim();
+  const password = options.password ?? process.env.ADMIN_PASSWORD ?? '';
+  const fullName = (options.fullName ?? process.env.ADMIN_FULL_NAME ?? DEFAULT_ADMIN_NAME).trim();
 
   if (!email || !password) {
-    return;
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required to bootstrap the admin user.');
   }
 
   const existingUser = await prisma.user.findUnique({

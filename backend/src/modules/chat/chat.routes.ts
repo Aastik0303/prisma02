@@ -3,6 +3,9 @@ import { ChatService } from './chat.service.js';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { RawServerDefault } from 'fastify';
 import { WebSocket } from 'ws';
+import { learningChatAiRateLimit } from '../../plugins/rateLimit.js';
+import { aiChatBodySchema, answerLearningChat } from './chat.ai.js';
+import { copilotRagBodySchema, answerCopilotWithRag } from './copilot.rag.js';
 
 // Global map to track active WebSocket connections by user ID
 const activeClients = new Map<string, WebSocket>();
@@ -29,6 +32,34 @@ export async function chatRoutes(fastify: FastifyInstance) {
     });
 
     return reply.status(200).send(messages);
+  });
+
+  fastify.post('/ai', {
+    preHandler: [requireAuth],
+    config: { rateLimit: learningChatAiRateLimit }
+  }, async (request, reply) => {
+    const body = aiChatBodySchema.parse(request.body);
+    const result = await answerLearningChat(body);
+
+    return reply.status(200).send({
+      answer: result.answer,
+      model: fastify.config.GROQ_MODEL
+    });
+  });
+
+  fastify.post('/copilot-rag', {
+    preHandler: [requireAuth],
+    config: { rateLimit: learningChatAiRateLimit }
+  }, async (request, reply) => {
+    const body = copilotRagBodySchema.parse(request.body);
+    const result = await answerCopilotWithRag(body);
+
+    return reply.status(200).send({
+      answer: result.answer,
+      sources: result.sources,
+      model: fastify.config.GROQ_MODEL,
+      embeddingModel: fastify.config.HUGGINGFACE_EMBEDDING_MODEL
+    });
   });
 
   // WebSocket Route

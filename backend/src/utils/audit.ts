@@ -73,6 +73,10 @@ export async function initializeAuditQueue() {
  */
 export async function logAuditEvent(payload: AuditLogPayload) {
   try {
+    if (config.NODE_ENV === 'development' && !auditQueue) {
+      return;
+    }
+
     if (config.NODE_ENV === 'test') {
       // In test mode, bypass queue to write synchronously to the DB and avoid Redis overhead
       await prisma.auditLog.create({

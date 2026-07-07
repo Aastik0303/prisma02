@@ -19,6 +19,9 @@ import { teamsRoutes } from './modules/teams/teams.routes.js';
 import { projectsRoutes } from './modules/projects/projects.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
+import { contactRoutes } from './modules/contact/contact.routes.js';
+import { resumeRoutes } from './modules/resume/resume.routes.js';
+import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { ensureAdminUser } from './utils/adminBootstrap.js';
 
@@ -115,7 +118,7 @@ export async function buildApp(opts = {}) {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-CSRF-Session-Id']
   });
 
   // 4. Register base plugins (DB, Redis, JWT, WebSockets)
@@ -152,7 +155,7 @@ export async function buildApp(opts = {}) {
       auth: (oauthPlugin as any).GOOGLE_CONFIGURATION
     },
     startRedirectPath: '/api/v1/auth/oauth/google',
-    callbackUri: 'http://localhost:3001/api/v1/auth/oauth/google/callback'
+    callbackUri: `${config.BACKEND_URL}/api/v1/auth/oauth/google/callback`
   });
 
   const githubClientId = config.GITHUB_CLIENT_ID || 'dummy-github-client-id';
@@ -164,7 +167,7 @@ export async function buildApp(opts = {}) {
       auth: (oauthPlugin as any).GITHUB_CONFIGURATION
     },
     startRedirectPath: '/api/v1/auth/oauth/github',
-    callbackUri: 'http://localhost:3001/api/v1/auth/oauth/github/callback'
+    callbackUri: `${config.BACKEND_URL}/api/v1/auth/oauth/github/callback`
   });
 
   // 8. Register root health route and API modules
@@ -176,13 +179,6 @@ export async function buildApp(opts = {}) {
       docs: '/api/v1/auth/csrf-token'
     });
   });
-
-  await app.register(authRoutes, { prefix: '/api/v1/auth' });
-  await app.register(usersRoutes, { prefix: '/api/v1/users' });
-  await app.register(teamsRoutes, { prefix: '/api/v1/teams' });
-  await app.register(projectsRoutes, { prefix: '/api/v1/projects' });
-  await app.register(tasksRoutes, { prefix: '/api/v1/tasks' });
-  await app.register(chatRoutes, { prefix: '/api/v1/chat' });
 
   // 9. Global Error Handler
   app.setErrorHandler((error: any, request: FastifyRequest, reply: FastifyReply) => {
@@ -196,13 +192,16 @@ export async function buildApp(opts = {}) {
     }
 
     // A. Zod Validation Errors
-    if (error instanceof ZodError) {
+    if (error instanceof ZodError || error?.name === 'ZodError' || Array.isArray(error?.issues)) {
+      const details = typeof error.format === 'function'
+        ? error.format()
+        : { issues: error.issues || [] };
       return reply.status(400).send({
         statusCode: 400,
         error: 'Bad Request',
         code: 'VALIDATION_ERROR',
-        message: 'Input validation failed',
-        details: error.format(),
+        message: error.issues?.[0]?.message || 'Input validation failed',
+        details,
         requestId
       });
     }
@@ -212,6 +211,18 @@ export async function buildApp(opts = {}) {
       return reply.status(error.statusCode).send({
         statusCode: error.statusCode,
         error: error.statusCode >= 500 ? 'Internal Server Error' : 'Bad Request',
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        requestId
+      });
+    }
+
+    // Services may throw lightweight structured errors.
+    if (error?.statusCode && error?.code && !String(error.code).startsWith('FST_')) {
+      return reply.status(error.statusCode).send({
+        statusCode: error.statusCode,
+        error: error.statusCode >= 500 ? 'Internal Server Error' : 'Request Error',
         code: error.code,
         message: error.message,
         details: error.details,
@@ -256,6 +267,17 @@ export async function buildApp(opts = {}) {
       requestId
     });
   });
+
+  // 10. Register API modules after the error handler so plugin routes inherit it.
+  await app.register(authRoutes, { prefix: '/api/v1/auth' });
+  await app.register(usersRoutes, { prefix: '/api/v1/users' });
+  await app.register(teamsRoutes, { prefix: '/api/v1/teams' });
+  await app.register(projectsRoutes, { prefix: '/api/v1/projects' });
+  await app.register(tasksRoutes, { prefix: '/api/v1/tasks' });
+  await app.register(chatRoutes, { prefix: '/api/v1/chat' });
+  await app.register(contactRoutes, { prefix: '/api/v1/contact' });
+  await app.register(resumeRoutes, { prefix: '/api/resume' });
+  await app.register(catalogRoutes, { prefix: '/api/v1/catalog' });
 
   return app;
 }
