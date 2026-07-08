@@ -3,7 +3,6 @@ import path from 'path';
 import { ChatGroq } from '@langchain/groq';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { z } from 'zod';
-import { AppError } from '../../app.js';
 import { config } from '../../config/config.js';
 import { getGroqApiKey } from '../../utils/groqKeys.js';
 
@@ -18,6 +17,30 @@ type KnowledgeDoc = {
 type VectorRecord = KnowledgeDoc & {
   vector: number[];
 };
+
+const fallbackKnowledgeDocs: KnowledgeDoc[] = [
+  {
+    id: 'dashboard-copilot-fallback',
+    category: 'dashboard',
+    title: 'Dashboard Copilot Guidance',
+    content: 'The dashboard copilot helps learners improve placement readiness using ATS score, resume score, active track progress, projects, streaks, internships, and freelance readiness. Good advice should be specific, short, and action-oriented.',
+    keywords: ['dashboard', 'copilot', 'placement', 'readiness', 'career']
+  },
+  {
+    id: 'resume-fallback',
+    category: 'resume',
+    title: 'Resume and ATS Guidance',
+    content: 'For ATS improvement, add target-role keywords naturally, keep headings simple, use measurable project bullets, include GitHub and LinkedIn, and avoid image-only resumes. Strong project bullets mention action, tools, scope, and outcome.',
+    keywords: ['resume', 'ats', 'keywords', 'projects']
+  },
+  {
+    id: 'project-fallback',
+    category: 'projects',
+    title: 'Project Portfolio Guidance',
+    content: 'A strong student portfolio includes pinned repositories, clear README files, live demos when possible, screenshots, architecture notes, and concise proof of impact. Prioritize projects that match the active track.',
+    keywords: ['projects', 'portfolio', 'github', 'readme']
+  }
+];
 
 export const copilotRagBodySchema = z.object({
   message: z.string().trim().min(1, 'Message is required').max(1200),
@@ -97,10 +120,27 @@ class FaissLikeVectorIndex {
 let cachedIndexPromise: Promise<FaissLikeVectorIndex> | null = null;
 
 async function loadKnowledgeDocs(): Promise<KnowledgeDoc[]> {
-  const knowledgePath = path.resolve(process.cwd(), '../src/data/knowledge.json');
-  const raw = await fs.readFile(knowledgePath, 'utf8');
-  const parsed = JSON.parse(raw) as { knowledge_base?: KnowledgeDoc[] };
-  return Array.isArray(parsed.knowledge_base) ? parsed.knowledge_base : [];
+  const candidates = [
+    path.resolve(process.cwd(), '../src/data/knowledge.json'),
+    path.resolve(process.cwd(), 'src/data/knowledge.json'),
+    path.resolve(process.cwd(), 'dist/data/knowledge.json'),
+    path.resolve(process.cwd(), '../dist/data/knowledge.json')
+  ];
+
+  for (const knowledgePath of candidates) {
+    try {
+      const raw = await fs.readFile(knowledgePath, 'utf8');
+      const parsed = JSON.parse(raw) as { knowledge_base?: KnowledgeDoc[] };
+      if (Array.isArray(parsed.knowledge_base) && parsed.knowledge_base.length) {
+        return parsed.knowledge_base;
+      }
+    } catch {
+      // Try the next deployment layout.
+    }
+  }
+
+  console.warn('Dashboard copilot knowledge file not found; using built-in fallback docs.');
+  return fallbackKnowledgeDocs;
 }
 
 async function buildRetrieverIndex() {
@@ -122,7 +162,7 @@ function getRetrieverIndex() {
 }
 
 async function embedText(text: string) {
-  if (config.HUGGINGFACE_EMBEDDING_MODEL) {
+  if (config.HUGGINGFACE_API_KEY && config.HUGGINGFACE_EMBEDDING_MODEL) {
     try {
       const vector = await embedWithHuggingFace(text);
       if (Array.isArray(vector) && vector.length) return normalizeVector(vector);
@@ -243,12 +283,52 @@ function getCopilotModel() {
   });
 }
 
+function createFallbackCopilotAnswer(input: z.infer<typeof copilotRagBodySchema>, sources: KnowledgeDoc[] = []) {
+  const dashboard = input.dashboard || {};
+  const score = Math.round(Number(dashboard.placementReadyScore ?? dashboard.resumeScore ?? dashboard.atsScore ?? 0));
+  const activeTrack = dashboard.activeTrack || 'your active track';
+  const projects = dashboard.projects || [];
+  const tracks = dashboard.tracks || [];
+  const weakestTrack = tracks
+    .filter(track => Number(track.totalNodes || 0) > 0)
+    .map(track => ({
+      name: track.name,
+      progress: Number(track.completedNodes || 0) / Number(track.totalNodes || 1)
+    }))
+    .sort((a, b) => a.progress - b.progress)[0];
+
+  const actions = [
+    score > 0
+      ? `Placement signal is around ${score}%. Push it up by improving ATS keywords and finishing one proof-heavy project.`
+      : 'Start by scanning your resume and completing one track milestone so the dashboard has stronger signals.',
+    `For ${activeTrack}, add 3 to 5 role keywords to your resume and mirror them in a GitHub README.`,
+    projects.length
+      ? `Polish "${projects[0].title}" with a clear README, screenshots, tech stack, and impact bullets.`
+      : 'Upload one portfolio project with GitHub, live/demo link, tags, and a short outcome-focused description.',
+    weakestTrack
+      ? `Resume learning from "${weakestTrack.name}" because it has the lowest completion progress.`
+      : 'Keep your streak alive with one small lesson or assessment today.'
+  ];
+
+  return {
+    answer: actions.map(action => `- ${action}`).join('\n'),
+    sources: sources.slice(0, 3).map((doc, index) => ({
+      id: doc.id,
+      title: doc.title,
+      category: doc.category,
+      score: Number((1 - index * 0.1).toFixed(3))
+    }))
+  };
+}
+
 export async function answerCopilotWithRag(input: z.infer<typeof copilotRagBodySchema>) {
+  let retrieved: Array<KnowledgeDoc & { score: number }> = [];
+
   try {
     const retriever = await getRetrieverIndex();
     const queryVector = await embedText(input.message);
     const includeTeamContext = /\b(team|member|manager|lead|davansh|pranav|shreya|amit)\b/i.test(input.message);
-    const retrieved = retriever
+    retrieved = retriever
       .search(queryVector, 8)
       .filter(doc => includeTeamContext || doc.category !== 'team')
       .slice(0, 5);
@@ -279,8 +359,6 @@ export async function answerCopilotWithRag(input: z.infer<typeof copilotRagBodyS
       }))
     };
   } catch (error) {
-    if (error instanceof AppError) throw error;
-
     const safeError = error as { name?: string; message?: string; status?: number; statusCode?: number; code?: string };
     console.warn('Dashboard copilot RAG failed', {
       name: safeError.name,
@@ -289,6 +367,6 @@ export async function answerCopilotWithRag(input: z.infer<typeof copilotRagBodyS
       message: safeError.message?.slice(0, 300)
     });
 
-    throw new AppError(502, 'COPILOT_RAG_FAILED', 'The AI Copilot could not answer right now. Please try again.');
+    return createFallbackCopilotAnswer(input, retrieved.length ? retrieved : fallbackKnowledgeDocs);
   }
 }
