@@ -37,6 +37,7 @@ const normalizeUser = (user: any) => ({
 
 const normalizePost = (post: any) => ({
   id: post.id,
+  authorId: post.authorId,
   author: post.author?.fullName || 'Learner',
   role: cleanRole(post.author?.role),
   avatar: post.author?.avatarUrl || fallbackAvatar,
@@ -54,6 +55,50 @@ const normalizePost = (post: any) => ({
   createdAt: post.createdAt
 });
 
+const metadataObject = (metadata: any) => (
+  metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {}
+);
+
+const normalizeProject = (project: any, index: number) => ({
+  id: project?.id || `project-${index}`,
+  title: project?.title || 'Untitled project',
+  desc: project?.desc || project?.description || 'Project details are being updated.',
+  status: project?.status || 'In Progress',
+  tags: Array.isArray(project?.tags) ? project.tags.slice(0, 6) : [],
+  git: project?.git || '',
+  live: project?.live || '',
+  docs: project?.docs || '',
+  image: project?.image || ''
+});
+
+const profileAchievements = (metadata: any, postsCount: number, projectsCount: number) => {
+  const xp = Number(metadata.xp || 0);
+  const streak = Number(metadata.streak || 0);
+  const courseProgress = Number(metadata.courseProgress || metadata.courseProgressScore || 0);
+  return [
+    {
+      title: 'Community Builder',
+      detail: `${postsCount} public post${postsCount === 1 ? '' : 's'} shared`,
+      unlocked: postsCount > 0
+    },
+    {
+      title: 'Project Proof',
+      detail: `${projectsCount} portfolio project${projectsCount === 1 ? '' : 's'} added`,
+      unlocked: projectsCount > 0
+    },
+    {
+      title: 'Learning Momentum',
+      detail: `${Math.max(streak, 0)} day streak · ${Math.max(xp, 0)} XP`,
+      unlocked: streak > 0 || xp > 0
+    },
+    {
+      title: 'Course Progress',
+      detail: `${Math.max(courseProgress, 0)}% course progress`,
+      unlocked: courseProgress > 0
+    }
+  ];
+};
+
 const normalizeFollowRequest = (request: any, viewerId: string) => ({
   id: request.id,
   status: request.status,
@@ -70,6 +115,90 @@ const normalizeFollowRequest = (request: any, viewerId: string) => ({
 });
 
 export async function communityRoutes(fastify: FastifyInstance) {
+  fastify.get('/profiles/:id', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const viewerId = request.user!.id;
+
+    const user = await fastify.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        metadata: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        code: 'PROFILE_NOT_FOUND',
+        message: 'Profile not found.'
+      });
+    }
+
+    const metadata = metadataObject(user.metadata);
+    const projects = Array.isArray(metadata.projects)
+      ? metadata.projects.map(normalizeProject).slice(0, 12)
+      : [];
+    const [posts, followersCount, followingCount, isFollowing, outgoingRequest, incomingRequest] = await Promise.all([
+      fastify.prisma.communityPost.findMany({
+        where: { authorId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          author: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              avatarUrl: true
+            }
+          }
+        }
+      }),
+      fastify.prisma.follow.count({ where: { followingId: id } }),
+      fastify.prisma.follow.count({ where: { followerId: id } }),
+      fastify.prisma.follow.findFirst({ where: { followerId: viewerId, followingId: id } }),
+      fastify.prisma.followRequest.findFirst({ where: { requesterId: viewerId, targetId: id, status: 'pending' } }),
+      fastify.prisma.followRequest.findFirst({ where: { requesterId: id, targetId: viewerId, status: 'pending' } })
+    ]);
+
+    return reply.status(200).send({
+      user: {
+        ...normalizeUser(user),
+        college: metadata.college || '',
+        degree: metadata.degree || '',
+        year: metadata.year || '',
+        location: metadata.location || '',
+        headline: metadata.bio || 'Building their learning profile.',
+        joinedAt: user.createdAt
+      },
+      stats: {
+        followersCount,
+        followingCount,
+        postsCount: posts.length,
+        projectsCount: projects.length
+      },
+      relationship: {
+        isSelf: viewerId === id,
+        isFollowing: Boolean(isFollowing),
+        outgoingRequestId: outgoingRequest?.id || null,
+        incomingRequestId: incomingRequest?.id || null
+      },
+      posts: posts.map(normalizePost),
+      projects,
+      achievements: profileAchievements(metadata, posts.length, projects.length)
+    });
+  });
+
   fastify.get('/posts', {
     preHandler: [requireAuth]
   }, async (_request, reply) => {

@@ -224,6 +224,17 @@ const toCountNumber = (value) => {
 
 const formatCount = (value) => Number(value || 0).toLocaleString();
 
+const formatAge = (date) => {
+  if (!date) return "now";
+  const diff = Math.max(0, Date.now() - new Date(date).getTime());
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr`;
+  return `${Math.floor(hours / 24)} d`;
+};
+
 const requestJson = async (path, { authToken, method = "GET", body } = {}) => {
   const headers = {
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
@@ -249,6 +260,24 @@ const requestJson = async (path, { authToken, method = "GET", body } = {}) => {
 
   return data;
 };
+
+const getWsBaseUrl = () => {
+  if (import.meta.env.VITE_WS_BASE_URL) return import.meta.env.VITE_WS_BASE_URL;
+  if (/^https?:\/\//i.test(API_BASE_URL)) {
+    return API_BASE_URL.replace(/^http/i, "ws").replace(/\/api\/v1\/?$/, "");
+  }
+  const isViteDev = ["5173", "5174"].includes(window.location.port);
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  if (isViteDev) return `${protocol}://${window.location.hostname}:3001`;
+  return `${protocol}://${window.location.host}`;
+};
+
+const normalizeChatMessage = (message, viewerId) => ({
+  id: message.id || `${message.createdAt}-${message.content}`,
+  from: message.senderId === viewerId || message.sender?.id === viewerId ? "me" : "them",
+  text: message.content || message.text || "",
+  time: message.createdAt ? formatAge(message.createdAt) : "now",
+});
 
 function ProfileCard({ user = currentUser }) {
   return (
@@ -337,7 +366,7 @@ function Composer({ onPost, user = currentUser }) {
   );
 }
 
-function PostCard({ post }) {
+function PostCard({ post, onViewProfile }) {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const likeCount = post.stats.likes + (liked ? 1 : 0);
@@ -347,10 +376,18 @@ function PostCard({ post }) {
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 gap-3">
-            <img src={post.avatar} alt={post.author} className="h-12 w-12 rounded-2xl object-cover" />
+            <button type="button" onClick={() => post.authorId && onViewProfile?.(post.authorId)} className="shrink-0">
+              <img src={post.avatar} alt={post.author} className="h-12 w-12 rounded-2xl object-cover" />
+            </button>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">{post.author}</h3>
+                <button
+                  type="button"
+                  onClick={() => post.authorId && onViewProfile?.(post.authorId)}
+                  className="truncate text-left text-sm font-black text-slate-950 transition hover:text-indigo-600 dark:text-white dark:hover:text-indigo-300"
+                >
+                  {post.author}
+                </button>
                 {post.featured && <CheckCircle2 className="h-4 w-4 text-indigo-500" />}
                 <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                   {post.tag}
@@ -413,7 +450,7 @@ function PostCard({ post }) {
   );
 }
 
-function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, onSendRequest, onAcceptRequest, onDeclineRequest }) {
+function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, onSendRequest, onAcceptRequest, onDeclineRequest, onOpenChat, onViewProfile }) {
   const [directoryUsers, setDirectoryUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -641,15 +678,31 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, on
         {people.map((person) => (
           <div key={person.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-indigo-200 hover:bg-white dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-indigo-500/30">
             <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
+              <button type="button" onClick={() => onViewProfile?.(person.id)} className="relative shrink-0">
                 <img src={person.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
-              </div>
+              </button>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-slate-900 dark:text-white">{person.name}</p>
+                <button
+                  type="button"
+                  onClick={() => onViewProfile?.(person.id)}
+                  className="block max-w-full truncate text-left text-sm font-black text-slate-900 transition hover:text-indigo-600 dark:text-white dark:hover:text-indigo-300"
+                >
+                  {person.name}
+                </button>
                 <p className="truncate text-xs font-semibold text-slate-500">{person.role}</p>
               </div>
-              {renderAction(person)}
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenChat?.(person)}
+                  className="flex h-9 items-center justify-center rounded-xl border border-cyan-200 px-2.5 text-cyan-600 transition hover:bg-cyan-50 dark:border-cyan-500/30 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
+                  aria-label={`Message ${person.name}`}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                </button>
+                {renderAction(person)}
+              </div>
             </div>
           </div>
         ))}
@@ -662,6 +715,139 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, on
  * Renders as a centered, glassy modal with a backdrop, entrance animation,
  * presence indicators, quick replies, and a sticky composer.
  */
+function ProfileModal({ profile, loading, error, onClose, onOpenChat, onSendRequest, onAcceptRequest, onDeclineRequest }) {
+  const user = profile?.user;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-3 pt-16 backdrop-blur-sm sm:p-6 sm:pt-20" role="dialog" aria-modal="true">
+      <button className="absolute inset-0 cursor-default" type="button" onClick={onClose} aria-label="Close profile" />
+      <section className="relative mb-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl dark:bg-[#0b1220]">
+        <button type="button" onClick={onClose} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm transition hover:bg-white dark:bg-slate-950/80 dark:text-white" aria-label="Close profile">
+          <X className="h-5 w-5" />
+        </button>
+
+        {loading && <div className="p-8 text-sm font-bold text-slate-500 dark:text-slate-300">Loading profile...</div>}
+        {error && !loading && (
+          <div className="p-8">
+            <p className="rounded-2xl bg-rose-500/10 p-4 text-sm font-bold text-rose-700 dark:text-rose-300">{error}</p>
+          </div>
+        )}
+
+        {user && !loading && (
+          <>
+            <div className="h-36 bg-gradient-to-br from-indigo-600 via-slate-900 to-cyan-500" />
+            <div className="px-5 pb-6 sm:px-7">
+              <div className="-mt-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex min-w-0 items-end gap-4">
+                  <img src={user.avatar || fallbackAvatar} alt="" className="h-24 w-24 rounded-3xl border-4 border-white object-cover shadow-xl dark:border-[#0b1220]" />
+                  <div className="min-w-0 pb-2">
+                    <h2 className="truncate text-2xl font-black text-slate-950 dark:text-white">{user.name}</h2>
+                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300">{user.role}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {[user.college, user.degree, user.year, user.location].filter(Boolean).join(" · ") || "Learning profile"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!profile.relationship?.isSelf && (
+                    <button type="button" onClick={() => onOpenChat?.(user)} className="flex h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white transition hover:bg-indigo-700 dark:bg-white dark:text-slate-950">
+                      <MessageSquare className="h-4 w-4" />
+                      Message
+                    </button>
+                  )}
+                  {!profile.relationship?.isSelf && !profile.relationship?.isFollowing && !profile.relationship?.outgoingRequestId && (
+                    <button type="button" onClick={() => onSendRequest?.(user)} className="flex h-11 items-center gap-2 rounded-xl border border-indigo-200 px-4 text-xs font-black text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10">
+                      <UserPlus className="h-4 w-4" />
+                      Follow
+                    </button>
+                  )}
+                  {profile.relationship?.outgoingRequestId && (
+                    <span className="flex h-11 items-center gap-2 rounded-xl bg-amber-500/10 px-4 text-xs font-black text-amber-700 dark:text-amber-300">
+                      <Clock className="h-4 w-4" />
+                      Requested
+                    </span>
+                  )}
+                  {profile.relationship?.incomingRequestId && (
+                    <>
+                      <button type="button" onClick={() => onAcceptRequest?.(profile.relationship.incomingRequestId)} className="h-11 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white">Accept</button>
+                      <button type="button" onClick={() => onDeclineRequest?.(profile.relationship.incomingRequestId)} className="h-11 rounded-xl border border-slate-200 px-4 text-xs font-black text-slate-600 dark:border-slate-700 dark:text-slate-300">Decline</button>
+                    </>
+                  )}
+                  {profile.relationship?.isFollowing && (
+                    <span className="flex h-11 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-black text-white">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Following
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">{user.headline}</p>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[["Followers", profile.stats?.followersCount], ["Following", profile.stats?.followingCount], ["Posts", profile.stats?.postsCount], ["Projects", profile.stats?.projectsCount]].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60">
+                    <p className="text-lg font-black text-slate-950 dark:text-white">{formatCount(value)}</p>
+                    <p className="text-[11px] font-bold text-slate-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+                <section className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+                  <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Achievements</h3>
+                  <div className="space-y-3">
+                    {(profile.achievements || []).map((item) => (
+                      <div key={item.title} className="flex gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/60">
+                        <Trophy className={`mt-0.5 h-4 w-4 ${item.unlocked ? "text-amber-500" : "text-slate-400"}`} />
+                        <div>
+                          <p className="text-xs font-black text-slate-900 dark:text-white">{item.title}</p>
+                          <p className="text-[11px] font-semibold text-slate-500">{item.detail}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+                  <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Projects</h3>
+                  <div className="space-y-3">
+                    {(profile.projects || []).length === 0 && <p className="text-xs font-bold text-slate-400">No projects shared yet.</p>}
+                    {(profile.projects || []).map((project) => (
+                      <article key={project.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/60">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-black text-slate-950 dark:text-white">{project.title}</h4>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{project.desc}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-indigo-500/10 px-2 py-1 text-[10px] font-black text-indigo-600 dark:text-indigo-300">{project.status}</span>
+                        </div>
+                        {project.tags?.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {project.tags.map((tag) => <span key={tag} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-900">#{tag}</span>)}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <section className="mt-6">
+                <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Posts</h3>
+                <div className="grid gap-3">
+                  {(profile.posts || []).length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 p-5 text-center text-xs font-bold text-slate-400 dark:border-slate-800">No posts yet.</p>}
+                  {(profile.posts || []).map((post) => <PostCard key={post.id} post={post} />)}
+                </div>
+              </section>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }) {
   const [draft, setDraft] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -978,20 +1164,89 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
   );
 }
 
-function RightRail({ authToken, isSignedIn, viewer, socialState, onSendRequest, onAcceptRequest, onDeclineRequest }) {
+function RightRail({ authToken, isSignedIn, viewer, socialState, activeChat, onOpenChat, onCloseChat, onSendRequest, onAcceptRequest, onDeclineRequest, onViewProfile }) {
   const [activeThreadId, setActiveThreadId] = useState("");
-  const [threadList, setThreadList] = useState(messages);
-  const [chatMessages, setChatMessages] = useState(initialChatMessages);
+  const [threadList, setThreadList] = useState([]);
+  const [chatMessages, setChatMessages] = useState({});
+  const [chatError, setChatError] = useState("");
+  const socketRef = useRef(null);
   const activeThread = threadList.find((thread) => thread.id === activeThreadId);
 
-  const openThread = (thread) => {
+  const openThread = async (thread) => {
+    if (!thread?.id) return;
+    onOpenChat?.(thread);
     setActiveThreadId(thread.id);
     setThreadList((items) => items.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
   };
 
+  useEffect(() => {
+    if (!activeChat?.id) return;
+    const thread = {
+      id: activeChat.id,
+      name: activeChat.name || activeChat.fullName || "Learner",
+      role: formatCommunityRole(activeChat.role),
+      text: "Start a real conversation",
+      time: "now",
+      unread: 0,
+      status: "online",
+      avatar: activeChat.avatar || activeChat.avatarUrl || fallbackAvatar,
+    };
+    setThreadList((items) => [thread, ...items.filter((item) => item.id !== thread.id)]);
+    setActiveThreadId(thread.id);
+  }, [activeChat]);
+
+  useEffect(() => {
+    if (!isSignedIn || !authToken || !activeThreadId) return;
+    let ignore = false;
+    const loadMessages = async () => {
+      try {
+        setChatError("");
+        const history = await requestJson(`/chat/messages?receiverId=${encodeURIComponent(activeThreadId)}`, { authToken });
+        if (ignore) return;
+        setChatMessages((items) => ({
+          ...items,
+          [activeThreadId]: Array.isArray(history) ? history.map((message) => normalizeChatMessage(message, viewer.backendUserId)) : [],
+        }));
+      } catch (requestError) {
+        if (!ignore) setChatError(requestError.message || "Unable to load chat.");
+      }
+    };
+    loadMessages();
+    return () => {
+      ignore = true;
+    };
+  }, [activeThreadId, authToken, isSignedIn, viewer.backendUserId]);
+
+  useEffect(() => {
+    if (!isSignedIn || !authToken) return undefined;
+    const socket = new WebSocket(`${getWsBaseUrl()}/api/v1/chat/ws?token=${encodeURIComponent(authToken)}`);
+    socketRef.current = socket;
+
+    socket.onmessage = (event) => {
+      const payload = JSON.parse(event.data || "{}");
+      if (payload.type !== "message" || !payload.message) return;
+      const message = payload.message;
+      const otherId = message.senderId === viewer.backendUserId ? message.receiverId : message.senderId;
+      if (!otherId) return;
+      const normalized = normalizeChatMessage(message, viewer.backendUserId);
+      setChatMessages((items) => ({
+        ...items,
+        [otherId]: [...(items[otherId] || []).filter((item) => item.id !== normalized.id), normalized],
+      }));
+      setThreadList((items) => items.map((item) => (
+        item.id === otherId ? { ...item, text: normalized.text, time: normalized.time, unread: activeThreadId === otherId ? 0 : (item.unread || 0) + 1 } : item
+      )));
+    };
+
+    socket.onerror = () => setChatError("Realtime chat is reconnecting. Messages may take a moment.");
+    return () => socket.close();
+  }, [activeThreadId, authToken, isSignedIn, viewer.backendUserId]);
+
   const sendMessage = (threadId, payload) => {
     const messagePayload = typeof payload === "string" ? { text: payload } : payload;
-    const nextMessage = { id: Date.now(), from: "me", time: "now", ...messagePayload };
+    const cleanText = messagePayload.text?.trim();
+    if (!cleanText) return;
+    const nextMessage = { id: `local-${Date.now()}`, from: "me", time: "now", text: cleanText };
     const previewText = messagePayload.type === "image"
       ? `Photo: ${messagePayload.fileName || "image"}`
       : messagePayload.type === "file"
@@ -1006,6 +1261,12 @@ function RightRail({ authToken, isSignedIn, viewer, socialState, onSendRequest, 
     setThreadList((items) => items.map((item) => (
       item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
     )));
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "message", receiverId: threadId, content: cleanText }));
+    } else {
+      setChatError("Realtime chat is not connected. Reopen the chat and try again.");
+    }
   };
 
   return (
@@ -1018,16 +1279,24 @@ function RightRail({ authToken, isSignedIn, viewer, socialState, onSendRequest, 
         onSendRequest={onSendRequest}
         onAcceptRequest={onAcceptRequest}
         onDeclineRequest={onDeclineRequest}
+        onOpenChat={openThread}
+        onViewProfile={onViewProfile}
       />
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-black text-slate-950 dark:text-white">Messages</h3>
-            <p className="text-[11px] font-bold text-slate-400">Tap a profile to open chat</p>
+            <p className="text-[11px] font-bold text-slate-400">Open chat from any learner profile</p>
           </div>
           <MessageSquare className="h-4 w-4 text-cyan-500" />
         </div>
+        {chatError && <p className="mb-3 rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">{chatError}</p>}
         <div className="space-y-3">
+          {threadList.length === 0 && (
+            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-bold text-slate-400 dark:border-slate-800">
+              Search people above, then tap the message button.
+            </p>
+          )}
           {threadList.map((message) => (
             <button
               key={message.id}
@@ -1062,7 +1331,10 @@ function RightRail({ authToken, isSignedIn, viewer, socialState, onSendRequest, 
           thread={activeThread}
           messages={chatMessages[activeThread.id] || []}
           viewer={viewer}
-          onClose={() => setActiveThreadId("")}
+          onClose={() => {
+            setActiveThreadId("");
+            onCloseChat?.();
+          }}
           onSend={sendMessage}
         />
       )}
@@ -1081,6 +1353,13 @@ function LeftRail({ user }) {
 export default function Community({ authToken = "", userData = {}, isSignedIn = false, onSaveUserProfile }) {
   const [posts, setPosts] = useState(initialPosts);
   const [activeFilter, setActiveFilter] = useState("For You");
+  const [activeChat, setActiveChat] = useState(null);
+  const [profileState, setProfileState] = useState({
+    open: false,
+    loading: false,
+    error: "",
+    data: null,
+  });
   const [socialState, setSocialState] = useState({
     incomingRequests: [],
     outgoingRequests: [],
@@ -1149,11 +1428,42 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
     });
   };
 
+  const openProfile = async (profileId) => {
+    if (!profileId || !isSignedIn || !authToken) return;
+    setProfileState({ open: true, loading: true, error: "", data: null });
+    try {
+      const profile = await requestJson(`/community/profiles/${profileId}`, { authToken });
+      setProfileState({ open: true, loading: false, error: "", data: profile });
+    } catch (requestError) {
+      setProfileState({
+        open: true,
+        loading: false,
+        error: requestError.message || "Unable to load profile.",
+        data: null,
+      });
+    }
+  };
+
+  const refreshOpenProfile = async () => {
+    const profileId = profileState.data?.user?.id;
+    if (profileId) await openProfile(profileId);
+  };
+
+  const openChat = (person) => {
+    if (!person?.id) return;
+    setActiveChat({
+      id: person.id,
+      name: person.name || person.fullName || "Learner",
+      role: person.role,
+      avatar: person.avatar || person.avatarUrl || fallbackAvatar,
+    });
+  };
+
   const viewer = {
     ...currentUser,
     name: userData.name || currentUser.name,
     role: formatCommunityRole(userData.role || currentUser.role),
-    backendUserId: userData.backendUserId || userData.email || userData.name,
+    backendUserId: userData.backendUserId || userData.id || "",
     email: userData.email || "",
     avatar: userData.avatarUrl || currentUser.avatar,
     cover: userData.coverUrl || currentUser.cover,
@@ -1174,6 +1484,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
       body: { targetUserId: person.id },
     });
     await refreshCommunitySocial();
+    await refreshOpenProfile();
   };
 
   const handleAcceptFollowRequest = async (requestId) => {
@@ -1183,6 +1494,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
       body: { action: "accept" },
     });
     await refreshCommunitySocial();
+    await refreshOpenProfile();
   };
 
   const handleDeclineFollowRequest = async (requestId) => {
@@ -1192,6 +1504,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
       body: { action: "decline" },
     });
     await refreshCommunitySocial();
+    await refreshOpenProfile();
   };
 
   const filteredPosts = useMemo(() => {
@@ -1224,6 +1537,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
 
     const nextPost = {
       id: Date.now(),
+      authorId: viewer.backendUserId,
       author: viewer.name,
       role: viewer.role,
       avatar: viewer.avatar,
@@ -1288,7 +1602,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
                 </p>
               )}
               {filteredPosts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} onViewProfile={openProfile} />
               ))}
             </div>
           </section>
@@ -1312,6 +1626,10 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
               isSignedIn={isSignedIn}
               viewer={viewer}
               socialState={socialState}
+              activeChat={activeChat}
+              onOpenChat={openChat}
+              onCloseChat={() => setActiveChat(null)}
+              onViewProfile={openProfile}
               onSendRequest={handleSendFollowRequest}
               onAcceptRequest={handleAcceptFollowRequest}
               onDeclineRequest={handleDeclineFollowRequest}
@@ -1319,6 +1637,18 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
           </div>
         </div>
       </div>
+      {profileState.open && (
+        <ProfileModal
+          profile={profileState.data}
+          loading={profileState.loading}
+          error={profileState.error}
+          onClose={() => setProfileState({ open: false, loading: false, error: "", data: null })}
+          onOpenChat={openChat}
+          onSendRequest={handleSendFollowRequest}
+          onAcceptRequest={handleAcceptFollowRequest}
+          onDeclineRequest={handleDeclineFollowRequest}
+        />
+      )}
     </main>
   );
 }
