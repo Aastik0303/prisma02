@@ -5,6 +5,7 @@ import { config } from '../config/config.js';
 type EmailType =
   | 'verification'
   | 'password_reset'
+  | 'password_reset_otp'
   | 'account_locked'
   | 'suspicious_login'
   | 'welcome'
@@ -70,6 +71,14 @@ export function renderEmailTemplate(
         <a class="button" href="${escapeHtml(data.resetLink)}">Reset password</a>
         <p>This link expires in one hour. If you did not request it, secure your account and contact support.</p>`;
       text = `Hi ${plainText(data.fullName) || 'there'},\n\nReset your password:\n${plainText(data.resetLink)}\n\nThis link expires in one hour.`;
+      break;
+    }
+    case 'password_reset_otp': {
+      subject = 'Your password reset code - Prisma Embedded Codes';
+      bodyHtml = `<h1>Password reset code</h1><p>Hi ${fullName},</p><p>Use this verification code to continue resetting your password.</p>
+        <div class="details" style="font-size:28px;letter-spacing:8px;text-align:center;font-weight:700;color:#4f46e5">${escapeHtml(data.otpCode)}</div>
+        <p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>`;
+      text = `Hi ${plainText(data.fullName) || 'there'},\n\nYour password reset code is: ${plainText(data.otpCode)}\n\nThis code expires in 10 minutes.`;
       break;
     }
     case 'account_locked': {

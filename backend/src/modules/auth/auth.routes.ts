@@ -50,6 +50,13 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, authController.forgotPassword.bind(authController));
 
+  // POST /api/v1/auth/verify-password-reset-otp
+  fastify.post('/verify-password-reset-otp', {
+    config: {
+      rateLimit: verifyOtpRateLimit
+    }
+  }, authController.verifyPasswordResetOtp.bind(authController));
+
   // POST /api/v1/auth/reset-password
   fastify.post('/reset-password', authController.resetPassword.bind(authController));
 

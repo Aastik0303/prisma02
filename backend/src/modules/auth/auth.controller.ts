@@ -6,6 +6,7 @@ import {
   loginSchema, 
   forgotPasswordSchema, 
   resetPasswordSchema, 
+  verifyPasswordResetOtpSchema,
   verifyEmailSchema, 
   verifyOtpSchema 
 } from './auth.schema.js';
@@ -331,26 +332,35 @@ export class AuthController {
     // Security: Always return 200 to prevent user enumeration
     if (!user) {
       return reply.status(200).send({
-        message: 'If that email exists, a reset link has been sent.'
+        message: 'If that email exists, a verification code has been sent.'
       });
     }
 
-    const resetToken = generateOpaqueToken(32);
-    const tokenHash = hashToken(resetToken);
+    await request.server.prisma.authToken.updateMany({
+      where: {
+        userId: user.id,
+        type: 'password_reset',
+        usedAt: null
+      },
+      data: { usedAt: new Date(), ipAddress: request.ip }
+    });
+
+    const otpCode = generateNumericOtp();
+    const tokenHash = hashToken(`password-reset-otp:${email}:${otpCode}`);
 
     await request.server.prisma.authToken.create({
       data: {
         userId: user.id,
         tokenHash,
         type: 'password_reset',
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour expiry
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        ipAddress: request.ip
       }
     });
 
-    const resetLink = `${config.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    await sendEmail(user.email, 'password_reset', {
+    await sendEmail(user.email, 'password_reset_otp', {
       fullName: user.fullName,
-      resetLink
+      otpCode
     });
 
     await logAuditEvent({
@@ -361,7 +371,58 @@ export class AuthController {
     });
 
     return reply.status(200).send({
-      message: 'If that email exists, a reset link has been sent.'
+      message: 'If that email exists, a verification code has been sent.'
+    });
+  }
+
+  async verifyPasswordResetOtp(request: FastifyRequest, reply: FastifyReply) {
+    const { email, code } = verifyPasswordResetOtpSchema.parse(request.body);
+    const otpHash = hashToken(`password-reset-otp:${email}:${code}`);
+
+    const tokenRecord = await request.server.prisma.authToken.findFirst({
+      where: {
+        tokenHash: otpHash,
+        type: 'password_reset',
+        usedAt: null
+      },
+      include: { user: true }
+    });
+
+    if (!tokenRecord || tokenRecord.expiresAt < new Date() || tokenRecord.user.email !== email) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        code: 'INVALID_OTP',
+        message: 'Verification code is invalid or has expired'
+      });
+    }
+
+    await request.server.prisma.authToken.update({
+      where: { id: tokenRecord.id },
+      data: { usedAt: new Date(), ipAddress: request.ip }
+    });
+
+    const resetToken = generateOpaqueToken(32);
+    await request.server.prisma.authToken.create({
+      data: {
+        userId: tokenRecord.userId,
+        tokenHash: hashToken(resetToken),
+        type: 'password_reset',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        ipAddress: request.ip
+      }
+    });
+
+    await logAuditEvent({
+      userId: tokenRecord.userId,
+      action: 'auth.password.reset_otp_verified',
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent']
+    });
+
+    return reply.status(200).send({
+      message: 'Verification code accepted',
+      resetToken
     });
   }
 

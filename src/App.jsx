@@ -307,6 +307,8 @@ export default function App() {
   const [resetTokenState, setResetTokenState] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtpCode, setForgotOtpCode] = useState('');
+  const [forgotPasswordStep, setForgotPasswordStep] = useState('email');
   const [verifyStatus, setVerifyStatus] = useState(null);
 
   // Dynamic Student/Account State
@@ -939,16 +941,30 @@ export default function App() {
     setAuthError('');
     try {
       await authRequest('/auth/forgot-password', { email: forgotEmail });
-      setAuthSuccess(true);
       setAuthLoading(false);
-      setTimeout(() => {
-        setAuthSuccess(false);
-        setActiveModal(null);
-        setForgotEmail('');
-      }, 2000);
+      setForgotPasswordStep('otp');
     } catch (error) {
       setAuthLoading(false);
       setAuthError(error.message || 'Failed to submit forgot password request.');
+    }
+  };
+
+  const handleForgotOtpSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail || forgotOtpCode.length !== 6) return;
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const data = await authRequest('/auth/verify-password-reset-otp', {
+        email: forgotEmail,
+        code: forgotOtpCode
+      });
+      setResetTokenState(data.resetToken);
+      setForgotPasswordStep('password');
+      setAuthLoading(false);
+    } catch (error) {
+      setAuthLoading(false);
+      setAuthError(error.message || 'Failed to verify reset code.');
     }
   };
 
@@ -966,6 +982,9 @@ export default function App() {
         setActiveModal(null);
         setNewPassword('');
         setResetTokenState('');
+        setForgotEmail('');
+        setForgotOtpCode('');
+        setForgotPasswordStep('email');
       }, 2000);
     } catch (error) {
       setAuthLoading(false);
@@ -1867,7 +1886,14 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
           <div className="bg-white dark:bg-darknavy-card w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
             <button 
-              onClick={() => setActiveModal(null)}
+              onClick={() => {
+                setActiveModal(null);
+                setForgotPasswordStep('email');
+                setForgotOtpCode('');
+                setNewPassword('');
+                setResetTokenState('');
+                setAuthError('');
+              }}
               className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -1878,16 +1904,112 @@ export default function App() {
                 <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Link Sent!</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Please check your inbox for password reset instructions.</p>
+                <h3 className="text-xl font-extrabold text-slate-950 dark:text-white mb-1">Password Changed!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Please sign in with your new password.</p>
               </div>
+            ) : forgotPasswordStep === 'otp' ? (
+              <form onSubmit={handleForgotOtpSubmit} className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
+                    <ShieldCheck className="w-5 h-5 text-indigo-500" /> Verify Email
+                  </h3>
+                  <span className="text-[10px] text-slate-455 mt-1 block">Enter the 6-digit code sent to {forgotEmail}.</span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <label className="font-bold text-slate-550 dark:text-slate-455 block">Verification OTP</label>
+                  <input 
+                    type="text" 
+                    inputMode="numeric"
+                    required
+                    maxLength={6}
+                    value={forgotOtpCode}
+                    onChange={(e) => setForgotOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white text-center font-bold tracking-widest text-lg"
+                  />
+                </div>
+
+                {authError && (
+                  <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Verifying code...
+                    </>
+                  ) : (
+                    <>Verify OTP</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPasswordStep('email');
+                    setForgotOtpCode('');
+                    setAuthError('');
+                  }}
+                  className="w-full text-center text-xs font-bold text-slate-400 hover:underline"
+                >
+                  Use a different email
+                </button>
+              </form>
+            ) : forgotPasswordStep === 'password' ? (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
+                    <Key className="w-5 h-5 text-indigo-500" /> Choose New Password
+                  </h3>
+                  <span className="text-[10px] text-slate-455 mt-1 block">Your email is verified. Set a new secure password.</span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <label className="font-bold text-slate-550 dark:text-slate-455 block">New Secure Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Minimum 8 characters..."
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
+                  />
+                </div>
+
+                {authError && (
+                  <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Updating password...
+                    </>
+                  ) : (
+                    <>Update Password</>
+                  )}
+                </button>
+              </form>
             ) : (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                 <div>
                   <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
                     <Key className="w-5 h-5 text-indigo-500" /> Reset Password
                   </h3>
-                  <span className="text-[10px] text-slate-455 mt-1 block">Request a secure password reset link to your email.</span>
+                  <span className="text-[10px] text-slate-455 mt-1 block">We will email a one-time code before you choose a new password.</span>
                 </div>
 
                 <div className="space-y-3.5 text-xs">
@@ -1920,7 +2042,7 @@ export default function App() {
                       <RefreshCw className="w-4 h-4 animate-spin" /> Submitting request...
                     </>
                   ) : (
-                    <>Request Reset Link</>
+                    <>Send Verification OTP</>
                   )}
                 </button>
               </form>

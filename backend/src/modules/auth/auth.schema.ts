@@ -45,6 +45,15 @@ export const resetPasswordSchema = z.object({
     .max(128, 'Password cannot exceed 128 characters')
 });
 
+export const verifyPasswordResetOtpSchema = z.object({
+  email: z.string()
+    .email('Invalid email address')
+    .transform(val => val.toLowerCase().trim()),
+  code: z.string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(/^\d+$/, 'OTP must contain only digits')
+});
+
 export const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Verification token is required')
 });
@@ -61,5 +70,6 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type VerifyPasswordResetOtpInput = z.infer<typeof verifyPasswordResetOtpSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
