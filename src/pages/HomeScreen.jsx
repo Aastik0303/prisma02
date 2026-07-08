@@ -10,6 +10,24 @@ import {
 import { motion, useScroll, useSpring, useInView } from 'framer-motion';
 import ContactForm from './ContactForm';
 
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px), (pointer: coarse)');
+    const update = () => setIsMobile(media.matches);
+    update();
+    if (media.addEventListener) {
+      media.addEventListener('change', update);
+      return () => media.removeEventListener('change', update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  return isMobile;
+};
+
 /* ═══════════════════════════════════════════════════════════════
    FLOATING SHAPE - Decorative animated geometric element
    ═══════════════════════════════════════════════════════════════ */
@@ -81,8 +99,10 @@ const ScrollReveal = ({ children, className = '', delay = 0, direction = 'up' })
 const TiltCard = ({ children, className = '' }) => {
   const ref = useRef(null);
   const [style, setStyle] = useState({});
+  const isMobile = useIsMobile();
 
   const handleMove = (e) => {
+    if (isMobile) return;
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
@@ -100,6 +120,10 @@ const TiltCard = ({ children, className = '' }) => {
     });
   };
 
+  if (isMobile) {
+    return <div ref={ref} className={className}>{children}</div>;
+  }
+
   return (
     <div ref={ref} onMouseMove={handleMove} onMouseLeave={handleLeave} className={className} style={style}>
       {children}
@@ -112,7 +136,10 @@ const TiltCard = ({ children, className = '' }) => {
    ═══════════════════════════════════════════════════════════════ */
 const ParticleCanvas = () => {
   const canvasRef = useRef(null);
+  const isMobile = useIsMobile();
+
   useEffect(() => {
+    if (isMobile) return undefined;
     const cvs = canvasRef.current;
     if (!cvs) return;
     const ctx = cvs.getContext('2d');
@@ -165,7 +192,10 @@ const ParticleCanvas = () => {
     const onResize = () => { resize(); init(); };
     window.addEventListener('resize', onResize);
     return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', onResize); };
-  }, []);
+  }, [isMobile]);
+
+  if (isMobile) return null;
+
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.4 }} />;
 };
 
@@ -176,8 +206,14 @@ const AnimatedCounter = ({ value, suffix = '' }) => {
   const [display, setDisplay] = useState(0);
   const ref = useRef(null);
   const [animated, setAnimated] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
+    if (isMobile) {
+      setDisplay(value);
+      return undefined;
+    }
+
     const obs = new IntersectionObserver(([e]) => {
       if (e.isIntersecting && !animated) {
         setAnimated(true);
@@ -194,7 +230,7 @@ const AnimatedCounter = ({ value, suffix = '' }) => {
     });
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
-  }, [value, animated]);
+  }, [value, animated, isMobile]);
 
   return <span ref={ref} className="tabular-nums">{display}{suffix}</span>;
 };
@@ -209,12 +245,14 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const isMobile = useIsMobile();
 
   useEffect(() => {
+    if (isMobile) return undefined;
     const handleMouseMove = (e) => setMousePos({ x: e.clientX, y: e.clientY });
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+  }, [isMobile]);
 
   // Launch Gates now open the Sign Up flow, since a signed-out visitor
   // has no roadmap/projects/resume/mentorship workspace to land on yet.
@@ -383,7 +421,7 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F7FC] relative overflow-x-hidden">
+    <div className="home-screen min-h-screen bg-[#F8F7FC] relative overflow-x-hidden">
       {/* Scroll Progress Bar */}
       <motion.div
         className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 origin-left z-50"
@@ -391,34 +429,40 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       />
 
       {/* Mouse Glow */}
-      <div
-        className="fixed pointer-events-none z-40 w-[400px] h-[400px] rounded-full opacity-20 blur-[100px] transition-transform duration-100"
-        style={{
-          background: 'radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)',
-          left: mousePos.x - 200,
-          top: mousePos.y - 200
-        }}
-      />
+      {!isMobile && (
+        <div
+          className="fixed pointer-events-none z-40 w-[400px] h-[400px] rounded-full opacity-20 blur-[100px] transition-transform duration-100"
+          style={{
+            background: 'radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)',
+            left: mousePos.x - 200,
+            top: mousePos.y - 200
+          }}
+        />
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════
           HERO SECTION
       ═══════════════════════════════════════════════════════════════ */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <ParticleCanvas />
+        {!isMobile && (
+          <>
+            <ParticleCanvas />
 
-        {/* Floating Shapes */}
-        <FloatingShape shape={Hexagon} className="text-indigo-300/30 w-16 h-16" delay={0} duration={8} x="10%" y="20%" />
-        <FloatingShape shape={Triangle} className="text-purple-300/30 w-12 h-12" delay={1} duration={7} x="85%" y="15%" />
-        <FloatingShape shape={Circle} className="text-cyan-300/30 w-20 h-20" delay={2} duration={9} x="75%" y="70%" />
-        <FloatingShape shape={Square} className="text-pink-300/30 w-14 h-14" delay={0.5} duration={6} x="15%" y="75%" />
-        <FloatingShape shape={Pentagon} className="text-amber-300/30 w-10 h-10" delay={1.5} duration={8} x="50%" y="10%" />
-        <FloatingShape shape={Octagon} className="text-emerald-300/30 w-16 h-16" delay={3} duration={7} x="90%" y="50%" />
-        <FloatingShape shape={Diamond} className="text-rose-300/30 w-12 h-12" delay={2.5} duration={9} x="5%" y="50%" />
+            {/* Floating Shapes */}
+            <FloatingShape shape={Hexagon} className="text-indigo-300/30 w-16 h-16" delay={0} duration={8} x="10%" y="20%" />
+            <FloatingShape shape={Triangle} className="text-purple-300/30 w-12 h-12" delay={1} duration={7} x="85%" y="15%" />
+            <FloatingShape shape={Circle} className="text-cyan-300/30 w-20 h-20" delay={2} duration={9} x="75%" y="70%" />
+            <FloatingShape shape={Square} className="text-pink-300/30 w-14 h-14" delay={0.5} duration={6} x="15%" y="75%" />
+            <FloatingShape shape={Pentagon} className="text-amber-300/30 w-10 h-10" delay={1.5} duration={8} x="50%" y="10%" />
+            <FloatingShape shape={Octagon} className="text-emerald-300/30 w-16 h-16" delay={3} duration={7} x="90%" y="50%" />
+            <FloatingShape shape={Diamond} className="text-rose-300/30 w-12 h-12" delay={2.5} duration={9} x="5%" y="50%" />
 
-        {/* Ambient Orbs */}
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-purple-400/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-cyan-400/8 rounded-full blur-[80px] pointer-events-none" />
+            {/* Ambient Orbs */}
+            <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-purple-400/10 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-cyan-400/8 rounded-full blur-[80px] pointer-events-none" />
+          </>
+        )}
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 text-center">
           {/* Badge */}
@@ -799,14 +843,18 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent" />
 
         {/* Particle Canvas for dark section */}
-        <div className="absolute inset-0 opacity-30">
-          <ParticleCanvas />
-        </div>
+        {!isMobile && (
+          <>
+            <div className="absolute inset-0 opacity-30">
+              <ParticleCanvas />
+            </div>
 
-        {/* Floating shapes on dark */}
-        <FloatingShape shape={Hexagon} className="text-indigo-500/20 w-24 h-24" delay={0} duration={10} x="5%" y="20%" />
-        <FloatingShape shape={Circle} className="text-purple-500/20 w-16 h-16" delay={2} duration={8} x="90%" y="60%" />
-        <FloatingShape shape={Diamond} className="text-cyan-500/20 w-20 h-20" delay={1} duration={12} x="80%" y="10%" />
+            {/* Floating shapes on dark */}
+            <FloatingShape shape={Hexagon} className="text-indigo-500/20 w-24 h-24" delay={0} duration={10} x="5%" y="20%" />
+            <FloatingShape shape={Circle} className="text-purple-500/20 w-16 h-16" delay={2} duration={8} x="90%" y="60%" />
+            <FloatingShape shape={Diamond} className="text-cyan-500/20 w-20 h-20" delay={1} duration={12} x="80%" y="10%" />
+          </>
+        )}
 
         <div className="max-w-7xl mx-auto relative z-10">
           <ScrollReveal>

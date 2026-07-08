@@ -1863,7 +1863,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                 <div className="absolute bottom-6 right-6 z-25">
                   <button
                     onClick={() => setShowChatbot(true)}
-                    className="px-5 py-3 bg-darknavy-card border border-slate-800 hover:border-indigo-500/40 text-white font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-2xl transition-all hover:scale-105 active:scale-95"
+                    className="learning-chatbot-tool px-5 py-3 bg-darknavy-card border border-slate-800 hover:border-indigo-500/40 text-white font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-2xl transition-all hover:scale-105 active:scale-95"
                   >
                     <MessageSquare className="w-4 h-4 text-indigo-400" />
                     💬 Ask AI Doubt Bot
