@@ -943,7 +943,7 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center p-3 pt-24 sm:p-6 sm:pt-28 ${isClosing ? "animate-[fadeOut_.16s_ease-in_forwards]" : "animate-[fadeIn_.18s_ease-out]"}`}
+      className={`fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-2 sm:p-6 ${isClosing ? "animate-[fadeOut_.16s_ease-in_forwards]" : "animate-[fadeIn_.18s_ease-out]"}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Chat with ${thread.name}`}
@@ -955,10 +955,10 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
 
       <div
         ref={panelRef}
-        className={`relative flex w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-2xl ring-1 ring-black/5 dark:bg-[#0b1220] sm:max-h-[88vh] ${
+        className={`relative flex w-[min(100%,34rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white shadow-2xl ring-1 ring-black/5 dark:bg-[#0b1220] sm:rounded-[28px] ${
           isClosing ? "animate-[popOut_.16s_ease-in_forwards]" : "animate-[popIn_.22s_cubic-bezier(.21,1.02,.73,1)]"
         }`}
-        style={{ height: "min(calc(100vh - 7rem), 720px)" }}
+        style={{ height: "min(calc(100dvh - 1rem), 720px)" }}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
@@ -1246,7 +1246,6 @@ function RightRail({ authToken, isSignedIn, viewer, socialState, activeChat, onO
     const messagePayload = typeof payload === "string" ? { text: payload } : payload;
     const cleanText = messagePayload.text?.trim();
     if (!cleanText) return;
-    const nextMessage = { id: `local-${Date.now()}`, from: "me", time: "now", text: cleanText };
     const previewText = messagePayload.type === "image"
       ? `Photo: ${messagePayload.fileName || "image"}`
       : messagePayload.type === "file"
@@ -1254,18 +1253,22 @@ function RightRail({ authToken, isSignedIn, viewer, socialState, activeChat, onO
         : messagePayload.type === "voice"
           ? "Voice note"
           : messagePayload.text;
-    setChatMessages((items) => ({
-      ...items,
-      [threadId]: [...(items[threadId] || []), nextMessage],
-    }));
-    setThreadList((items) => items.map((item) => (
-      item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
-    )));
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: "message", receiverId: threadId, content: cleanText }));
+      setThreadList((items) => items.map((item) => (
+        item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
+      )));
     } else {
-      setChatError("Realtime chat is not connected. Reopen the chat and try again.");
+      const fallbackMessage = { id: `local-${Date.now()}`, from: "me", time: "now", text: cleanText };
+      setChatMessages((items) => ({
+        ...items,
+        [threadId]: [...(items[threadId] || []), fallbackMessage],
+      }));
+      setThreadList((items) => items.map((item) => (
+        item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
+      )));
+      setChatError("Realtime chat is reconnecting. Your message is shown locally for now.");
     }
   };
 

@@ -687,6 +687,10 @@ export default function LearningPath({
 
   // Certificate Modal state
   const [showCertificate, setShowCertificate] = useState(false);
+  const temporaryVerificationCode = `PEC-TEMP-${String(activeTrack?.id || 'TRACK').toUpperCase()}-${new Date().getFullYear()}-${String(userData?.name || 'LEARNER')
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(0, 5)
+    .toUpperCase() || 'USER'}`;
   const [showTrackDetail, setShowTrackDetail] = useState(() => {
     return Boolean(sessionStorage.getItem('prisma:open-journey-detail'));
   });
@@ -2137,104 +2141,94 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
         {/* Live Generated Print-Ready Certificate Modal Overlay */}
         <AnimatePresence>
           {showCertificate && (
-            <div className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg">
+            <div className="fixed inset-0 z-55 flex items-center justify-center overflow-y-auto bg-slate-950/90 p-3 backdrop-blur-lg sm:p-5">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="w-full max-w-5xl bg-[#f8f3e9] text-slate-950 p-5 sm:p-8 relative shadow-2xl text-center overflow-hidden"
+                className="relative w-full max-w-6xl text-center text-slate-950"
                 style={{ fontFamily: 'Georgia, Times New Roman, serif' }}
               >
-                <div className="relative min-h-[620px] border-[3px] border-[#a77724] bg-[#fbf7ef] px-8 py-8 sm:px-14 sm:py-10">
-                  <div className="pointer-events-none absolute inset-3 border border-[#a77724]/80"></div>
-                  <div className="pointer-events-none absolute inset-5 border border-[#a77724]/55"></div>
-                  <div className="pointer-events-none absolute left-7 top-7 h-16 w-16 border-l-[5px] border-t-[5px] border-[#a77724]"></div>
-                  <div className="pointer-events-none absolute right-7 top-7 h-16 w-16 border-r-[5px] border-t-[5px] border-[#a77724]"></div>
-                  <div className="pointer-events-none absolute bottom-7 left-7 h-16 w-16 border-b-[5px] border-l-[5px] border-[#a77724]"></div>
-                  <div className="pointer-events-none absolute bottom-7 right-7 h-16 w-16 border-b-[5px] border-r-[5px] border-[#a77724]"></div>
+                <div className="relative mx-auto aspect-[1.414/1] w-full overflow-hidden border-[3px] border-[#c99b55] bg-[#fbf8f1] p-[2.4%] shadow-2xl">
+                  <div className="pointer-events-none absolute inset-[1.1%] border border-[#b47b22]/70" />
+                  <div className="pointer-events-none absolute inset-[2.1%] border border-[#d3ae6a]/55" />
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.045]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 1px, transparent 1px, transparent 9px)' }} />
+                  <div className="pointer-events-none absolute right-[14%] top-[12%] h-[70%] w-[24%] bg-gradient-to-b from-slate-900/[0.035] to-transparent [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+                  <div className="pointer-events-none absolute bottom-[9%] right-[18%] h-[28%] w-[22%] bg-gradient-to-b from-slate-900/[0.03] to-transparent [clip-path:polygon(0_0,100%_45%,0_100%)]" />
 
-                  <div className="relative z-10 mx-auto flex h-full max-w-4xl flex-col">
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
-                      <div className="flex items-start gap-4 text-left">
-                        <img
-                          src="/prisma-logo.svg"
-                          alt="Prisma Embedded Codes"
-                          className="h-24 w-24 rounded-lg object-cover shadow-sm"
-                        />
-                        <div>
-                          <p className="text-3xl sm:text-4xl font-bold tracking-[0.08em] text-[#10162f] leading-none">
-                            PRISMA
-                          </p>
-                          <p className="mt-1 text-lg sm:text-xl font-bold tracking-[0.08em] text-[#10162f] leading-none">
-                            EMBEDDED CODES
-                          </p>
-                          <p className="mt-1 text-[11px] font-bold tracking-[0.18em] text-slate-700">
-                            LEARNING PATH CERTIFICATION
-                          </p>
+                  {['left-4 top-4 border-l-[4px] border-t-[4px]', 'right-4 top-4 border-r-[4px] border-t-[4px]', 'bottom-4 left-4 border-b-[4px] border-l-[4px]', 'bottom-4 right-4 border-b-[4px] border-r-[4px]'].map((position) => (
+                    <div key={position} className={`absolute h-[7%] w-[7%] border-[#a66f15] ${position}`}>
+                      <span className="absolute h-2 w-2 rounded-full bg-[#b47b22]" />
+                    </div>
+                  ))}
+
+                  <div className="relative z-10 flex h-full flex-col items-center px-[4%] py-[1.5%]">
+                    <div className="flex items-center justify-center gap-[2.5%]">
+                      <img src="/prisma-logo.svg" alt="Prisma Embedded Codes" className="h-[7.6vw] max-h-24 min-h-10 w-auto" />
+                      <div className="text-left font-sans">
+                        <p className="text-[clamp(1.7rem,4vw,4.5rem)] font-black leading-none tracking-[0.32em] text-black">PRISMA</p>
+                        <p className="mt-[2%] text-[clamp(.7rem,1.55vw,1.55rem)] font-black tracking-[0.55em] text-black">EMBEDDED CODES</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-[4%]">
+                      <h2 className="text-[clamp(2.2rem,6vw,6.2rem)] font-normal leading-none tracking-[0.18em] text-[#a66f15] drop-shadow-sm">CERTIFICATE</h2>
+                      <div className="mt-[1.2%] flex items-center justify-center gap-[1.2vw] text-[#a66f15]">
+                        <span className="h-px w-[8vw] max-w-28 bg-[#a66f15]" />
+                        <span className="h-2 w-2 rounded-full bg-[#a66f15]" />
+                        <span className="font-serif text-[clamp(1rem,2.35vw,2.5rem)] font-bold tracking-[0.35em]">OF COMPLETION</span>
+                        <span className="h-2 w-2 rounded-full bg-[#a66f15]" />
+                        <span className="h-px w-[8vw] max-w-28 bg-[#a66f15]" />
+                      </div>
+                    </div>
+
+                    <p className="mt-[4.6%] text-[clamp(.9rem,1.6vw,1.55rem)] font-semibold text-[#101b3a]">This is to certify that</p>
+                    <div className="mt-[2.8%] w-[68%] border-b-2 border-[#101b3a] pb-[0.7%] text-[clamp(1.2rem,3.2vw,3.2rem)] font-semibold italic text-[#101b3a]">
+                      {userData?.name || "Aastik Srivastava"}
+                    </div>
+
+                    <p className="mt-[2.1%] text-[clamp(.9rem,1.55vw,1.45rem)] font-semibold text-[#101b3a]">has successfully completed the course</p>
+                    <h3 className="mt-[1.2%] font-sans text-[clamp(1.25rem,3vw,3.1rem)] font-black uppercase tracking-[0.08em] text-[#102650]">
+                      {activeTrack?.name || "Course Name"}
+                    </h3>
+                    <div className="mt-[1.4%] flex w-[32%] min-w-40 items-center justify-center gap-2 text-[#b47b22]">
+                      <span className="h-px flex-1 bg-[#b47b22]" />
+                      <span className="h-2 w-2 rotate-45 bg-[#b47b22]" />
+                      <span className="h-px flex-1 bg-[#b47b22]" />
+                    </div>
+
+                    <div className="mt-auto grid w-full grid-cols-[1fr_auto_1fr] items-end pb-[1.5%]">
+                      <div className="justify-self-center text-[#101b3a]">
+                        <div className="mx-auto flex h-[clamp(2.5rem,5vw,4.6rem)] w-[clamp(2.5rem,5vw,4.6rem)] items-center justify-center rounded-full bg-[#101b3a] text-white ring-4 ring-white shadow">
+                          <span className="font-sans text-[clamp(1.2rem,2.2vw,2.1rem)]">▦</span>
+                        </div>
+                        <p className="mt-3 text-[clamp(.65rem,1.2vw,1.1rem)] font-bold uppercase tracking-wide">Date of Completion</p>
+                        <p className="mt-1 text-[clamp(.65rem,1.1vw,1rem)] font-semibold uppercase">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      </div>
+
+                      <div className="flex flex-col items-center">
+                        <div className="relative flex h-[clamp(4.7rem,9vw,8.4rem)] w-[clamp(4.7rem,9vw,8.4rem)] items-center justify-center rounded-full bg-gradient-to-br from-[#f5c761] via-[#c99125] to-[#8e5e10] text-white shadow-xl">
+                          <span className="absolute inset-[10%] rounded-full border-2 border-[#ffe3a3]/80" />
+                          <span className="text-[clamp(2rem,4vw,3.8rem)]">★</span>
+                        </div>
+                        <div className="mt-[14%] flex w-[28vw] max-w-96 min-w-48 items-center justify-center gap-2 text-[#b47b22]">
+                          <span className="h-px flex-1 bg-[#b47b22]" />
+                          <span className="h-2 w-2 rotate-45 bg-[#b47b22]" />
+                          <span className="h-px flex-1 bg-[#b47b22]" />
+                        </div>
+                        <p className="mt-2 text-[clamp(.65rem,1.15vw,1rem)] font-bold uppercase tracking-[0.18em] text-[#101b3a]">Verification Code</p>
+                        <div className="mt-2 w-[30vw] max-w-96 min-w-52 rounded-md border-2 border-[#b47b22] bg-white/55 px-3 py-1.5 font-sans text-[clamp(.62rem,1vw,.9rem)] font-black tracking-[0.12em] text-[#102650]">
+                          {temporaryVerificationCode}
                         </div>
                       </div>
 
-                      <div className="hidden sm:block"></div>
-
-                      <div className="justify-self-end rounded-md bg-[#10162f] px-4 py-2 text-white shadow-md">
-                        <p className="text-[9px] font-bold uppercase tracking-wide">Verified with</p>
-                        <p className="text-xl font-bold tracking-wide">A GRADE</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-16 text-center">
-                      <h2 className="text-5xl sm:text-7xl font-serif tracking-[0.22em] text-[#a77724] drop-shadow-sm">
-                        CERTIFICATE
-                      </h2>
-                      <div className="mt-3 flex items-center justify-center gap-4 text-[#a77724]">
-                        <span className="h-px w-20 bg-[#a77724]"></span>
-                        <span className="h-2 w-2 rounded-full bg-[#a77724]"></span>
-                        <span className="text-lg sm:text-2xl font-bold tracking-[0.45em]">OF ACHIEVEMENT</span>
-                        <span className="h-2 w-2 rounded-full bg-[#a77724]"></span>
-                        <span className="h-px w-20 bg-[#a77724]"></span>
-                      </div>
-                    </div>
-
-                    <div className="mx-auto mt-12 max-w-3xl text-center">
-                      <p className="text-lg font-bold text-slate-900">
-                        This is to certify that
-                      </p>
-                      <h3 className="mt-5 border-b border-slate-600 pb-1 text-4xl sm:text-6xl italic text-slate-950">
-                        {userData?.name || "Aastik Srivastava"}
-                      </h3>
-                      <p className="mt-4 text-xl font-bold text-slate-900">
-                        of {activeTrack?.name || "Full-Stack Web Architectures"}
-                      </p>
-                      <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold leading-relaxed text-slate-900">
-                        has been awarded completion achievement for resolving all 9 technical stages,
-                        strengthening the required core skills, and passing the final comprehensive evaluation.
-                      </p>
-                      <p className="mt-4 text-base font-semibold text-slate-900">
-                        held on {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}.
-                      </p>
-                    </div>
-
-                    <div className="mt-14 grid grid-cols-1 gap-8 text-center sm:grid-cols-3">
-                      {[
-                        ['Dr. Nisha Singh', 'Director'],
-                        ['Dr. Urvashi Makkar', 'Dean Academics'],
-                        ['Ms. Taruna Tyagi', 'HOD - Learning Path']
-                      ].map(([name, role], index) => (
-                        <div key={name} className="mx-auto w-44">
-                          <p className="h-10 text-2xl italic text-[#172554]">
-                            {index === 0 ? 'Singh' : index === 1 ? 'Urvashi' : 'Taruna'}
-                          </p>
-                          <div className="border-t border-slate-700 pt-2">
-                            <p className="text-sm font-bold text-slate-950">{name}</p>
-                            <p className="text-sm font-semibold text-slate-800">{role}</p>
-                          </div>
+                      <div className="justify-self-center text-[#101b3a]">
+                        <div className="mx-auto flex h-[clamp(2.5rem,5vw,4.6rem)] w-[clamp(2.5rem,5vw,4.6rem)] items-center justify-center rounded-full bg-[#101b3a] text-white ring-4 ring-white shadow">
+                          <span className="font-sans text-[clamp(1.2rem,2.2vw,2.1rem)]">▥</span>
                         </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#a77724]/30 pt-4 font-sans text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                      <span>Verification Token: {userData?.apiKey || "pec_live_89e41942c4c1_secure7790"}</span>
-                      <span>Prisma Embedded Codes Platform</span>
+                        <p className="mt-3 text-[clamp(.65rem,1.2vw,1.1rem)] font-bold uppercase tracking-wide">Course Duration</p>
+                        <p className="mt-1 text-[clamp(.65rem,1.1vw,1rem)] font-semibold uppercase">{activeTrack?.duration || "XX Hours"}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
