@@ -1312,6 +1312,27 @@ export default function App() {
 
   // Page Switch Router
   const renderPage = () => {
+    if (!authResolved) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-darknavy px-6">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="relative">
+              <img
+                src="/prisma-mark.svg"
+                alt="Prisma Embedded Codes"
+                className="w-14 h-14 rounded-2xl object-cover shadow-lg shadow-indigo-500/20"
+              />
+              <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full border-2 border-white dark:border-darknavy bg-emerald-500 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-slate-900 dark:text-white">Restoring your workspace</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Loading dashboard securely...</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Signed-out / new visitors only ever see the landing page.
     // No NavigationBar, no Dashboard — just Home with Sign Up / Sign In CTAs.
     if (!isSignedIn) {
