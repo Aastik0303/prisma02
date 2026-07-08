@@ -34,6 +34,7 @@ CSRF_SECRET=replace_with_64_char_hex_secret
 FIELD_ENCRYPTION_KEY=replace_with_64_char_hex_key
 
 EMAIL_FROM=noreply@example.com
+BREVO_API_KEY=
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -47,9 +48,13 @@ ADMIN_FULL_NAME=System Administrator
 
 If you add a Railway Redis service, use its public or private Redis connection URL as `REDIS_URL`.
 
-For Gmail SMTP, set `EMAIL_FROM` to the same Gmail address, `SMTP_HOST=smtp.gmail.com`,
-`SMTP_PORT=587`, `SMTP_SECURE=false`, `SMTP_USER` to the Gmail address, and `SMTP_PASS`
-to a Google app password. Normal Gmail account passwords will not work.
+For Brevo API email delivery, set `EMAIL_FROM` to a verified Brevo sender email and
+`BREVO_API_KEY` to your Brevo API key. This uses HTTPS and avoids SMTP port timeouts.
+
+SMTP is still available as a fallback. For Gmail SMTP, set `EMAIL_FROM` to the same Gmail
+address, `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`, `SMTP_USER`
+to the Gmail address, and `SMTP_PASS` to a Google app password. Normal Gmail account
+passwords will not work.
 
 ## Deployment notes
 

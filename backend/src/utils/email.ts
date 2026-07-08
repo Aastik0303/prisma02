@@ -34,6 +34,7 @@ const smtpTransporter = smtpConfigured
       }
     })
   : null;
+const brevoConfigured = Boolean(config.BREVO_API_KEY);
 
 const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -141,7 +142,39 @@ export function renderEmailTemplate(
   return { html: headerHtml + bodyHtml + footerHtml, text, subject };
 }
 
-async function deliverEmail(payload: EmailJobPayload) {
+async function deliverWithBrevoApi(payload: EmailJobPayload) {
+  if (!config.BREVO_API_KEY) {
+    throw new Error('Brevo API is not configured. Set BREVO_API_KEY.');
+  }
+
+  const { html, text, subject } = renderEmailTemplate(payload.type, payload.data);
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': config.BREVO_API_KEY,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      sender: {
+        email: config.EMAIL_FROM,
+        name: 'Prisma Embedded Codes'
+      },
+      to: [{ email: payload.to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+      ...(payload.replyTo ? { replyTo: { email: payload.replyTo } } : {})
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Brevo API error ${response.status}: ${errorText || response.statusText}`);
+  }
+}
+
+async function deliverWithSmtp(payload: EmailJobPayload) {
   if (!smtpTransporter) {
     throw new Error('SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.');
   }
@@ -155,6 +188,20 @@ async function deliverEmail(payload: EmailJobPayload) {
     text,
     ...(payload.replyTo ? { replyTo: payload.replyTo } : {})
   });
+}
+
+async function deliverEmail(payload: EmailJobPayload) {
+  if (brevoConfigured) {
+    try {
+      await deliverWithBrevoApi(payload);
+      return;
+    } catch (error) {
+      if (!smtpTransporter) throw error;
+      console.warn(`Brevo API failed for ${payload.type}; retrying through SMTP: ${(error as Error).message}`);
+    }
+  }
+
+  await deliverWithSmtp(payload);
 }
 
 export async function initializeEmailQueue() {

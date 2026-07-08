@@ -21,6 +21,7 @@ const configSchema = z.object({
   JWT_REFRESH_EXPIRY: z.coerce.number().default(604800),
   CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must be at least 32 characters'),
   EMAIL_FROM: z.string().email().default('noreply@prismaembedded.codes'),
+  BREVO_API_KEY: z.string().trim().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_SECURE: z.coerce.boolean().default(false),
