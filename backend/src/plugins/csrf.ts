@@ -23,8 +23,8 @@ const getHeaderValue = (value: string | string[] | undefined): string | null => 
 const csrfPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // Extract or establish the CSRF session ID before validation hooks run.
   fastify.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
-    let sessionId = getCookie(request.headers.cookie, 'csrf_session_id')
-      || getHeaderValue(request.headers['x-csrf-session-id']);
+    let sessionId = getHeaderValue(request.headers['x-csrf-session-id'])
+      || getCookie(request.headers.cookie, 'csrf_session_id');
 
     if (!sessionId) {
       sessionId = crypto.randomUUID();

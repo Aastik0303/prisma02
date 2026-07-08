@@ -485,6 +485,27 @@ describe('Authentication & Authorization System API Tests', () => {
       expect(regResponse.status).toBe(201);
     });
 
+    it('should prefer X-CSRF-Session-Id over a stale csrf_session_id cookie', async () => {
+      const staleCookie = 'csrf_session_id=stale-mobile-session; Path=/';
+      const csrfResponse = await request(serverInstance)
+        .get('/api/v1/auth/csrf-token');
+
+      expect(csrfResponse.status).toBe(200);
+
+      const regResponse = await request(serverInstance)
+        .post('/api/v1/auth/register')
+        .set('Cookie', staleCookie)
+        .set('x-csrf-token', csrfResponse.body.csrfToken)
+        .set('x-csrf-session-id', csrfResponse.body.csrfSessionId)
+        .send({
+          fullName: 'Aarav Sharma',
+          email: 'aarav@example.com',
+          password: 'StrongPassword123!'
+        });
+
+      expect(regResponse.status).toBe(201);
+    });
+
     it('should keep earlier CSRF tokens valid when another token is issued for the same session', async () => {
       const firstCsrfResponse = await request(serverInstance)
         .get('/api/v1/auth/csrf-token');
