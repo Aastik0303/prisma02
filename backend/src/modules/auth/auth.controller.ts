@@ -602,8 +602,16 @@ export class AuthController {
     // Generate new CSRF token
     const csrfToken = crypto.randomBytes(32).toString('hex');
 
-    // Store in Redis (15 min TTL)
-    await request.server.redis.set(`csrf:${sessionId}`, csrfToken, 'EX', 900);
+    // Store tokens independently so concurrent mobile requests do not invalidate
+    // each other by rotating a single session-wide token.
+    await Promise.all([
+      request.server.redis.set(`csrf:${sessionId}:${csrfToken}`, '1', 'EX', 900),
+      request.server.redis.set(`csrf:${sessionId}`, csrfToken, 'EX', 900)
+    ]);
+
+    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Expires', '0');
 
     // Set session cookie
     reply.setCookie('csrf_session_id', sessionId, {

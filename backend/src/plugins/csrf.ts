@@ -70,11 +70,14 @@ const csrfPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       });
     }
 
-    // Look up token in Redis
-    const redisKey = `csrf:${sessionId}`;
-    const storedToken = await fastify.redis.get(redisKey);
+    const tokenKey = `csrf:${sessionId}:${csrfToken}`;
+    const legacySessionKey = `csrf:${sessionId}`;
+    const [storedToken, legacyStoredToken] = await Promise.all([
+      fastify.redis.get(tokenKey),
+      fastify.redis.get(legacySessionKey)
+    ]);
 
-    if (!storedToken || storedToken !== csrfToken) {
+    if (!storedToken && legacyStoredToken !== csrfToken) {
       return reply.status(403).send({
         statusCode: 403,
         error: 'Forbidden',

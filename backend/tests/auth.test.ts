@@ -445,6 +445,7 @@ describe('Authentication & Authorization System API Tests', () => {
         .get('/api/v1/auth/csrf-token');
 
       expect(csrfResponse.status).toBe(200);
+      expect(csrfResponse.headers['cache-control']).toContain('no-store');
       const csrfToken = csrfResponse.body.csrfToken;
       
       // Extract csrf session id cookie
@@ -456,6 +457,49 @@ describe('Authentication & Authorization System API Tests', () => {
         .post('/api/v1/auth/register')
         .set('Cookie', sessionCookie)
         .set('x-csrf-token', csrfToken)
+        .send({
+          fullName: 'Aarav Sharma',
+          email: 'aarav@example.com',
+          password: 'StrongPassword123!'
+        });
+
+      expect(regResponse.status).toBe(201);
+    });
+
+    it('should validate CSRF using X-CSRF-Session-Id when the cookie is unavailable', async () => {
+      const csrfResponse = await request(serverInstance)
+        .get('/api/v1/auth/csrf-token');
+
+      expect(csrfResponse.status).toBe(200);
+
+      const regResponse = await request(serverInstance)
+        .post('/api/v1/auth/register')
+        .set('x-csrf-token', csrfResponse.body.csrfToken)
+        .set('x-csrf-session-id', csrfResponse.body.csrfSessionId)
+        .send({
+          fullName: 'Aarav Sharma',
+          email: 'aarav@example.com',
+          password: 'StrongPassword123!'
+        });
+
+      expect(regResponse.status).toBe(201);
+    });
+
+    it('should keep earlier CSRF tokens valid when another token is issued for the same session', async () => {
+      const firstCsrfResponse = await request(serverInstance)
+        .get('/api/v1/auth/csrf-token');
+
+      const secondCsrfResponse = await request(serverInstance)
+        .get('/api/v1/auth/csrf-token')
+        .set('x-csrf-session-id', firstCsrfResponse.body.csrfSessionId);
+
+      expect(secondCsrfResponse.status).toBe(200);
+      expect(secondCsrfResponse.body.csrfToken).not.toBe(firstCsrfResponse.body.csrfToken);
+
+      const regResponse = await request(serverInstance)
+        .post('/api/v1/auth/register')
+        .set('x-csrf-token', firstCsrfResponse.body.csrfToken)
+        .set('x-csrf-session-id', firstCsrfResponse.body.csrfSessionId)
         .send({
           fullName: 'Aarav Sharma',
           email: 'aarav@example.com',
