@@ -1354,7 +1354,7 @@ function LeftRail({ user }) {
   );
 }
 
-export default function Community({ authToken = "", userData = {}, isSignedIn = false, onSaveUserProfile }) {
+export default function Community({ authToken = "", userData = {}, isSignedIn = false, onSaveUserProfile, onSocialUpdate }) {
   const [posts, setPosts] = useState(initialPosts);
   const [activeFilter, setActiveFilter] = useState("For You");
   const [activeChat, setActiveChat] = useState(null);
@@ -1407,6 +1407,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
           followerIds: remoteSocial?.followerIds || [],
           followingIds: remoteSocial?.followingIds || [],
         });
+        onSocialUpdate?.(remoteSocial);
       } catch (requestError) {
         if (!ignore) {
           setCommunityError(requestError.message || "Unable to load live community data.");
@@ -1430,6 +1431,8 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
       followerIds: remoteSocial?.followerIds || [],
       followingIds: remoteSocial?.followingIds || [],
     });
+    onSocialUpdate?.(remoteSocial);
+    return remoteSocial;
   };
 
   const openProfile = async (profileId) => {
@@ -1470,7 +1473,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
     backendUserId: userData.backendUserId || userData.id || "",
     email: userData.email || "",
     avatar: userData.avatarUrl || currentUser.avatar,
-    cover: userData.coverUrl || currentUser.cover,
+    cover: userData.backgroundImage || userData.coverUrl || currentUser.cover,
     headline: userData.bio || currentUser.headline,
     followers: isSignedIn ? formatCount(socialState.followersCount) : formatCount(toCountNumber(userData.followers)),
     connections: isSignedIn ? formatCount(socialState.followingCount) : formatCount(toCountNumber(userData.following)),

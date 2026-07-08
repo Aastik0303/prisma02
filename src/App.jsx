@@ -433,6 +433,53 @@ export default function App() {
     setActiveTrack(syncedActiveTrack);
   };
 
+  const mergeCommunitySocialIntoProfile = useCallback((social) => {
+    const followers = Number(social?.followersCount || 0);
+    const following = Number(social?.followingCount || 0);
+
+    setUserData((previous) => {
+      const nextUserData = { ...previous, followers, following };
+      const key = nextUserData.email ? workspaceKey(nextUserData.email) : guestWorkspaceKey;
+      try {
+        const savedWorkspace = JSON.parse(localStorage.getItem(key) || '{}');
+        localStorage.setItem(key, JSON.stringify({
+          ...savedWorkspace,
+          userData: {
+            ...(savedWorkspace.userData || previous),
+            ...nextUserData
+          }
+        }));
+      } catch {
+        // Dashboard still updates in memory even if localStorage is unavailable.
+      }
+      return nextUserData;
+    });
+  }, []);
+
+  const syncCommunitySocial = useCallback(async (token = authToken) => {
+    if (!token) return null;
+    try {
+      const response = await fetch(`${API_BASE_URL}/community/social`, {
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) return null;
+      mergeCommunitySocialIntoProfile(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, [authToken, mergeCommunitySocialIntoProfile]);
+
+  useEffect(() => {
+    if (isSignedIn && authToken) {
+      void syncCommunitySocial(authToken);
+    }
+  }, [authToken, isSignedIn, syncCommunitySocial]);
+
   const handleSaveUserProfile = async (profileData) => {
     const nextUserData = { ...userData, ...profileData };
     const nextWorkspace = {
@@ -1221,7 +1268,16 @@ export default function App() {
       case 'mentorship':
         return <Mentorship mentors={MENTORS} />;
       case 'community':
-        return <Community leaderboard={LEADERBOARD} authToken={authToken} userData={userData} isSignedIn={isSignedIn} onSaveUserProfile={handleSaveUserProfile} />;
+        return (
+          <Community
+            leaderboard={LEADERBOARD}
+            authToken={authToken}
+            userData={userData}
+            isSignedIn={isSignedIn}
+            onSaveUserProfile={handleSaveUserProfile}
+            onSocialUpdate={mergeCommunitySocialIntoProfile}
+          />
+        );
       default:
         return (
           <StudentDashboard 
