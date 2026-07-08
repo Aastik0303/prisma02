@@ -198,7 +198,7 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
   const text = resumeText.trim();
   const lower = text.toLowerCase();
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const bulletLines = lines.filter(line => /^[-*•]/.test(line));
+  const bulletLines = lines.filter(line => /^[-*\u2022]/.test(line));
   const targetKeywords = keywordTokens(targetRole).filter(token => !['intern', 'engineer', 'developer', 'analyst'].includes(token));
   const matchedKeywords = targetKeywords.filter(token => lower.includes(token));
   const missingKeywords = targetKeywords.filter(token => !lower.includes(token)).slice(0, 12);
@@ -343,7 +343,7 @@ function createLocalResumeFix(input: {
   const bodyLines = lines.filter(line => !contactLines.includes(line));
   const bulletCandidates = bodyLines
     .filter(line => line.length > 20)
-    .map(line => line.replace(/^[-*•]\s*/, ''));
+    .map(line => line.replace(/^[-*\u2022]\s*/, ''));
   const shortLines = bodyLines.filter(line => line.length <= 20);
 
   const bullets = bulletCandidates.map(line => {

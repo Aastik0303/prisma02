@@ -502,7 +502,12 @@ const resumeApiRequest = async (path, options = {}) => {
     }
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || 'Resume review failed. Please try again.');
+  if (!response.ok) {
+    const error = new Error(payload.message || 'Resume review failed. Please try again.');
+    error.code = payload.code;
+    error.details = payload.details;
+    throw error;
+  }
   return payload;
 };
 
@@ -711,7 +716,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     } catch (error) {
       setUploadedFileName('');
       setScanProgress(0);
-      setResumeError(error.message);
+      setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
+        ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
+        : error.message);
     } finally {
       setScanning(false);
     }

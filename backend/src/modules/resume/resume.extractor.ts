@@ -20,6 +20,91 @@ function hasZipSignature(buffer: Buffer) {
   return signature === '504b0304' || signature === '504b0506' || signature === '504b0708';
 }
 
+function decodePdfString(value: string) {
+  return value
+    .replace(/\\([nrtbf()\\])/g, (_, char: string) => {
+      switch (char) {
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case 'b': return '\b';
+        case 'f': return '\f';
+        default: return char;
+      }
+    })
+    .replace(/\\([0-7]{1,3})/g, (_, octal: string) => String.fromCharCode(parseInt(octal, 8)));
+}
+
+function decodePdfHexString(value: string) {
+  const normalized = value.replace(/\s+/g, '');
+  let text = '';
+  for (let i = 0; i + 1 < normalized.length; i += 2) {
+    const code = parseInt(normalized.slice(i, i + 2), 16);
+    if (Number.isFinite(code) && code >= 9 && code !== 0) text += String.fromCharCode(code);
+  }
+  return text;
+}
+
+function extractRawPdfText(buffer: Buffer) {
+  const source = buffer.toString('latin1');
+  const parts: string[] = [];
+
+  for (const match of source.matchAll(/\(((?:\\.|[^\\)]){2,})\)\s*Tj/g)) {
+    parts.push(decodePdfString(match[1]));
+  }
+
+  for (const match of source.matchAll(/<([0-9a-fA-F\s]{4,})>\s*Tj/g)) {
+    parts.push(decodePdfHexString(match[1]));
+  }
+
+  for (const match of source.matchAll(/\[((?:\s*(?:\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]+>|-?\d+(?:\.\d+)?))+)\s*\]\s*TJ/g)) {
+    const arrayBody = match[1];
+    for (const stringMatch of arrayBody.matchAll(/\(((?:\\.|[^\\)])*)\)|<([0-9a-fA-F\s]+)>/g)) {
+      parts.push(stringMatch[1] !== undefined
+        ? decodePdfString(stringMatch[1])
+        : decodePdfHexString(stringMatch[2]));
+    }
+    parts.push('\n');
+  }
+
+  return parts.join(' ');
+}
+
+async function extractPdfText(buffer: Buffer) {
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const attempts = [
+      () => parser.getText(),
+      () => parser.getText({
+        parseHyperlinks: true,
+        includeMarkedContent: true,
+        itemJoiner: ' ',
+        cellSeparator: ' ',
+        pageJoiner: '\n'
+      }),
+      () => parser.getText({
+        disableNormalization: true,
+        includeMarkedContent: true,
+        itemJoiner: ' ',
+        cellSeparator: ' ',
+        pageJoiner: '\n'
+      })
+    ];
+
+    let bestText = '';
+    for (const attempt of attempts) {
+      const text = sanitizeResumeText((await attempt()).text);
+      if (text.length > bestText.length) bestText = text;
+      if (bestText.length >= 50) return bestText;
+    }
+
+    const rawText = sanitizeResumeText(extractRawPdfText(buffer));
+    return rawText.length > bestText.length ? rawText : bestText;
+  } finally {
+    await parser.destroy();
+  }
+}
+
 export function sanitizeResumeText(value: string) {
   return value
     .normalize('NFKC')
@@ -47,12 +132,7 @@ export async function extractResumeText(input: {
 
   try {
     if (extension === 'pdf' && input.mimetype === PDF_MIME && hasPdfSignature(input.buffer)) {
-      const parser = new PDFParse({ data: new Uint8Array(input.buffer) });
-      try {
-        rawText = (await parser.getText()).text;
-      } finally {
-        await parser.destroy();
-      }
+      rawText = await extractPdfText(input.buffer);
     } else if (extension === 'docx' && DOCX_MIMES.has(input.mimetype) && hasZipSignature(input.buffer)) {
       rawText = (await mammoth.extractRawText({ buffer: input.buffer })).value;
     } else {
@@ -68,10 +148,9 @@ export async function extractResumeText(input: {
     throw new AppError(
       422,
       'INSUFFICIENT_RESUME_TEXT',
-      'The file contains too little readable text. Scanned PDFs require OCR before upload.'
+      'This PDF has too little selectable text for ATS scanning. If it was exported as an image, paste the resume text below or export it as DOCX/text first.'
     );
   }
 
   return text;
 }
-
