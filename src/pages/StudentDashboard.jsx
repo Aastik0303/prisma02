@@ -3,7 +3,7 @@ import {
   Sparkles, Award, Flame, TrendingUp, ShieldCheck,
   ArrowRight, MessageSquare, Send, Cpu, Briefcase,
   Globe, CheckCircle2, CheckSquare, ChevronRight, Search,
-  Bell, Mail, MapPin, Calendar, Edit3, X, Play, BookOpen,
+  Mail, MapPin, Calendar, Edit3, X, Play, BookOpen,
   Code2, Users, FileText, ExternalLink, Clock, Check, Upload, Image, Link,
   Trash2, Maximize2
 } from 'lucide-react';
@@ -330,7 +330,24 @@ export default function StudentDashboard({
     }
   };
 
-  const placementReadyScore = Math.floor((atsScore * 0.35) + (resumeScore * 0.25) + (internshipScore * 0.2) + (freelanceScore * 0.2));
+  const courseCompletedCount = tracksData?.reduce((sum, track) => {
+    const completedFromNodes = Array.isArray(track.nodes)
+      ? track.nodes.filter(node => node.status === 'completed').length
+      : 0;
+    return sum + (completedFromNodes || track.completedNodes || 0);
+  }, 0) || 0;
+  const totalCourseNodes = tracksData?.reduce((sum, track) => {
+    const totalFromNodes = Array.isArray(track.nodes) ? track.nodes.length : 0;
+    return sum + (totalFromNodes || track.totalNodes || 0);
+  }, 0) || 0;
+  const courseProgressScore = totalCourseNodes
+    ? Math.min(100, Math.round((courseCompletedCount / totalCourseNodes) * 100))
+    : 0;
+  const completedProjectCount = userProjects.filter(project => project.status === 'Completed').length;
+  const projectReadinessScore = userProjects.length
+    ? Math.min(100, Math.round((completedProjectCount / userProjects.length) * 100))
+    : 0;
+  const placementReadyScore = Math.floor((atsScore * 0.4) + (courseProgressScore * 0.35) + (projectReadinessScore * 0.25));
   let placementLevel = "Beginner";
   if (placementReadyScore >= 50 && placementReadyScore < 80) placementLevel = "Intermediate";
   else if (placementReadyScore >= 80) placementLevel = "Placement Ready";
@@ -355,9 +372,6 @@ export default function StudentDashboard({
     isToday: index === ((today.getDay() + 6) % 7),
     checked: activeDayIndex >= 0 && index <= activeDayIndex && index > activeDayIndex - streak
   }));
-  const courseCompletedCount = tracksData?.reduce((sum, track) => sum + (track.completedNodes || 0), 0) || 0;
-  const totalCourseNodes = tracksData?.reduce((sum, track) => sum + (track.totalNodes || 0), 0) || 0;
-  const completedProjectCount = userProjects.filter(project => project.status === 'Completed').length;
   const xpLevel = Math.floor(xp / 500) + 1;
   const xpIntoLevel = xp % 500;
   const xpProgress = Math.min(100, Math.round((xpIntoLevel / 500) * 100));
@@ -917,8 +931,8 @@ export default function StudentDashboard({
 
               <div className="space-y-1 text-[9px] text-slate-500 leading-tight">
                 <div className="flex justify-between"><span>ATS Score</span><strong>{atsScore}%</strong></div>
-                <div className="flex justify-between"><span>DSA Progress</span><strong>80%</strong></div>
-                <div className="flex justify-between"><span>Projects</span><strong>75%</strong></div>
+                <div className="flex justify-between"><span>Course Progress</span><strong>{courseProgressScore}%</strong></div>
+                <div className="flex justify-between"><span>Project Readiness</span><strong>{projectReadinessScore}%</strong></div>
               </div>
             </div>
           </div>
@@ -977,31 +991,6 @@ export default function StudentDashboard({
             <div className="dashboard-copilot-open relative mt-3">
               <Maximize2 className="h-3.5 w-3.5" />
               Open AI Copilot
-            </div>
-          </div>
-
-          {/* NOTIFICATIONS */}
-          <div className={`${cardStyleClass} p-4 text-left text-xs`}>
-            <h4 className="text-xs font-bold text-slate-955 dark:text-white flex items-center gap-1.5 mb-3 font-sora">
-              <Bell className="w-4 h-4 text-brand-secondary" /> Notifications
-            </h4>
-
-            <div className="space-y-2.5 font-semibold text-[10px]">
-              <div className="flex gap-2">
-                <span className="text-emerald-500 shrink-0">●</span>
-                <div>
-                  <span className="text-slate-800 dark:text-slate-200 block leading-tight">Placement Alert</span>
-                  <span className="text-[9px] text-slate-450">Google open &bull; 1h ago</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <span className="text-indigo-500 shrink-0">●</span>
-                <div>
-                  <span className="text-slate-800 dark:text-slate-200 block leading-tight">Mentor Message</span>
-                  <span className="text-[9px] text-slate-455">Aarav Sharma &bull; 3h ago</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1426,3 +1415,4 @@ export default function StudentDashboard({
     </div>
   );
 }
+
