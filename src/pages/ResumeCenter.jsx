@@ -518,6 +518,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [resumeReview, setResumeReview] = useState(null);
   const [resumeError, setResumeError] = useState('');
   const [targetRole, setTargetRole] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [fixingIssueId, setFixingIssueId] = useState('');
   const [comparison, setComparison] = useState(null);
@@ -606,14 +607,32 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const triggerConfetti = () => { setConfetti(true); setTimeout(() => setConfetti(false), 1800); };
 
   // ── SCAN ──
-  const applyAnalysis = (analysis, analyzedText) => {
-    setResumeReview(analysis);
-    setAtsScore(analysis.atsScore);
-    setResumeScore?.(analysis.atsScore);
+  const applyAnalysis = (analysis, analyzedText, options = {}) => {
+    const scoreFloor = Number.isFinite(options.scoreFloor) ? options.scoreFloor : undefined;
+    const nextScore = scoreFloor === undefined ? analysis.atsScore : Math.max(scoreFloor, analysis.atsScore);
+    const nextAnalysis = { ...analysis, atsScore: nextScore };
+    setResumeReview(nextAnalysis);
+    setAtsScore(nextScore);
+    setResumeScore?.(nextScore);
     lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
   };
 
   const reviewText = comparison?.improvedText || scanText;
+
+  const downloadResumeText = (text = reviewText, label = 'resume') => {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
+    const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeLabel}-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const handleScan = async () => {
     if (scanText.trim().length < 50) return;
@@ -702,10 +721,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     if (!reviewText.trim()) return;
     setFixingIssueId(problem?.id || 'all');
     setResumeError('');
+    const scoreBeforeFix = Number(resumeReview?.atsScore ?? atsScore) || 0;
     try {
+      const jdInstruction = jobDescription.trim()
+        ? ` Tailor the language to this job description without inventing facts: ${jobDescription.trim().slice(0, 1200)}`
+        : '';
       const instruction = problem
-        ? `${problem.title}. ${problem.suggestedFix}`
-        : 'Rewrite all weak resume content and improve ATS compatibility without inventing facts.';
+        ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
+        : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
       const result = await resumeApiRequest('/fix', {
         method: 'POST',
         body: JSON.stringify({
@@ -718,9 +741,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setComparison({
         originalText: result.originalText,
         improvedText: result.improvedText,
-        changes: result.changes
+        changes: result.changes,
+        scoreBeforeFix
       });
-      applyAnalysis(result.analysis, result.improvedText);
+      applyAnalysis(result.analysis, result.improvedText, { scoreFloor: scoreBeforeFix });
     } catch (error) {
       setResumeError(error.message);
     } finally {
@@ -747,6 +771,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   useEffect(() => {
+    if (comparison) return undefined;
     if (!resumeReview || reviewText.trim().length < 50 || `${targetRole}\u0000${reviewText}` === lastAnalyzedTextRef.current) return undefined;
     const timeout = setTimeout(() => recheckResume(reviewText, true), 1200);
     return () => clearTimeout(timeout);
@@ -1450,6 +1475,32 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     />
 
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Job description for tailored fixes</label>
+                    <textarea
+                      rows={4}
+                      value={jobDescription}
+                      onChange={e => setJobDescription(e.target.value)}
+                      maxLength={3000}
+                      placeholder="Paste the job description here to make AI Fix target the right keywords and recruiter expectations..."
+                      className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y"
+                    />
+
+                    <div className="grid sm:grid-cols-3 gap-2 mb-4">
+                      {[
+                        { icon: ShieldCheck, label: 'Private scan', text: 'Processed securely' },
+                        { icon: Target, label: 'JD keywords', text: 'Tailored fixes' },
+                        { icon: Zap, label: 'Smart rewrite', text: 'Score protected' }
+                      ].map(item => (
+                        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <item.icon className="w-4 h-4 text-indigo-500" />
+                            <span className="text-[11px] font-black text-slate-800">{item.label}</span>
+                          </div>
+                          <p className="mt-1 text-[10px] font-semibold text-slate-400">{item.text}</p>
+                        </div>
+                      ))}
+                    </div>
+
                     <input type="file" ref={fileInputRef} accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileUpload} className="hidden" />
                     <button
                       type="button"
@@ -1497,6 +1548,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     )}
 
                     <div className="flex flex-wrap justify-end gap-2 mt-4">
+                      {(comparison?.improvedText || scanText.trim()) && (
+                        <button
+                          type="button"
+                          onClick={() => downloadResumeText(comparison?.improvedText || scanText, comparison?.improvedText ? 'updated-resume' : 'resume')}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" /> Download resume
+                        </button>
+                      )}
                       {resumeReview && (
                         <button
                           type="button"
@@ -1620,9 +1680,25 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
               {comparison && (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div><h3 className="font-black text-slate-900">Original vs improved</h3><p className="text-xs text-slate-400">The original is preserved. Edit the improved draft; its score updates after a short pause.</p></div>
-                    <button onClick={() => { setScanText(comparison.improvedText); setComparison(null); }} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
+                    <div>
+                      <h3 className="font-black text-slate-900">Original vs improved</h3>
+                      <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => downloadResumeText(comparison.improvedText, 'updated-resume')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
+                        <Download className="w-4 h-4" /> Download updated
+                      </button>
+                      <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
+                        <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck
+                      </button>
+                      <button onClick={() => { setScanText(comparison.improvedText); setComparison(null); }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
+                    </div>
                   </div>
+                  {Number.isFinite(comparison.scoreBeforeFix) && (
+                    <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                      <span className="font-black">Score protected:</span> AI Fix will not lower the displayed ATS score below your previous {comparison.scoreBeforeFix}. Use Recheck only when you want a fresh score.
+                    </div>
+                  )}
                   <div className="grid lg:grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Original</label>
