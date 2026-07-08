@@ -35,6 +35,12 @@ FIELD_ENCRYPTION_KEY=replace_with_64_char_hex_key
 
 RESEND_API_KEY=re_mock_key
 EMAIL_FROM=noreply@example.com
+EMAIL_PROVIDER=resend
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
 
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
@@ -42,6 +48,10 @@ ADMIN_FULL_NAME=System Administrator
 ```
 
 If you add a Railway Redis service, use its public or private Redis connection URL as `REDIS_URL`.
+
+For Gmail SMTP fallback, set `EMAIL_PROVIDER=smtp`, `EMAIL_FROM` to the same Gmail address,
+`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`, `SMTP_USER` to the Gmail
+address, and `SMTP_PASS` to a Google app password. Normal Gmail account passwords will not work.
 
 ## Deployment notes
 

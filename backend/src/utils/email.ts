@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq';
+import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { config } from '../config/config.js';
 
@@ -23,6 +24,18 @@ const EMAIL_QUEUE_NAME = 'email-jobs';
 let emailQueue: Queue | null = null;
 let emailWorker: Worker | null = null;
 const resend = new Resend(config.RESEND_API_KEY);
+const smtpConfigured = Boolean(config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS);
+const smtpTransporter = smtpConfigured
+  ? nodemailer.createTransport({
+      host: config.SMTP_HOST,
+      port: config.SMTP_PORT,
+      secure: config.SMTP_SECURE,
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS
+      }
+    })
+  : null;
 
 const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -130,7 +143,7 @@ export function renderEmailTemplate(
   return { html: headerHtml + bodyHtml + footerHtml, text, subject };
 }
 
-async function deliverEmail(payload: EmailJobPayload) {
+async function deliverWithResend(payload: EmailJobPayload) {
   const { html, text, subject } = renderEmailTemplate(payload.type, payload.data);
   const response = await resend.emails.send({
     from: config.EMAIL_FROM,
@@ -141,6 +154,37 @@ async function deliverEmail(payload: EmailJobPayload) {
     ...(payload.replyTo ? { replyTo: payload.replyTo } : {})
   });
   if (response.error) throw new Error(`Resend API error: ${response.error.message}`);
+}
+
+async function deliverWithSmtp(payload: EmailJobPayload) {
+  if (!smtpTransporter) {
+    throw new Error('SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.');
+  }
+
+  const { html, text, subject } = renderEmailTemplate(payload.type, payload.data);
+  await smtpTransporter.sendMail({
+    from: config.EMAIL_FROM,
+    to: payload.to,
+    subject,
+    html,
+    text,
+    ...(payload.replyTo ? { replyTo: payload.replyTo } : {})
+  });
+}
+
+async function deliverEmail(payload: EmailJobPayload) {
+  if (config.EMAIL_PROVIDER === 'smtp') {
+    await deliverWithSmtp(payload);
+    return;
+  }
+
+  try {
+    await deliverWithResend(payload);
+  } catch (error) {
+    if (!smtpTransporter) throw error;
+    console.warn(`Resend failed for ${payload.type}; retrying email through SMTP: ${(error as Error).message}`);
+    await deliverWithSmtp(payload);
+  }
 }
 
 export async function initializeEmailQueue() {
