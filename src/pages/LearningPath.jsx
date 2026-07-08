@@ -3,7 +3,7 @@ import {
   Lock, Check, Award, Compass, Flame, Info, CheckCircle2,
   ChevronRight, Sparkles, BookOpen, Cpu, XCircle, RotateCcw,
   Presentation, ChevronLeft, Play, Pause, X, Terminal, Sliders, MessageSquare, Send,
-  CalendarDays, Timer, BadgeCheck, KeyRound, PenLine
+  CalendarDays, Timer, BadgeCheck, KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -2207,17 +2207,10 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                         ))}
                       </div>
 
-                      <footer className="mt-[4%] grid grid-cols-1 items-end gap-4 border-t border-[#C9A227]/35 pt-[2.2%] text-[#102A54] sm:grid-cols-[1fr_auto_1fr]">
-                        <div className="hidden sm:block" />
+                      <footer className="mt-[4%] flex items-end justify-center border-t border-[#C9A227]/35 pt-[2.2%] text-[#102A54]">
                         <div className="text-center font-sans">
                           <p className="text-[clamp(.52rem,.8vw,.74rem)] font-semibold text-[#102A54]/60">Verify this certificate at</p>
                           <p className="mt-1 text-[clamp(.6rem,.95vw,.9rem)] font-black text-[#102A54]">verify.prismaembeddedcodes.com</p>
-                        </div>
-                        <div className="justify-self-center text-center sm:justify-self-end">
-                          <PenLine className="mx-auto mb-1 h-[clamp(1rem,1.7vw,1.4rem)] w-[clamp(1rem,1.7vw,1.4rem)] text-[#C9A227]" strokeWidth={1.6} />
-                          <div className="w-44 max-w-[30vw] border-t border-[#102A54]/50 pt-2 font-sans text-[clamp(.55rem,.85vw,.8rem)] font-bold text-[#102A54]">
-                            Authorized Signature
-                          </div>
                         </div>
                       </footer>
                     </section>
