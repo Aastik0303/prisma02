@@ -1,6 +1,5 @@
 import { Queue, Worker } from 'bullmq';
 import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 import { config } from '../config/config.js';
 
 type EmailType =
@@ -23,7 +22,6 @@ interface EmailJobPayload {
 const EMAIL_QUEUE_NAME = 'email-jobs';
 let emailQueue: Queue | null = null;
 let emailWorker: Worker | null = null;
-const resend = new Resend(config.RESEND_API_KEY);
 const smtpConfigured = Boolean(config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS);
 const smtpTransporter = smtpConfigured
   ? nodemailer.createTransport({
@@ -143,20 +141,7 @@ export function renderEmailTemplate(
   return { html: headerHtml + bodyHtml + footerHtml, text, subject };
 }
 
-async function deliverWithResend(payload: EmailJobPayload) {
-  const { html, text, subject } = renderEmailTemplate(payload.type, payload.data);
-  const response = await resend.emails.send({
-    from: config.EMAIL_FROM,
-    to: payload.to,
-    subject,
-    html,
-    text,
-    ...(payload.replyTo ? { replyTo: payload.replyTo } : {})
-  });
-  if (response.error) throw new Error(`Resend API error: ${response.error.message}`);
-}
-
-async function deliverWithSmtp(payload: EmailJobPayload) {
+async function deliverEmail(payload: EmailJobPayload) {
   if (!smtpTransporter) {
     throw new Error('SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.');
   }
@@ -170,21 +155,6 @@ async function deliverWithSmtp(payload: EmailJobPayload) {
     text,
     ...(payload.replyTo ? { replyTo: payload.replyTo } : {})
   });
-}
-
-async function deliverEmail(payload: EmailJobPayload) {
-  if (config.EMAIL_PROVIDER === 'smtp') {
-    await deliverWithSmtp(payload);
-    return;
-  }
-
-  try {
-    await deliverWithResend(payload);
-  } catch (error) {
-    if (!smtpTransporter) throw error;
-    console.warn(`Resend failed for ${payload.type}; retrying email through SMTP: ${(error as Error).message}`);
-    await deliverWithSmtp(payload);
-  }
 }
 
 export async function initializeEmailQueue() {
