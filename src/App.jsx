@@ -147,8 +147,13 @@ const workspaceKey = (email) => `pec_workspace:${email.toLowerCase().trim()}`;
 const guestWorkspaceKey = 'pec_workspace:guest';
 const authSessionKey = 'pec_auth_session';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+let csrfCache = null;
 
-const getCsrfToken = async () => {
+const getCsrfToken = async ({ forceRefresh = false } = {}) => {
+  if (!forceRefresh && csrfCache && csrfCache.expiresAt > Date.now()) {
+    return csrfCache;
+  }
+
   let response;
   try {
     response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
@@ -164,10 +169,13 @@ const getCsrfToken = async () => {
     throw new Error(data.message || 'Unable to prepare secure authentication.');
   }
 
-  return {
+  csrfCache = {
     csrfToken: data.csrfToken,
-    csrfSessionId: data.csrfSessionId
+    csrfSessionId: data.csrfSessionId,
+    expiresAt: Date.now() + 12 * 60 * 1000
   };
+
+  return csrfCache;
 };
 
 const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
@@ -176,7 +184,7 @@ const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
 });
 
 const authRequest = async (path, body, accessToken) => {
-  const csrf = await getCsrfToken();
+  let csrf = await getCsrfToken();
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -193,7 +201,26 @@ const authRequest = async (path, body, accessToken) => {
     throw new Error('Authentication server is not reachable. Please start the backend and try again.');
   }
 
-  const data = await response.json().catch(() => ({}));
+  let data = await response.json().catch(() => ({}));
+
+  if (response.status === 403 && data.code === 'INVALID_CSRF_TOKEN') {
+    csrf = await getCsrfToken({ forceRefresh: true });
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildCsrfHeaders(csrf),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+        },
+        body: JSON.stringify(body)
+      });
+    } catch {
+      throw new Error('Authentication server is not reachable. Please start the backend and try again.');
+    }
+    data = await response.json().catch(() => ({}));
+  }
 
   if (!response.ok) {
     const error = new Error(data.message || 'Authentication request failed.');
