@@ -227,6 +227,8 @@
     scroll-behavior: smooth;
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
+    width: 100%;
+    overflow-x: hidden;
   }
 
   body {
@@ -235,6 +237,27 @@
     min-height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
+  }
+
+  #root {
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  img, picture, video, canvas, svg {
+    max-width: 100%;
+  }
+
+  img, video {
+    height: auto;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
   }
   
   body.dark {
@@ -252,6 +275,25 @@
 
   button, a {
     touch-action: manipulation;
+  }
+
+  input, textarea, select {
+    max-width: 100%;
+  }
+
+  @media (max-width: 767px) {
+    button,
+    [role="button"],
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1rem);
+    }
+
+    button,
+    a[role="button"] {
+      min-height: 44px;
+    }
   }
 
   :focus-visible {

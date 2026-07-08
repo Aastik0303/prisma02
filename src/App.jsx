@@ -149,6 +149,29 @@ const authSessionKey = 'pec_auth_session';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 let csrfCache = null;
 
+const pagePathMap = {
+  home: '/',
+  login: '/login',
+  signup: '/signup',
+  dashboard: '/dashboard',
+  learning: '/courses',
+  roadmap: '/journey',
+  projects: '/projects',
+  resume: '/resume',
+  mentorship: '/mentorship',
+  community: '/community'
+};
+
+const protectedPages = new Set(['dashboard', 'learning', 'roadmap', 'projects', 'resume', 'mentorship', 'community']);
+
+const pageFromLocation = () => {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const match = Object.entries(pagePathMap).find(([, value]) => value === path);
+  return match?.[0] || (path === '/courses' ? 'learning' : 'home');
+};
+
+const pathForPage = (pageId) => pagePathMap[pageId] || pagePathMap.dashboard;
+
 const getCsrfToken = async ({ forceRefresh = false } = {}) => {
   if (!forceRefresh && csrfCache && csrfCache.expiresAt > Date.now()) {
     return csrfCache;
@@ -279,7 +302,7 @@ const createWorkspaceFromAuthUser = (authUser) => {
 };
 
 export default function App() {
-  const [page, setPage] = useState('dashboard'); // 'dashboard' | 'learning' | 'roadmap' | 'projects' | 'resume' | 'mentorship' | 'community'
+  const [page, setPage] = useState(() => pageFromLocation()); // 'dashboard' | 'learning' | 'roadmap' | 'projects' | 'resume' | 'mentorship' | 'community'
   const [theme, setTheme] = useState('dark');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -290,6 +313,7 @@ export default function App() {
   const [authSuccess, setAuthSuccess] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
 
@@ -351,6 +375,82 @@ export default function App() {
     setAuthSuccess(false);
     setMfaChallengeToken(null);
   }, []);
+
+  const navigateTo = useCallback((nextPage, { replace = false } = {}) => {
+    const targetPage = nextPage || 'dashboard';
+
+    if (protectedPages.has(targetPage) && !isSignedIn) {
+      setPage('home');
+      setActiveModal('signin');
+      window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
+      return;
+    }
+
+    if ((targetPage === 'login' || targetPage === 'signup' || targetPage === 'home') && isSignedIn) {
+      setPage('dashboard');
+      setActiveModal(null);
+      window.history.replaceState({ page: 'dashboard' }, '', pathForPage('dashboard'));
+      return;
+    }
+
+    setPage(targetPage === 'login' || targetPage === 'signup' ? 'home' : targetPage);
+    if (targetPage === 'login') setActiveModal('signin');
+    if (targetPage === 'signup') setActiveModal('signup');
+
+    const path = pathForPage(targetPage);
+    const state = { page: targetPage };
+    if (replace) {
+      window.history.replaceState(state, '', path);
+    } else if (window.location.pathname !== path) {
+      window.history.pushState(state, '', path);
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextPage = pageFromLocation();
+      if (protectedPages.has(nextPage) && !isSignedIn) {
+        setPage('home');
+        setActiveModal('signin');
+        window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
+        return;
+      }
+
+      if ((nextPage === 'login' || nextPage === 'signup' || nextPage === 'home') && isSignedIn) {
+        setPage('dashboard');
+        setActiveModal(null);
+        window.history.replaceState({ page: 'dashboard' }, '', pathForPage('dashboard'));
+        return;
+      }
+
+      setPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage);
+      setActiveModal(nextPage === 'login' ? 'signin' : nextPage === 'signup' ? 'signup' : null);
+      setMobileMenuOpen(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    const currentPage = pageFromLocation();
+    if (!authResolved) return;
+
+    if (isSignedIn && (currentPage === 'login' || currentPage === 'signup' || currentPage === 'home')) {
+      navigateTo('dashboard', { replace: true });
+      return;
+    }
+
+    if (!isSignedIn && protectedPages.has(currentPage)) {
+      navigateTo('login', { replace: true });
+      return;
+    }
+
+    if (!isSignedIn && (currentPage === 'login' || currentPage === 'signup')) {
+      setPage('home');
+      setActiveModal(currentPage === 'login' ? 'signin' : 'signup');
+    }
+  }, [authResolved, isSignedIn, navigateTo]);
 
   const buildWorkspaceMetadata = (workspace) => ({
     college: workspace.userData.college,
@@ -785,10 +885,12 @@ export default function App() {
           setPage('dashboard');
           setActiveModal(null);
           setAuthSuccess(false);
-          window.history.replaceState({}, document.title, window.location.pathname);
+          window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
+          setAuthResolved(true);
         } catch (error) {
           setAuthError(error.message || 'Google sign in failed. Please try again.');
           setActiveModal('signin');
+          setAuthResolved(true);
         } finally {
           setAuthLoading(false);
         }
@@ -857,28 +959,38 @@ export default function App() {
               refreshTokenValue: refreshed.refreshToken || ''
             });
             setIsSignedIn(true);
-            setPage('dashboard');
+            const requestedPage = pageFromLocation();
+            const restoredPage = protectedPages.has(requestedPage) ? requestedPage : 'dashboard';
+            setPage(restoredPage);
+            window.history.replaceState({ page: restoredPage }, document.title, pathForPage(restoredPage));
+            setAuthResolved(true);
           } catch {
             localStorage.removeItem(authSessionKey);
             setAuthToken('');
             setRefreshToken('');
             setIsSignedIn(false);
+            setAuthResolved(true);
           }
         });
         return;
       } catch {
         localStorage.removeItem(authSessionKey);
+        setAuthResolved(true);
       }
     }
 
     const savedGuestWorkspace = localStorage.getItem(guestWorkspaceKey);
-    if (!savedGuestWorkspace) return;
+    if (!savedGuestWorkspace) {
+      setAuthResolved(true);
+      return;
+    }
 
     try {
       queueMicrotask(() => applyWorkspace(JSON.parse(savedGuestWorkspace)));
     } catch {
       localStorage.removeItem(guestWorkspaceKey);
     }
+    setAuthResolved(true);
   }, []);
 
   // Nav Links (Home removed — signed-in users never navigate back to the landing page)
@@ -925,6 +1037,8 @@ export default function App() {
       });
       setIsSignedIn(true);
       setPage('dashboard');
+      window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
+      setAuthResolved(true);
       setAuthLoading(false);
       setAuthSuccess(true);
       setTimeout(() => {
@@ -971,6 +1085,8 @@ export default function App() {
       });
       setIsSignedIn(true);
       setPage('dashboard');
+      window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
+      setAuthResolved(true);
       setAuthLoading(false);
       setAuthSuccess(true);
       setMfaChallengeToken(null);
@@ -1184,12 +1300,14 @@ export default function App() {
     setIsSignedIn(false);
     setAuthToken('');
     setRefreshToken('');
+    setAuthResolved(true);
     localStorage.removeItem(authSessionKey);
     setAccountMenuOpen(false);
     setActiveModal(null);
     setAuthError('');
     // Signed-out users land back on the Home / landing page.
     setPage('home');
+    window.history.replaceState({ page: 'home' }, document.title, pathForPage('home'));
   };
 
   // Page Switch Router
@@ -1199,8 +1317,8 @@ export default function App() {
     if (!isSignedIn) {
       return (
         <HomeScreen
-          onStartJourney={() => { setActiveModal('signup'); setAuthError(''); }}
-          onSignIn={() => { setActiveModal('signin'); setAuthError(''); }}
+          onStartJourney={() => { setAuthError(''); navigateTo('signup'); }}
+          onSignIn={() => { setAuthError(''); navigateTo('login'); }}
         />
       );
     }
@@ -1219,7 +1337,7 @@ export default function App() {
             internshipScore={internshipScore} 
             freelanceScore={freelanceScore} 
             activeTrack={activeTrack} 
-            setPage={setPage}
+            setPage={navigateTo}
             userData={userData}
             tracksData={tracksData}
             lastStreakDate={lastStreakDate}
@@ -1232,7 +1350,7 @@ export default function App() {
       case 'learning':
         return (
           <CoursesShowcase 
-            setPage={setPage} 
+            setPage={navigateTo}
             setActiveTrack={setActiveTrack} 
             tracksData={tracksData} 
             setTracksData={setTracksData}
@@ -1250,7 +1368,7 @@ export default function App() {
             setAtsScore={setAtsScore} setResumeScore={setResumeScore}
             setInternshipScore={setInternshipScore}
             userData={userData}
-            setPage={setPage}
+            setPage={navigateTo}
             onCompleteNode={handleCompleteNode}
             authToken={authToken}
           />
@@ -1311,7 +1429,7 @@ export default function App() {
             
             {/* Logo & Branding */}
             <div 
-              onClick={() => setPage('dashboard')} 
+              onClick={() => navigateTo('dashboard')} 
               className="flex items-center gap-2.5 cursor-pointer shrink-0 group"
             >
               <img
@@ -1336,7 +1454,7 @@ export default function App() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setPage(item.id)}
+                    onClick={() => navigateTo(item.id)}
                     className={`px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-all shrink-0 ${
                       isActive 
                         ? 'bg-white dark:bg-slate-800 text-brand-primary dark:text-brand-accent shadow-sm border border-slate-200/50 dark:border-slate-700/50' 
@@ -1412,7 +1530,7 @@ export default function App() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => { setPage(item.id); setMobileMenuOpen(false); }}
+                    onClick={() => { navigateTo(item.id); setMobileMenuOpen(false); }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                       isActive 
                         ? 'bg-indigo-500/10 text-brand-primary dark:text-brand-accent border-l-2 border-indigo-500 pl-2.5' 
@@ -1430,7 +1548,7 @@ export default function App() {
       )}
 
       {/* FULL WIDTH ROUTABLE CANVASES */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         {renderPage()}
       </main>
 
