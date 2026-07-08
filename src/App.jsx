@@ -1651,7 +1651,7 @@ export default function App() {
                       required
                       value={signInEmail}
                       onChange={(e) => setSignInEmail(e.target.value)}
-                      placeholder="e.g. aastik@gmail.com"
+                      placeholder="e.g. learner@example.com"
                       className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-800 dark:text-white"
                     />
                   </div>
@@ -1757,7 +1757,7 @@ export default function App() {
                       required
                       value={signUpName}
                       onChange={(e) => setSignUpName(e.target.value)}
-                      placeholder="e.g. Aastik Srivastava"
+                      placeholder="e.g. Your full name"
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
                     />
                   </div>
@@ -1769,7 +1769,7 @@ export default function App() {
                       required
                       value={signUpEmail}
                       onChange={(e) => setSignUpEmail(e.target.value)}
-                      placeholder="e.g. aastik@gmail.com"
+                      placeholder="e.g. learner@example.com"
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
                     />
                   </div>
@@ -1807,7 +1807,7 @@ export default function App() {
                         required
                         value={signUpCollege}
                         onChange={(e) => setSignUpCollege(e.target.value)}
-                        placeholder="e.g. Delhi Technological University"
+                        placeholder="e.g. Your college name"
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
                       />
                     </div>
@@ -1820,7 +1820,7 @@ export default function App() {
                           required
                           value={signUpDegree}
                           onChange={(e) => setSignUpDegree(e.target.value)}
-                          placeholder="e.g. B.Tech CSE"
+                          placeholder="e.g. Your degree or major"
                           className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
                         />
                       </div>
@@ -1831,7 +1831,7 @@ export default function App() {
                           required
                           value={signUpYear}
                           onChange={(e) => setSignUpYear(e.target.value)}
-                          placeholder="e.g. 3rd Year"
+                          placeholder="e.g. Current year"
                           className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-slate-850 dark:text-white"
                         />
                       </div>
