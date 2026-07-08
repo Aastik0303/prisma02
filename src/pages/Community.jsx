@@ -863,9 +863,10 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
   }, [thread.id, threadMessages.length]);
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow || "";
     };
   }, []);
 

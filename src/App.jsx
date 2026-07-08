@@ -662,7 +662,11 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (previousOverflow) {
+        document.body.style.overflow = previousOverflow;
+      } else {
+        document.body.style.removeProperty('overflow');
+      }
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [activeModal, closeAuthModal]);

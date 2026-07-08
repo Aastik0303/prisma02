@@ -232,7 +232,9 @@
   body {
     @apply font-sans bg-slate-50 text-slate-900 transition-colors duration-300 antialiased;
     font-family: 'Inter', sans-serif;
-    overscroll-behavior-y: none;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   
   body.dark {
