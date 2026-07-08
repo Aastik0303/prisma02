@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Lock, Check, Award, Compass, Flame, Info, CheckCircle2,
   ChevronRight, Sparkles, BookOpen, Cpu, XCircle, RotateCcw,
-  Presentation, ChevronLeft, Play, Pause, X, Terminal, Sliders, MessageSquare, Send
+  Presentation, ChevronLeft, Play, Pause, X, Terminal, Sliders, MessageSquare, Send,
+  CalendarDays, Timer, BadgeCheck, KeyRound, PenLine
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -691,6 +692,9 @@ export default function LearningPath({
     .replace(/[^a-z0-9]/gi, '')
     .slice(0, 5)
     .toUpperCase() || 'USER'}`;
+  const temporaryCertificateId = `PEC-${new Date().getFullYear()}-${String(Math.abs((userData?.email || userData?.name || 'learner').split('').reduce((total, char) => total + char.charCodeAt(0), 0))).padStart(6, '0').slice(0, 6)}`;
+  const certificateCompletionDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const certificateDuration = activeTrack?.duration || '40 Hours';
   const [showTrackDetail, setShowTrackDetail] = useState(() => {
     return Boolean(sessionStorage.getItem('prisma:open-journey-detail'));
   });
@@ -2149,87 +2153,74 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                 className="relative w-full max-w-6xl text-center text-slate-950"
                 style={{ fontFamily: 'Georgia, Times New Roman, serif' }}
               >
-                <div className="relative mx-auto aspect-[1.414/1] w-full overflow-hidden border-[3px] border-[#c99b55] bg-[#fbf8f1] p-[2.4%] shadow-2xl">
-                  <div className="pointer-events-none absolute inset-[1.1%] border border-[#b47b22]/70" />
-                  <div className="pointer-events-none absolute inset-[2.1%] border border-[#d3ae6a]/55" />
-                  <div className="pointer-events-none absolute inset-0 opacity-[0.045]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 1px, transparent 1px, transparent 9px)' }} />
-                  <div className="pointer-events-none absolute right-[14%] top-[12%] h-[70%] w-[24%] bg-gradient-to-b from-slate-900/[0.035] to-transparent [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
-                  <div className="pointer-events-none absolute bottom-[9%] right-[18%] h-[28%] w-[22%] bg-gradient-to-b from-slate-900/[0.03] to-transparent [clip-path:polygon(0_0,100%_45%,0_100%)]" />
+                <div className="certificate-sheet relative mx-auto aspect-[1.414/1] w-full overflow-hidden border border-[#C9A227] bg-[#fffdf7] shadow-2xl">
+                  <div className="pointer-events-none absolute inset-[1.6%] border border-[#C9A227]/45" />
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.035]" style={{ backgroundImage: 'linear-gradient(135deg, #102A54 0 1px, transparent 1px 18px), linear-gradient(45deg, #C9A227 0 1px, transparent 1px 22px)' }} />
+                  <div className="pointer-events-none absolute -right-[12%] -top-[18%] h-[52%] w-[38%] rounded-full border border-[#C9A227]/20" />
+                  <div className="pointer-events-none absolute -bottom-[20%] -left-[10%] h-[46%] w-[34%] rounded-full border border-[#102A54]/10" />
 
-                  {['left-4 top-4 border-l-[4px] border-t-[4px]', 'right-4 top-4 border-r-[4px] border-t-[4px]', 'bottom-4 left-4 border-b-[4px] border-l-[4px]', 'bottom-4 right-4 border-b-[4px] border-r-[4px]'].map((position) => (
-                    <div key={position} className={`absolute h-[7%] w-[7%] border-[#a66f15] ${position}`}>
-                      <span className="absolute h-2 w-2 rounded-full bg-[#b47b22]" />
-                    </div>
-                  ))}
+                  <div className="relative z-10 flex h-full flex-col px-[7%] py-[4.2%]">
+                    <header className="flex flex-col items-center">
+                      <img src="/prisma-logo.svg" alt="Prisma Embedded Codes" className="h-[clamp(2.5rem,7vw,5.8rem)] w-auto" />
+                    </header>
 
-                  <div className="relative z-10 flex h-full flex-col items-center px-[4%] py-[1.5%]">
-                    <div className="flex items-center justify-center gap-[2.5%]">
-                      <img src="/prisma-logo.svg" alt="Prisma Embedded Codes" className="h-[7.6vw] max-h-24 min-h-10 w-auto" />
-                      <div className="text-left font-sans">
-                        <p className="text-[clamp(1.7rem,4vw,4.5rem)] font-black leading-none tracking-[0.32em] text-black">PRISMA</p>
-                        <p className="mt-[2%] text-[clamp(.7rem,1.55vw,1.55rem)] font-black tracking-[0.55em] text-black">EMBEDDED CODES</p>
-                      </div>
-                    </div>
+                    <section className="mt-[3.1%] text-center">
+                      <h2 className="font-serif text-[clamp(2.2rem,6.1vw,6.6rem)] font-normal leading-none tracking-[0.18em] text-[#C9A227]">
+                        CERTIFICATE
+                      </h2>
+                      <p className="mt-[0.9%] font-serif text-[clamp(.9rem,2.1vw,2.15rem)] font-semibold tracking-[0.42em] text-[#C9A227]">
+                        OF COMPLETION
+                      </p>
+                    </section>
 
-                    <div className="mt-[4%]">
-                      <h2 className="text-[clamp(2.2rem,6vw,6.2rem)] font-normal leading-none tracking-[0.18em] text-[#a66f15] drop-shadow-sm">CERTIFICATE</h2>
-                      <div className="mt-[1.2%] flex items-center justify-center gap-[1.2vw] text-[#a66f15]">
-                        <span className="h-px w-[8vw] max-w-28 bg-[#a66f15]" />
-                        <span className="h-2 w-2 rounded-full bg-[#a66f15]" />
-                        <span className="font-serif text-[clamp(1rem,2.35vw,2.5rem)] font-bold tracking-[0.35em]">OF COMPLETION</span>
-                        <span className="h-2 w-2 rounded-full bg-[#a66f15]" />
-                        <span className="h-px w-[8vw] max-w-28 bg-[#a66f15]" />
-                      </div>
-                    </div>
+                    <section className="mx-auto mt-[4.1%] max-w-[78%] text-center text-[#102A54]">
+                      <p className="text-[clamp(.75rem,1.35vw,1.25rem)] font-medium">This certificate is proudly awarded to</p>
+                      <h3 className="mt-[1.4%] border-b border-[#102A54]/45 pb-[0.8%] font-serif text-[clamp(1.4rem,3.3vw,3.45rem)] font-semibold italic leading-tight">
+                        {userData?.name || '{{recipient_name}}'}
+                      </h3>
+                      <p className="mt-[1.7%] text-[clamp(.72rem,1.25vw,1.1rem)] leading-relaxed">
+                        for successfully passing the
+                      </p>
+                      <h4 className="mt-[0.6%] font-sans text-[clamp(1rem,2.15vw,2.1rem)] font-black uppercase tracking-[0.08em] text-[#102A54]">
+                        {activeTrack?.name || '{{course_name}}'}
+                      </h4>
+                      <p className="mx-auto mt-[1.6%] max-w-[76%] text-[clamp(.62rem,1.05vw,.98rem)] font-medium leading-relaxed text-[#102A54]/85">
+                        offered by Prisma Embedded Codes and demonstrating the required knowledge, practical skills, and technical competency.
+                      </p>
+                    </section>
 
-                    <p className="mt-[4.6%] text-[clamp(.9rem,1.6vw,1.55rem)] font-semibold text-[#101b3a]">This is to certify that</p>
-                    <div className="mt-[2.8%] w-[68%] border-b-2 border-[#101b3a] pb-[0.7%] text-[clamp(1.2rem,3.2vw,3.2rem)] font-semibold italic text-[#101b3a]">
-                      {userData?.name || "Aastik Srivastava"}
-                    </div>
-
-                    <p className="mt-[2.1%] text-[clamp(.9rem,1.55vw,1.45rem)] font-semibold text-[#101b3a]">has successfully completed the course</p>
-                    <h3 className="mt-[1.2%] font-sans text-[clamp(1.25rem,3vw,3.1rem)] font-black uppercase tracking-[0.08em] text-[#102650]">
-                      {activeTrack?.name || "Course Name"}
-                    </h3>
-                    <div className="mt-[1.4%] flex w-[32%] min-w-40 items-center justify-center gap-2 text-[#b47b22]">
-                      <span className="h-px flex-1 bg-[#b47b22]" />
-                      <span className="h-2 w-2 rotate-45 bg-[#b47b22]" />
-                      <span className="h-px flex-1 bg-[#b47b22]" />
-                    </div>
-
-                    <div className="mt-auto grid w-full grid-cols-[1fr_auto_1fr] items-end pb-[1.5%]">
-                      <div className="justify-self-center text-[#101b3a]">
-                        <div className="mx-auto flex h-[clamp(2.5rem,5vw,4.6rem)] w-[clamp(2.5rem,5vw,4.6rem)] items-center justify-center rounded-full bg-[#101b3a] text-white ring-4 ring-white shadow">
-                          <span className="font-sans text-[clamp(1.2rem,2.2vw,2.1rem)]">▦</span>
-                        </div>
-                        <p className="mt-3 text-[clamp(.65rem,1.2vw,1.1rem)] font-bold uppercase tracking-wide">Date of Completion</p>
-                        <p className="mt-1 text-[clamp(.65rem,1.1vw,1rem)] font-semibold uppercase">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    <section className="mt-auto">
+                      <div className="grid grid-cols-2 gap-x-[4%] gap-y-[12%] text-left sm:grid-cols-4">
+                        {[
+                          { label: 'Completion Date', value: certificateCompletionDate, icon: CalendarDays },
+                          { label: 'Course Duration', value: certificateDuration, icon: Timer },
+                          { label: 'Certificate ID', value: temporaryCertificateId, icon: BadgeCheck },
+                          { label: 'Verification Code', value: temporaryVerificationCode, icon: KeyRound }
+                        ].map(({ label, value, icon: Icon }) => (
+                          <div key={label} className="flex min-w-0 items-start gap-2 text-[#102A54]">
+                            <Icon className="mt-0.5 h-[clamp(.8rem,1.25vw,1.15rem)] w-[clamp(.8rem,1.25vw,1.15rem)] shrink-0 text-[#C9A227]" strokeWidth={1.7} />
+                            <div className="min-w-0">
+                              <p className="font-sans text-[clamp(.48rem,.78vw,.72rem)] font-bold uppercase tracking-[0.12em] text-[#102A54]/60">{label}</p>
+                              <p className="mt-1 break-words font-sans text-[clamp(.58rem,.95vw,.9rem)] font-black leading-tight text-[#102A54]">{value}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
 
-                      <div className="flex flex-col items-center">
-                        <div className="relative flex h-[clamp(4.7rem,9vw,8.4rem)] w-[clamp(4.7rem,9vw,8.4rem)] items-center justify-center rounded-full bg-gradient-to-br from-[#f5c761] via-[#c99125] to-[#8e5e10] text-white shadow-xl">
-                          <span className="absolute inset-[10%] rounded-full border-2 border-[#ffe3a3]/80" />
-                          <span className="text-[clamp(2rem,4vw,3.8rem)]">★</span>
+                      <footer className="mt-[4%] grid grid-cols-1 items-end gap-4 border-t border-[#C9A227]/35 pt-[2.2%] text-[#102A54] sm:grid-cols-[1fr_auto_1fr]">
+                        <div className="hidden sm:block" />
+                        <div className="text-center font-sans">
+                          <p className="text-[clamp(.52rem,.8vw,.74rem)] font-semibold text-[#102A54]/60">Verify this certificate at</p>
+                          <p className="mt-1 text-[clamp(.6rem,.95vw,.9rem)] font-black text-[#102A54]">verify.prismaembeddedcodes.com</p>
                         </div>
-                        <div className="mt-[14%] flex w-[28vw] max-w-96 min-w-48 items-center justify-center gap-2 text-[#b47b22]">
-                          <span className="h-px flex-1 bg-[#b47b22]" />
-                          <span className="h-2 w-2 rotate-45 bg-[#b47b22]" />
-                          <span className="h-px flex-1 bg-[#b47b22]" />
+                        <div className="justify-self-center text-center sm:justify-self-end">
+                          <PenLine className="mx-auto mb-1 h-[clamp(1rem,1.7vw,1.4rem)] w-[clamp(1rem,1.7vw,1.4rem)] text-[#C9A227]" strokeWidth={1.6} />
+                          <div className="w-44 max-w-[30vw] border-t border-[#102A54]/50 pt-2 font-sans text-[clamp(.55rem,.85vw,.8rem)] font-bold text-[#102A54]">
+                            Authorized Signature
+                          </div>
                         </div>
-                        <p className="mt-2 text-[clamp(.65rem,1.15vw,1rem)] font-bold uppercase tracking-[0.18em] text-[#101b3a]">Verification Code</p>
-                        <div className="mt-2 w-[30vw] max-w-96 min-w-52 rounded-md border-2 border-[#b47b22] bg-white/55 px-3 py-1.5 font-sans text-[clamp(.62rem,1vw,.9rem)] font-black tracking-[0.12em] text-[#102650]">
-                          {temporaryVerificationCode}
-                        </div>
-                      </div>
-
-                      <div className="justify-self-center text-[#101b3a]">
-                        <div className="mx-auto flex h-[clamp(2.5rem,5vw,4.6rem)] w-[clamp(2.5rem,5vw,4.6rem)] items-center justify-center rounded-full bg-[#101b3a] text-white ring-4 ring-white shadow">
-                          <span className="font-sans text-[clamp(1.2rem,2.2vw,2.1rem)]">▥</span>
-                        </div>
-                        <p className="mt-3 text-[clamp(.65rem,1.2vw,1.1rem)] font-bold uppercase tracking-wide">Course Duration</p>
-                        <p className="mt-1 text-[clamp(.65rem,1.1vw,1rem)] font-semibold uppercase">{activeTrack?.duration || "XX Hours"}</p>
-                      </div>
-                    </div>
+                      </footer>
+                    </section>
                   </div>
                 </div>
 

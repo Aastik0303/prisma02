@@ -223,9 +223,16 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply font-sans bg-slate-50 text-slate-900 transition-colors duration-300 antialiased;
     font-family: 'Inter', sans-serif;
+    overscroll-behavior-y: none;
   }
   
   body.dark {
@@ -235,6 +242,36 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Sora', sans-serif;
     @apply tracking-tight;
+  }
+
+  button, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.75);
+    outline-offset: 3px;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .certificate-sheet {
+    width: 297mm !important;
+    height: 210mm !important;
+    box-shadow: none !important;
   }
 }
 
