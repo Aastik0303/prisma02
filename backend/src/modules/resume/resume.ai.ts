@@ -168,6 +168,11 @@ function parseJsonObject(text: string): unknown {
   }
 }
 
+function parseResumeFixResponse(content: unknown): ResumeFix {
+  const parsed = parseJsonObject(getMessageText(content));
+  return resumeFixSchema.parse(parsed);
+}
+
 export async function analyzeResumeWithGroq(
   resumeText: string,
   targetRole: string
@@ -213,14 +218,15 @@ export async function fixResumeWithGroq(input: {
   };
 
   try {
-    const strictModel = getModel({ maxTokens: 16_000 }).withStructuredOutput(resumeFixSchema, {
-      name: 'resume_fix',
-      method: 'jsonSchema'
+    const plainModel = getModel({
+      maxTokens: 16_000,
+      temperature: 0
     });
-    return await fixPrompt.pipe(strictModel).invoke(variables);
-  } catch (strictError) {
-    if (strictError instanceof AppError) throw strictError;
-    logAiFailure('fix', 'jsonSchema', strictError);
+    const response = await fixPrompt.pipe(plainModel).invoke(variables);
+    return parseResumeFixResponse(response.content);
+  } catch (plainError) {
+    if (plainError instanceof AppError) throw plainError;
+    logAiFailure('fix', 'plainJson', plainError);
 
     try {
       const fallbackModel = getModel({
@@ -236,16 +242,14 @@ export async function fixResumeWithGroq(input: {
       logAiFailure('fix', 'jsonMode', fallbackError);
 
       try {
-        const plainModel = getModel({
-          maxTokens: 16_000,
-          temperature: 0
+        const toolModel = getModel({ maxTokens: 16_000 }).withStructuredOutput(resumeFixSchema, {
+          name: 'resume_fix_tool_fallback',
+          method: 'functionCalling'
         });
-        const response = await fixPrompt.pipe(plainModel).invoke(variables);
-        const parsed = parseJsonObject(getMessageText(response.content));
-        return resumeFixSchema.parse(parsed);
-      } catch (plainError) {
-        if (plainError instanceof AppError) throw plainError;
-        logAiFailure('fix', 'plainJson', plainError);
+        return await fixPrompt.pipe(toolModel).invoke(variables);
+      } catch (toolError) {
+        if (toolError instanceof AppError) throw toolError;
+        logAiFailure('fix', 'functionCalling', toolError);
         throw new AppError(
           502,
           'AI_FIX_FAILED',

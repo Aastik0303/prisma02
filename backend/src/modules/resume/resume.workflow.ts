@@ -47,12 +47,63 @@ const autoFixNode = async (state: typeof ResumeWorkflowState.State) => ({
   })
 });
 
+const createFixFallbackAnalysis = (
+  resumeText: string,
+  targetRole: string,
+  fix?: ResumeFix
+): ResumeAnalysis => ({
+  atsScore: 70,
+  scoreExplanation: 'The resume rewrite was generated, but the AI recheck service could not rescore it in this request.',
+  summary: 'AI improvements were applied. Run Recheck to refresh the ATS score and issue list.',
+  categoryScores: {
+    atsCompatibility: 70,
+    structure: 70,
+    grammar: 70,
+    skills: 70,
+    projects: 70,
+    experience: 70,
+    education: 70,
+    keywords: targetRole ? 68 : 65,
+    formatting: 75
+  },
+  strengths: (fix?.changes?.length ? fix.changes : [
+    'Generated an ATS-friendly rewrite while preserving the original resume facts.'
+  ]).slice(0, 8),
+  missingKeywords: [],
+  problems: [{
+    id: 'recheck-needed',
+    title: 'Recheck the improved resume',
+    category: 'ats',
+    severity: 'suggestion',
+    why: 'The rewrite completed, but automatic rescoring was unavailable during this request.',
+    suggestedFix: 'Use the Recheck action after reviewing the improved resume text.',
+    originalContent: resumeText.slice(0, 500),
+    improvedContent: 'Run Recheck to refresh ATS score, missing keywords, and remaining issues.'
+  }]
+});
+
 const analyzeNode = async (state: typeof ResumeWorkflowState.State) => {
   const textToAnalyze = state.fix?.improvedText || state.resumeText;
-  return {
-    resumeText: textToAnalyze,
-    analysis: await analyzeResumeWithGroq(textToAnalyze, state.targetRole)
-  };
+  try {
+    return {
+      resumeText: textToAnalyze,
+      analysis: await analyzeResumeWithGroq(textToAnalyze, state.targetRole)
+    };
+  } catch (error) {
+    if (state.operation === 'fix' && state.fix?.improvedText) {
+      console.warn('Resume fix recheck failed; returning rewrite with fallback analysis', {
+        name: (error as { name?: string })?.name,
+        message: (error as { message?: string })?.message?.slice(0, 300)
+      });
+
+      return {
+        resumeText: textToAnalyze,
+        analysis: createFixFallbackAnalysis(textToAnalyze, state.targetRole, state.fix)
+      };
+    }
+
+    throw error;
+  }
 };
 
 const scoreNode = async (state: typeof ResumeWorkflowState.State) => ({
@@ -129,4 +180,3 @@ export async function runResumeWorkflow(input: {
     fix: result.fix
   };
 }
-
