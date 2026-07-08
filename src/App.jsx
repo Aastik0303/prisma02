@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Compass, ShieldCheck, Users, FolderGit2, Award,
   Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
@@ -314,6 +314,14 @@ export default function App() {
   const [tracksData, setTracksData] = useState(() => createFreshTracks());
   const [activeTrack, setActiveTrack] = useState(() => createFreshTracks()[0]); // Default to Web Dev
 
+  const closeAuthModal = useCallback(() => {
+    setActiveModal(null);
+    setAuthLoading(false);
+    setAuthError('');
+    setAuthSuccess(false);
+    setMfaChallengeToken(null);
+  }, []);
+
   const buildWorkspaceMetadata = (workspace) => ({
     college: workspace.userData.college,
     degree: workspace.userData.degree,
@@ -609,6 +617,26 @@ export default function App() {
       body.classList.remove('dark');
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (!activeModal) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        closeAuthModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeModal, closeAuthModal]);
+
 
   async function handleEmailVerification(token) {
     setVerifyStatus('verifying');
@@ -1454,8 +1482,9 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-start sm:items-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white dark:bg-darknavy-card w-full max-w-sm my-4 sm:my-8 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
             <button 
-              onClick={() => setActiveModal(null)}
+              onClick={closeAuthModal}
               className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+              aria-label="Close sign in"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1635,18 +1664,19 @@ export default function App() {
 
       {/* 3. SIGN UP MODAL — collects personal details that show up directly on the Dashboard */}
       {activeModal === 'signup' && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-start sm:items-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-darknavy-card w-full max-w-sm my-4 sm:my-8 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-stretch sm:items-center p-2 sm:p-4 overflow-hidden">
+          <div className="bg-white dark:bg-darknavy-card w-full max-w-md max-h-[calc(100dvh-1rem)] sm:max-h-[92vh] my-0 sm:my-8 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-250 dark:border-slate-805 shadow-xl relative text-left overflow-y-auto overscroll-contain">
             <button 
-              onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+              onClick={closeAuthModal}
+              className="sticky top-0 float-right z-10 -mr-1 -mt-1 p-1.5 rounded-xl bg-white/90 hover:bg-slate-105 dark:bg-darknavy-card/90 dark:hover:bg-slate-800 text-slate-450 transition-colors"
+              aria-label="Close registration"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <form onSubmit={handleSignUpSubmit} className="space-y-4">
+            <form onSubmit={handleSignUpSubmit} className="clear-both space-y-3.5">
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-950 dark:text-white flex items-center gap-1.5">
                     <UserPlus className="w-5 h-5 text-brand-secondary" /> Create Explorer Account
                   </h3>
                   <span className="text-[10px] text-slate-455 mt-1 block">Define your study track and claim free roadmap nodes access.</span>
@@ -1668,7 +1698,7 @@ export default function App() {
                   <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
                 </div>
 
-                <div className="space-y-3.5 text-xs">
+                <div className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <label className="font-bold text-slate-550 dark:text-slate-455 block">Full Candidate Name</label>
                     <input 
@@ -1716,7 +1746,7 @@ export default function App() {
                   </div>
 
                   {/* Personal Profile Details — these will appear directly on the Dashboard */}
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3.5">
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
                     <span className="text-[9.5px] uppercase font-extrabold text-indigo-550 tracking-wider block">Personal Profile Details</span>
 
                     <div className="space-y-1">
@@ -1790,7 +1820,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15"
+                  className="sticky bottom-0 w-full py-3 bg-indigo-500 hover:bg-indigo-650 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-indigo-550/15 disabled:opacity-70"
                 >
                   {authLoading ? (
                     <>

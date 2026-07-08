@@ -44,6 +44,10 @@ export class AppError extends Error {
   }
 }
 
+const firstHeaderValue = (value?: string | string[]) => (
+  Array.isArray(value) ? value[0] : value
+);
+
 const normalizeOrigin = (value?: string | null) => {
   if (!value) return '';
   try {
@@ -53,10 +57,27 @@ const normalizeOrigin = (value?: string | null) => {
   }
 };
 
+const isLocalOrigin = (value: string) => /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value);
+
+const oauthCallbackUri = (provider: 'google' | 'github') => (request: FastifyRequest) => {
+  const configuredOrigin = normalizeOrigin(config.BACKEND_URL);
+  if (configuredOrigin && (config.NODE_ENV !== 'production' || !isLocalOrigin(configuredOrigin))) {
+    return `${configuredOrigin}/api/v1/auth/oauth/${provider}/callback`;
+  }
+
+  const forwardedProto = firstHeaderValue(request.headers['x-forwarded-proto'])?.split(',')[0]?.trim();
+  const forwardedHost = firstHeaderValue(request.headers['x-forwarded-host'])?.split(',')[0]?.trim();
+  const host = forwardedHost || request.hostname || request.headers.host;
+  const protocol = forwardedProto || request.protocol || 'https';
+
+  return `${protocol}://${host}/api/v1/auth/oauth/${provider}/callback`;
+};
+
 export async function buildApp(opts = {}) {
   const app = fastify({
     logger: config.NODE_ENV !== 'test',
     requestIdHeader: 'x-request-id',
+    trustProxy: true,
     ...opts
   });
 
@@ -155,7 +176,8 @@ export async function buildApp(opts = {}) {
       auth: (oauthPlugin as any).GOOGLE_CONFIGURATION
     },
     startRedirectPath: '/api/v1/auth/oauth/google',
-    callbackUri: `${config.BACKEND_URL}/api/v1/auth/oauth/google/callback`
+    callbackUri: oauthCallbackUri('google'),
+    scope: ['profile', 'email']
   });
 
   const githubClientId = config.GITHUB_CLIENT_ID || 'dummy-github-client-id';
@@ -167,7 +189,8 @@ export async function buildApp(opts = {}) {
       auth: (oauthPlugin as any).GITHUB_CONFIGURATION
     },
     startRedirectPath: '/api/v1/auth/oauth/github',
-    callbackUri: `${config.BACKEND_URL}/api/v1/auth/oauth/github/callback`
+    callbackUri: oauthCallbackUri('github'),
+    scope: ['read:user', 'user:email']
   });
 
   // 8. Register root health route and API modules
