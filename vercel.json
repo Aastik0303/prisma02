@@ -3,6 +3,10 @@
     {
       "source": "/api/v1/:path*",
       "destination": "https://prisma02-production.up.railway.app/api/v1/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }
