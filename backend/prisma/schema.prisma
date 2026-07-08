@@ -62,6 +62,11 @@ model User {
   receivedMessages   ChatMessage[]    @relation("ReceivedMessages")
   createdCatalogCourses CatalogCourse[] @relation("CreatedCatalogCourses")
   createdCatalogProjects CatalogProject[] @relation("CreatedCatalogProjects")
+  sentFollowRequests FollowRequest[] @relation("SentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
+  following          Follow[]        @relation("UserFollowing")
+  followers          Follow[]        @relation("UserFollowers")
+  communityPosts     CommunityPost[] @relation("CommunityPosts")
 
   @@map("users")
 }
@@ -323,4 +328,56 @@ model ChatMessage {
   receiver User?    @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
+}
+
+model FollowRequest {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterId String    @db.Uuid @map("requester_id")
+  targetId    String    @db.Uuid @map("target_id")
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  respondedAt DateTime? @map("responded_at")
+
+  requester User @relation("SentFollowRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  target    User @relation("ReceivedFollowRequests", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, targetId])
+  @@index([targetId, status])
+  @@index([requesterId, status])
+  @@map("follow_requests")
+}
+
+model Follow {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  followerId  String   @db.Uuid @map("follower_id")
+  followingId String   @db.Uuid @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@index([followerId])
+  @@map("follows")
+}
+
+model CommunityPost {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorId      String   @db.Uuid @map("author_id")
+  content       String
+  tag           String   @default("Discussion")
+  imageUrl      String?  @map("image_url")
+  skills        String[] @default([])
+  likesCount    Int      @default(0) @map("likes_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  sharesCount   Int      @default(0) @map("shares_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  author User @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_posts")
 }

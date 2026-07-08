@@ -17,7 +17,10 @@ const createMockPrismaClient = () => {
     auditLog: [],
     chatMessage: [],
     catalogCourse: [],
-    catalogProject: []
+    catalogProject: [],
+    followRequest: [],
+    follow: [],
+    communityPost: []
   };
 
   const matchesWhere = (record: any, where: any = {}) => {
@@ -125,6 +128,25 @@ const createMockPrismaClient = () => {
         }));
       }
 
+      if (name === 'communityPost' && args.include?.author) {
+        return records.map(record => ({
+          ...record,
+          author: applySelect(state.user.find(user => user.id === record.authorId) || null, args.include.author.select)
+        }));
+      }
+
+      if (name === 'followRequest' && args.include) {
+        return records.map(record => ({
+          ...record,
+          requester: args.include.requester
+            ? applySelect(state.user.find(user => user.id === record.requesterId) || null, args.include.requester.select)
+            : undefined,
+          target: args.include.target
+            ? applySelect(state.user.find(user => user.id === record.targetId) || null, args.include.target.select)
+            : undefined
+        }));
+      }
+
       return records.map(record => applySelect(record, args.select));
     },
     create: async ({ data }: any) => {
@@ -190,6 +212,9 @@ const createMockPrismaClient = () => {
     chatMessage: makeModel('chatMessage'),
     catalogCourse: makeModel('catalogCourse'),
     catalogProject: makeModel('catalogProject'),
+    followRequest: makeModel('followRequest'),
+    follow: makeModel('follow'),
+    communityPost: makeModel('communityPost'),
     $connect: async () => undefined,
     $disconnect: async () => undefined,
     $transaction: async (callback: any) => callback(mockPrisma)

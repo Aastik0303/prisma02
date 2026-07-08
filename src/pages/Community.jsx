@@ -172,7 +172,6 @@ const chatEmojis = ["😀", "😂", "🔥", "✨", "🚀", "👏", "💡", "✅"
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const fallbackAvatar =
   "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?fit=facearea&facepad=2&w=256&h=256&q=80";
-const followRequestsKey = "pec_community_follow_requests";
 
 const getCsrfToken = async () => {
   const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
@@ -214,19 +213,6 @@ const normalizeDirectoryUser = (user) => ({
 
 const getCommunityUserId = (user = {}) => user.backendUserId || user.id || user.email || user.name || "guest";
 
-const loadFollowRequests = () => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(followRequestsKey) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveFollowRequests = (requests) => {
-  localStorage.setItem(followRequestsKey, JSON.stringify(requests));
-};
-
 const toCountNumber = (value) => {
   if (typeof value === "number") return value;
   const cleanValue = String(value ?? "0").trim().toLowerCase();
@@ -237,6 +223,32 @@ const toCountNumber = (value) => {
 };
 
 const formatCount = (value) => Number(value || 0).toLocaleString();
+
+const requestJson = async (path, { authToken, method = "GET", body } = {}) => {
+  const headers = {
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  };
+
+  if (body) {
+    const csrf = await getCsrfToken();
+    headers["Content-Type"] = "application/json";
+    Object.assign(headers, buildCsrfHeaders(csrf));
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Community request failed.");
+  }
+
+  return data;
+};
 
 function ProfileCard({ user = currentUser }) {
   return (
@@ -268,11 +280,18 @@ function ProfileCard({ user = currentUser }) {
 
 function Composer({ onPost, user = currentUser }) {
   const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = () => {
-    if (!text.trim()) return;
-    onPost(text.trim());
-    setText("");
+  const submit = async () => {
+    const cleanText = text.trim();
+    if (!cleanText || submitting) return;
+    setSubmitting(true);
+    try {
+      const posted = await onPost(cleanText);
+      if (posted !== false) setText("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -306,12 +325,12 @@ function Composer({ onPost, user = currentUser }) {
         </div>
         <button
           onClick={submit}
-          disabled={!text.trim()}
+          disabled={!text.trim() || submitting}
           className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-xs font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none dark:disabled:bg-slate-800"
           type="button"
         >
           <Send className="h-4 w-4" />
-          Publish
+          {submitting ? "Publishing" : "Publish"}
         </button>
       </div>
     </section>
@@ -394,7 +413,7 @@ function PostCard({ post }) {
   );
 }
 
-function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests, onSendRequest, onAcceptRequest, onDeclineRequest }) {
+function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, onSendRequest, onAcceptRequest, onDeclineRequest }) {
   const [directoryUsers, setDirectoryUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -403,8 +422,9 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests,
   const [error, setError] = useState("");
 
   const currentUserId = getCommunityUserId(currentUser);
-  const incomingRequests = followRequests.filter(request => request.toId === currentUserId && request.status === "pending");
-  const outgoingRequests = followRequests.filter(request => request.fromId === currentUserId);
+  const incomingRequests = socialState.incomingRequests || [];
+  const outgoingRequests = socialState.outgoingRequests || [];
+  const followingIds = new Set(socialState.followingIds || []);
 
   useEffect(() => {
     if (!isSignedIn || !authToken) {
@@ -454,30 +474,45 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests,
   const people = (isSignedIn && authToken ? directoryUsers : suggestions.map(normalizeDirectoryUser))
     .filter(person => person.id !== currentUserId && person.email !== currentUser.email);
 
-  const sendFollowRequest = (person) => {
+  const sendFollowRequest = async (person) => {
     setSendingId(person.id);
     setError("");
     setStatus("");
 
-    const result = onSendRequest(person);
-    setSendingId("");
-
-    if (result?.error) {
-      setError(result.error);
-      return;
+    try {
+      await onSendRequest(person);
+      setStatus(`Follow request sent to ${person.name}. They need to accept it before you follow them.`);
+    } catch (requestError) {
+      setError(requestError.message || "Unable to send follow request.");
+    } finally {
+      setSendingId("");
     }
-
-    setStatus(`Follow request sent to ${person.name}. They need to accept it before you follow them.`);
   };
 
   const getRelationship = (person) => {
     const outgoing = outgoingRequests.find(request => request.toId === person.id);
-    const incoming = followRequests.find(request => request.fromId === person.id && request.toId === currentUserId && request.status === "pending");
+    const incoming = incomingRequests.find(request => request.fromId === person.id);
 
-    if (outgoing?.status === "accepted") return "following";
+    if (followingIds.has(person.id)) return "following";
     if (outgoing?.status === "pending") return "requested";
     if (incoming) return "respond";
     return "none";
+  };
+
+  const respondToRequest = async (requestId, action) => {
+    setError("");
+    setStatus("");
+    try {
+      if (action === "accept") {
+        await onAcceptRequest(requestId);
+        setStatus("Follow request accepted.");
+      } else {
+        await onDeclineRequest(requestId);
+        setStatus("Follow request declined.");
+      }
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update follow request.");
+    }
   };
 
   const renderAction = (person) => {
@@ -503,19 +538,19 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests,
     }
 
     if (relationship === "respond") {
-      const request = followRequests.find(item => item.fromId === person.id && item.toId === currentUserId && item.status === "pending");
+      const request = incomingRequests.find(item => item.fromId === person.id);
       return (
         <div className="flex gap-1.5">
           <button
             type="button"
-            onClick={() => onAcceptRequest(request.id)}
+            onClick={() => respondToRequest(request.id, "accept")}
             className={`${baseClass} bg-indigo-600 text-white hover:bg-indigo-700`}
           >
             Accept
           </button>
           <button
             type="button"
-            onClick={() => onDeclineRequest(request.id)}
+            onClick={() => respondToRequest(request.id, "decline")}
             className={`${baseClass} border border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-900`}
           >
             Decline
@@ -562,8 +597,8 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests,
                   <p className="truncate text-xs font-black text-slate-900 dark:text-white">{request.fromName}</p>
                   <p className="text-[10px] font-semibold text-slate-500">wants to follow you</p>
                 </div>
-                <button type="button" onClick={() => onAcceptRequest(request.id)} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white">Accept</button>
-                <button type="button" onClick={() => onDeclineRequest(request.id)} className="rounded-lg px-2.5 py-1.5 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900">Decline</button>
+                <button type="button" onClick={() => respondToRequest(request.id, "accept")} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white">Accept</button>
+                <button type="button" onClick={() => respondToRequest(request.id, "decline")} className="rounded-lg px-2.5 py-1.5 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900">Decline</button>
               </div>
             ))}
           </div>
@@ -943,7 +978,7 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
   );
 }
 
-function RightRail({ authToken, isSignedIn, viewer, followRequests, onSendRequest, onAcceptRequest, onDeclineRequest }) {
+function RightRail({ authToken, isSignedIn, viewer, socialState, onSendRequest, onAcceptRequest, onDeclineRequest }) {
   const [activeThreadId, setActiveThreadId] = useState("");
   const [threadList, setThreadList] = useState(messages);
   const [chatMessages, setChatMessages] = useState(initialChatMessages);
@@ -979,7 +1014,7 @@ function RightRail({ authToken, isSignedIn, viewer, followRequests, onSendReques
         authToken={authToken}
         isSignedIn={isSignedIn}
         currentUser={viewer}
-        followRequests={followRequests}
+        socialState={socialState}
         onSendRequest={onSendRequest}
         onAcceptRequest={onAcceptRequest}
         onDeclineRequest={onDeclineRequest}
@@ -1046,20 +1081,72 @@ function LeftRail({ user }) {
 export default function Community({ authToken = "", userData = {}, isSignedIn = false, onSaveUserProfile }) {
   const [posts, setPosts] = useState(initialPosts);
   const [activeFilter, setActiveFilter] = useState("For You");
-  const [localFollowers, setLocalFollowers] = useState(() => toCountNumber(userData.followers));
-  const [followRequests, setFollowRequests] = useState(loadFollowRequests);
+  const [socialState, setSocialState] = useState({
+    incomingRequests: [],
+    outgoingRequests: [],
+    followersCount: 0,
+    followingCount: 0,
+    followerIds: [],
+    followingIds: [],
+  });
+  const [communityError, setCommunityError] = useState("");
   const currentCommunityId = getCommunityUserId(userData);
-  const acceptedIncomingCount = followRequests.filter(request => request.toId === currentCommunityId && request.status === "accepted").length;
-  const acceptedOutgoingCount = followRequests.filter(request => request.fromId === currentCommunityId && request.status === "accepted").length;
-  const followerCount = localFollowers + acceptedIncomingCount;
 
   useEffect(() => {
-    setLocalFollowers(toCountNumber(userData.followers));
-  }, [userData.followers]);
+    if (!isSignedIn || !authToken) {
+      setPosts(initialPosts);
+      setSocialState({
+        incomingRequests: [],
+        outgoingRequests: [],
+        followersCount: 0,
+        followingCount: 0,
+        followerIds: [],
+        followingIds: [],
+      });
+      return;
+    }
 
-  const persistFollowRequests = (requests) => {
-    setFollowRequests(requests);
-    saveFollowRequests(requests);
+    let ignore = false;
+    const loadCommunityData = async () => {
+      try {
+        setCommunityError("");
+        const [remotePosts, remoteSocial] = await Promise.all([
+          requestJson("/community/posts", { authToken }),
+          requestJson("/community/social", { authToken }),
+        ]);
+        if (ignore) return;
+        setPosts(Array.isArray(remotePosts) ? remotePosts : initialPosts);
+        setSocialState({
+          incomingRequests: remoteSocial?.incomingRequests || [],
+          outgoingRequests: remoteSocial?.outgoingRequests || [],
+          followersCount: remoteSocial?.followersCount || 0,
+          followingCount: remoteSocial?.followingCount || 0,
+          followerIds: remoteSocial?.followerIds || [],
+          followingIds: remoteSocial?.followingIds || [],
+        });
+      } catch (requestError) {
+        if (!ignore) {
+          setCommunityError(requestError.message || "Unable to load live community data.");
+        }
+      }
+    };
+
+    loadCommunityData();
+    return () => {
+      ignore = true;
+    };
+  }, [authToken, isSignedIn]);
+
+  const refreshCommunitySocial = async () => {
+    const remoteSocial = await requestJson("/community/social", { authToken });
+    setSocialState({
+      incomingRequests: remoteSocial?.incomingRequests || [],
+      outgoingRequests: remoteSocial?.outgoingRequests || [],
+      followersCount: remoteSocial?.followersCount || 0,
+      followingCount: remoteSocial?.followingCount || 0,
+      followerIds: remoteSocial?.followerIds || [],
+      followingIds: remoteSocial?.followingIds || [],
+    });
   };
 
   const viewer = {
@@ -1071,53 +1158,40 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
     avatar: userData.avatarUrl || currentUser.avatar,
     cover: userData.coverUrl || currentUser.cover,
     headline: userData.bio || currentUser.headline,
-    followers: formatCount(followerCount),
-    connections: formatCount(toCountNumber(userData.following) + acceptedOutgoingCount),
+    followers: isSignedIn ? formatCount(socialState.followersCount) : formatCount(toCountNumber(userData.followers)),
+    connections: isSignedIn ? formatCount(socialState.followingCount) : formatCount(toCountNumber(userData.following)),
   };
 
-  const handleSendFollowRequest = (person) => {
-    if (!isSignedIn) return { error: "Sign in before sending follow requests." };
+  const handleSendFollowRequest = async (person) => {
+    if (!isSignedIn || !authToken) throw new Error("Sign in before sending follow requests.");
     if (person.id === currentCommunityId || person.email === userData.email) {
-      return { error: "You cannot follow yourself." };
+      throw new Error("You cannot follow yourself.");
     }
 
-    const existing = followRequests.find(request => (
-      request.fromId === currentCommunityId
-      && request.toId === person.id
-      && request.status !== "declined"
-    ));
-    if (existing) return { error: existing.status === "accepted" ? "You already follow this person." : "Request already sent." };
-
-    const nextRequests = [
-      ...followRequests,
-      {
-        id: `follow-${Date.now()}-${person.id}`,
-        fromId: currentCommunityId,
-        fromName: viewer.name,
-        fromAvatar: viewer.avatar,
-        toId: person.id,
-        toName: person.name,
-        toAvatar: person.avatar,
-        status: "pending",
-        createdAt: new Date().toISOString()
-      }
-    ];
-    persistFollowRequests(nextRequests);
-    return { success: true };
+    await requestJson("/community/follow-requests", {
+      authToken,
+      method: "POST",
+      body: { targetUserId: person.id },
+    });
+    await refreshCommunitySocial();
   };
 
-  const handleAcceptFollowRequest = (requestId) => {
-    const nextRequests = followRequests.map(request => (
-      request.id === requestId ? { ...request, status: "accepted", acceptedAt: new Date().toISOString() } : request
-    ));
-    persistFollowRequests(nextRequests);
+  const handleAcceptFollowRequest = async (requestId) => {
+    await requestJson(`/community/follow-requests/${requestId}`, {
+      authToken,
+      method: "PATCH",
+      body: { action: "accept" },
+    });
+    await refreshCommunitySocial();
   };
 
-  const handleDeclineFollowRequest = (requestId) => {
-    const nextRequests = followRequests.map(request => (
-      request.id === requestId ? { ...request, status: "declined", declinedAt: new Date().toISOString() } : request
-    ));
-    persistFollowRequests(nextRequests);
+  const handleDeclineFollowRequest = async (requestId) => {
+    await requestJson(`/community/follow-requests/${requestId}`, {
+      authToken,
+      method: "PATCH",
+      body: { action: "decline" },
+    });
+    await refreshCommunitySocial();
   };
 
   const filteredPosts = useMemo(() => {
@@ -1127,7 +1201,27 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
     return posts;
   }, [activeFilter, posts]);
 
-  const addPost = (content) => {
+  const addPost = async (content) => {
+    setCommunityError("");
+    if (isSignedIn && authToken) {
+      try {
+        const savedPost = await requestJson("/community/posts", {
+          authToken,
+          method: "POST",
+          body: {
+            content,
+            tag: "Discussion",
+            skills: ["Community", "Learning"],
+          },
+        });
+        setPosts((items) => [savedPost, ...items.filter((item) => item.id !== savedPost.id)]);
+        return true;
+      } catch (requestError) {
+        setCommunityError(requestError.message || "Unable to publish post.");
+        return false;
+      }
+    }
+
     const nextPost = {
       id: Date.now(),
       author: viewer.name,
@@ -1142,6 +1236,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
       featured: false,
     };
     setPosts((items) => [nextPost, ...items]);
+    return true;
   };
 
   return (
@@ -1180,8 +1275,18 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
             </div>
 
             <Composer onPost={addPost} user={viewer} />
+            {communityError && (
+              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                {communityError}
+              </p>
+            )}
 
             <div className="grid gap-5">
+              {filteredPosts.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500 dark:border-slate-800 dark:bg-darknavy-card dark:text-slate-400">
+                  No community posts yet. Share the first update.
+                </p>
+              )}
               {filteredPosts.map((post) => (
                 <PostCard key={post.id} post={post} />
               ))}
@@ -1206,7 +1311,7 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
               authToken={authToken}
               isSignedIn={isSignedIn}
               viewer={viewer}
-              followRequests={followRequests}
+              socialState={socialState}
               onSendRequest={handleSendFollowRequest}
               onAcceptRequest={handleAcceptFollowRequest}
               onDeclineRequest={handleDeclineFollowRequest}

@@ -22,6 +22,7 @@ import { chatRoutes } from './modules/chat/chat.routes.js';
 import { contactRoutes } from './modules/contact/contact.routes.js';
 import { resumeRoutes } from './modules/resume/resume.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
+import { communityRoutes } from './modules/community/community.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { ensureAdminUser } from './utils/adminBootstrap.js';
 
@@ -301,6 +302,7 @@ export async function buildApp(opts = {}) {
   await app.register(contactRoutes, { prefix: '/api/v1/contact' });
   await app.register(resumeRoutes, { prefix: '/api/resume' });
   await app.register(catalogRoutes, { prefix: '/api/v1/catalog' });
+  await app.register(communityRoutes, { prefix: '/api/v1/community' });
 
   return app;
 }
