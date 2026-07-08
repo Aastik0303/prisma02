@@ -264,6 +264,7 @@ const createWorkspaceFromAuthUser = (authUser) => {
       ...workspace.userData,
       name: authUser.fullName || workspace.userData.name,
       email: authUser.email,
+      backendUserId: authUser.id || workspace.userData.backendUserId || '',
       role: authUser.role || workspace.userData.role,
       avatarUrl: authUser.avatarUrl || workspace.userData.avatarUrl || '',
       backgroundImage: metadata.backgroundImage || workspace.userData.backgroundImage || '',

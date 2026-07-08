@@ -96,21 +96,18 @@ const suggestions = [
     role: "React Developer",
     avatar:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?fit=facearea&facepad=2&w=256&h=256&q=80",
-    mutuals: "14 mutual learners",
   },
   {
     name: "Vikram Malhotra",
     role: "Backend + ML",
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?fit=facearea&facepad=2&w=256&h=256&q=80",
-    mutuals: "8 mutual learners",
   },
   {
     name: "Kavya Singh",
     role: "Cybersecurity Track",
     avatar:
       "https://images.unsplash.com/photo-1580489944761-15a19d654956?fit=facearea&facepad=2&w=256&h=256&q=80",
-    mutuals: "5 mutual learners",
   },
 ];
 
@@ -174,6 +171,7 @@ const chatEmojis = ["😀", "😂", "🔥", "✨", "🚀", "👏", "💡", "✅"
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const fallbackAvatar =
   "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?fit=facearea&facepad=2&w=256&h=256&q=80";
+const followRequestsKey = "pec_community_follow_requests";
 
 const getCsrfToken = async () => {
   const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
@@ -194,15 +192,39 @@ const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
   ...(csrfSessionId ? { "X-CSRF-Session-Id": csrfSessionId } : {}),
 });
 
+const formatCommunityRole = (role) => {
+  const normalized = String(role || "").toLowerCase();
+  if (!normalized) return "Learner";
+  if (normalized.includes("admin") || normalized.includes("super")) return "Learner";
+  if (["student", "mentor", "recruiter"].includes(normalized)) {
+    return normalized.replace(/_/g, " ");
+  }
+  return String(role).replace(/_/g, " ");
+};
+
 const normalizeDirectoryUser = (user) => ({
   id: user.id || user.email || user.name,
-  name: user.fullName || user.name || "Registered Learner",
-  role: user.role ? `${user.role}`.replace(/_/g, " ") : "Student",
+  name: user.fullName || user.name || "Learner",
+  role: formatCommunityRole(user.role),
   email: user.email || "",
   avatar: user.avatarUrl || user.avatar || fallbackAvatar,
-  mutuals: user.emailVerified ? "Verified registered user" : "Registered user",
   isBackendUser: Boolean(user.id && user.fullName),
 });
+
+const getCommunityUserId = (user = {}) => user.backendUserId || user.id || user.email || user.name || "guest";
+
+const loadFollowRequests = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(followRequestsKey) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveFollowRequests = (requests) => {
+  localStorage.setItem(followRequestsKey, JSON.stringify(requests));
+};
 
 const toCountNumber = (value) => {
   if (typeof value === "number") return value;
@@ -235,7 +257,7 @@ function ProfileCard({ user = currentUser }) {
           </div>
           <div>
             <p className="text-sm font-black text-slate-950 dark:text-white">{user.connections}</p>
-            <p className="text-[11px] font-semibold text-slate-500">Connections</p>
+            <p className="text-[11px] font-semibold text-slate-500">Following</p>
           </div>
         </div>
       </div>
@@ -371,14 +393,17 @@ function PostCard({ post }) {
   );
 }
 
-function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
-  const [followState, setFollowState] = useState({});
+function PeopleSuggestions({ authToken, isSignedIn, currentUser, followRequests, onSendRequest, onAcceptRequest, onDeclineRequest }) {
   const [directoryUsers, setDirectoryUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingId, setSendingId] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+
+  const currentUserId = getCommunityUserId(currentUser);
+  const incomingRequests = followRequests.filter(request => request.toId === currentUserId && request.status === "pending");
+  const outgoingRequests = followRequests.filter(request => request.fromId === currentUserId);
 
   useEffect(() => {
     if (!isSignedIn || !authToken) {
@@ -406,13 +431,13 @@ function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
         const data = await response.json().catch(() => []);
 
         if (!response.ok) {
-          throw new Error(data.message || "Unable to load registered users.");
+          throw new Error(data.message || "Unable to load people.");
         }
 
         setDirectoryUsers(Array.isArray(data) ? data.map(normalizeDirectoryUser) : []);
       } catch (requestError) {
         if (requestError.name !== "AbortError") {
-          setError(requestError.message || "Unable to load registered users.");
+          setError(requestError.message || "Unable to load people.");
         }
       } finally {
         setLoading(false);
@@ -425,75 +450,99 @@ function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
     };
   }, [authToken, isSignedIn, query]);
 
-  const people = isSignedIn && authToken
-    ? directoryUsers
-    : suggestions.map(normalizeDirectoryUser);
+  const people = (isSignedIn && authToken ? directoryUsers : suggestions.map(normalizeDirectoryUser))
+    .filter(person => person.id !== currentUserId && person.email !== currentUser.email);
 
-  const acceptFollowRequest = (person) => {
-    setFollowState((items) => ({ ...items, [person.id]: "accepted" }));
-    onFollowAccepted?.();
-    setStatus(`${person.name} accepted your follow request. Your followers increased by 1.`);
-  };
-
-  const sendFollowRequest = async (person) => {
-    if (!person.isBackendUser) {
-      if (followState[person.id] === "pending") {
-        acceptFollowRequest(person);
-      } else if (!followState[person.id]) {
-        setFollowState((items) => ({ ...items, [person.id]: "pending" }));
-        setStatus(`Follow request sent to ${person.name}. Waiting for acceptance.`);
-      }
-      return;
-    }
-
-    if (followState[person.id] === "pending") {
-      acceptFollowRequest(person);
-      return;
-    }
-
-    if (followState[person.id] === "accepted") return;
-
+  const sendFollowRequest = (person) => {
     setSendingId(person.id);
     setError("");
     setStatus("");
 
-    try {
-      const csrf = await getCsrfToken();
-      const response = await fetch(`${API_BASE_URL}/users/${person.id}/collaboration-request`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...buildCsrfHeaders(csrf),
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          projectTitle: "Follow request",
-          message: "I would like to follow your community profile.",
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
+    const result = onSendRequest(person);
+    setSendingId("");
 
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to send follow request.");
-      }
-
-      setFollowState((items) => ({ ...items, [person.id]: "pending" }));
-      setStatus(`Follow request sent to ${person.name}. Waiting for acceptance.`);
-    } catch (requestError) {
-      setError(requestError.message || "Unable to send follow request.");
-    } finally {
-      setSendingId("");
+    if (result?.error) {
+      setError(result.error);
+      return;
     }
+
+    setStatus(`Follow request sent to ${person.name}. They need to accept it before you follow them.`);
+  };
+
+  const getRelationship = (person) => {
+    const outgoing = outgoingRequests.find(request => request.toId === person.id);
+    const incoming = followRequests.find(request => request.fromId === person.id && request.toId === currentUserId && request.status === "pending");
+
+    if (outgoing?.status === "accepted") return "following";
+    if (outgoing?.status === "pending") return "requested";
+    if (incoming) return "respond";
+    return "none";
+  };
+
+  const renderAction = (person) => {
+    const relationship = getRelationship(person);
+    const baseClass = "flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-black transition";
+
+    if (relationship === "following") {
+      return (
+        <button type="button" className={`${baseClass} bg-emerald-500 text-white`} disabled>
+          <CheckCircle2 className="h-4 w-4" />
+          <span className="hidden sm:inline">Following</span>
+        </button>
+      );
+    }
+
+    if (relationship === "requested") {
+      return (
+        <button type="button" className={`${baseClass} border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300`} disabled>
+          <Clock className="h-4 w-4" />
+          <span className="hidden sm:inline">Requested</span>
+        </button>
+      );
+    }
+
+    if (relationship === "respond") {
+      const request = followRequests.find(item => item.fromId === person.id && item.toId === currentUserId && item.status === "pending");
+      return (
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => onAcceptRequest(request.id)}
+            className={`${baseClass} bg-indigo-600 text-white hover:bg-indigo-700`}
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            onClick={() => onDeclineRequest(request.id)}
+            className={`${baseClass} border border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-900`}
+          >
+            Decline
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        onClick={() => sendFollowRequest(person)}
+        disabled={sendingId === person.id}
+        className={`${baseClass} border border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10`}
+        type="button"
+      >
+        {sendingId === person.id ? <Send className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+        <span className="hidden sm:inline">{sendingId === person.id ? "Sending" : "Follow"}</span>
+      </button>
+    );
   };
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-black text-slate-950 dark:text-white">Find Registered Users</h3>
+          <h3 className="text-sm font-black text-slate-950 dark:text-white">Find People</h3>
           <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
-            Search learners, send follow requests, and grow your community network.
+            Search learners, send requests, and follow only after they accept.
           </p>
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -501,30 +550,48 @@ function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
         </span>
       </div>
 
+      {incomingRequests.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+          <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Follow Requests</p>
+          <div className="space-y-2">
+            {incomingRequests.map(request => (
+              <div key={request.id} className="flex items-center gap-2 rounded-xl bg-white p-2 dark:bg-slate-950/70">
+                <img src={request.fromAvatar || fallbackAvatar} alt="" className="h-9 w-9 rounded-xl object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-black text-slate-900 dark:text-white">{request.fromName}</p>
+                  <p className="text-[10px] font-semibold text-slate-500">wants to follow you</p>
+                </div>
+                <button type="button" onClick={() => onAcceptRequest(request.id)} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white">Accept</button>
+                <button type="button" onClick={() => onDeclineRequest(request.id)} className="rounded-lg px-2.5 py-1.5 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900">Decline</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 space-y-3">
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
           <Search className="h-4 w-4 text-slate-400" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={isSignedIn ? "Search by name or email..." : "Sign in to search backend users"}
+            placeholder={isSignedIn ? "Search by name or email..." : "Sign in to search people"}
             disabled={!isSignedIn}
             className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-slate-200"
           />
         </div>
         {isSignedIn && (
-          <>
-            <div className="flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-              <span>{loading ? "Searching..." : `${people.length} registered match${people.length === 1 ? "" : "es"}`}</span>
-            </div>
-          </>
+          <div className="flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+            <span>{loading ? "Searching..." : `${people.length} people found`}</span>
+            <span>{incomingRequests.length} request{incomingRequests.length === 1 ? "" : "s"}</span>
+          </div>
         )}
         {!isSignedIn && (
           <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-            Sign in to search real registered users and save follow requests to the backend.
+            Sign in to search people and manage follow requests.
           </p>
         )}
-        {loading && <p className="text-[11px] font-bold text-slate-400">Loading registered users...</p>}
+        {loading && <p className="text-[11px] font-bold text-slate-400">Loading people...</p>}
         {status && <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">{status}</p>}
         {error && <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[11px] font-bold text-rose-700 dark:text-rose-300">{error}</p>}
       </div>
@@ -532,16 +599,12 @@ function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
       <div className="space-y-3">
         {people.length === 0 && !loading && (
           <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-bold text-slate-400 dark:border-slate-800">
-            No registered users found.
+            No people found.
           </p>
         )}
-        {people.map((person) => {
-          const state = followState[person.id];
-          const isPending = state === "pending";
-          const isAccepted = state === "accepted";
-          return (
-            <div key={person.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-indigo-200 hover:bg-white dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-indigo-500/30">
-              <div className="flex items-center gap-3">
+        {people.map((person) => (
+          <div key={person.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-indigo-200 hover:bg-white dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-indigo-500/30">
+            <div className="flex items-center gap-3">
               <div className="relative shrink-0">
                 <img src={person.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
@@ -549,32 +612,15 @@ function PeopleSuggestions({ authToken, isSignedIn, onFollowAccepted }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black text-slate-900 dark:text-white">{person.name}</p>
                 <p className="truncate text-xs font-semibold text-slate-500">{person.role}</p>
-                <p className="text-[11px] font-semibold text-slate-400">{person.mutuals}</p>
               </div>
-              <button
-                onClick={() => sendFollowRequest(person)}
-                disabled={sendingId === person.id}
-                className={`flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-black transition ${
-                  isAccepted
-                    ? "bg-emerald-500 text-white"
-                    : isPending
-                      ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
-                    : "border border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
-                }`}
-                type="button"
-              >
-                {isAccepted ? <CheckCircle2 className="h-4 w-4" /> : sendingId === person.id ? <Send className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-                <span className="hidden sm:inline">{isAccepted ? "Followed" : isPending ? "Accept" : sendingId === person.id ? "Sending" : "Follow"}</span>
-              </button>
-              </div>
+              {renderAction(person)}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </section>
   );
 }
-
 /**
  * ChatPopup — the WhatsApp/Instagram-beating chat experience.
  * Renders as a centered, glassy modal with a backdrop, entrance animation,
@@ -896,7 +942,7 @@ function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }
   );
 }
 
-function RightRail({ authToken, isSignedIn, viewer, onFollowAccepted }) {
+function RightRail({ authToken, isSignedIn, viewer, followRequests, onSendRequest, onAcceptRequest, onDeclineRequest }) {
   const [activeThreadId, setActiveThreadId] = useState("");
   const [threadList, setThreadList] = useState(messages);
   const [chatMessages, setChatMessages] = useState(initialChatMessages);
@@ -928,7 +974,15 @@ function RightRail({ authToken, isSignedIn, viewer, onFollowAccepted }) {
 
   return (
     <aside className="space-y-5 lg:sticky lg:top-24">
-      <PeopleSuggestions authToken={authToken} isSignedIn={isSignedIn} onFollowAccepted={onFollowAccepted} />
+      <PeopleSuggestions
+        authToken={authToken}
+        isSignedIn={isSignedIn}
+        currentUser={viewer}
+        followRequests={followRequests}
+        onSendRequest={onSendRequest}
+        onAcceptRequest={onAcceptRequest}
+        onDeclineRequest={onDeclineRequest}
+      />
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -992,29 +1046,77 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
   const [posts, setPosts] = useState(initialPosts);
   const [activeFilter, setActiveFilter] = useState("For You");
   const [localFollowers, setLocalFollowers] = useState(() => toCountNumber(userData.followers));
-  const [acceptedFollowCount, setAcceptedFollowCount] = useState(0);
-  const followerCount = localFollowers + acceptedFollowCount;
+  const [followRequests, setFollowRequests] = useState(loadFollowRequests);
+  const currentCommunityId = getCommunityUserId(userData);
+  const acceptedIncomingCount = followRequests.filter(request => request.toId === currentCommunityId && request.status === "accepted").length;
+  const acceptedOutgoingCount = followRequests.filter(request => request.fromId === currentCommunityId && request.status === "accepted").length;
+  const followerCount = localFollowers + acceptedIncomingCount;
 
   useEffect(() => {
     setLocalFollowers(toCountNumber(userData.followers));
-    setAcceptedFollowCount(0);
   }, [userData.followers]);
+
+  const persistFollowRequests = (requests) => {
+    setFollowRequests(requests);
+    saveFollowRequests(requests);
+  };
 
   const viewer = {
     ...currentUser,
     name: userData.name || currentUser.name,
-    role: userData.role || currentUser.role,
+    role: formatCommunityRole(userData.role || currentUser.role),
+    backendUserId: userData.backendUserId || userData.email || userData.name,
+    email: userData.email || "",
     avatar: userData.avatarUrl || currentUser.avatar,
     cover: userData.coverUrl || currentUser.cover,
     headline: userData.bio || currentUser.headline,
     followers: formatCount(followerCount),
-    connections: userData.following ?? 0,
+    connections: formatCount(toCountNumber(userData.following) + acceptedOutgoingCount),
   };
 
-  const handleFollowAccepted = () => {
-    const nextFollowerCount = followerCount + 1;
-    setAcceptedFollowCount((count) => count + 1);
-    onSaveUserProfile?.({ followers: nextFollowerCount });
+  const handleSendFollowRequest = (person) => {
+    if (!isSignedIn) return { error: "Sign in before sending follow requests." };
+    if (person.id === currentCommunityId || person.email === userData.email) {
+      return { error: "You cannot follow yourself." };
+    }
+
+    const existing = followRequests.find(request => (
+      request.fromId === currentCommunityId
+      && request.toId === person.id
+      && request.status !== "declined"
+    ));
+    if (existing) return { error: existing.status === "accepted" ? "You already follow this person." : "Request already sent." };
+
+    const nextRequests = [
+      ...followRequests,
+      {
+        id: `follow-${Date.now()}-${person.id}`,
+        fromId: currentCommunityId,
+        fromName: viewer.name,
+        fromAvatar: viewer.avatar,
+        toId: person.id,
+        toName: person.name,
+        toAvatar: person.avatar,
+        status: "pending",
+        createdAt: new Date().toISOString()
+      }
+    ];
+    persistFollowRequests(nextRequests);
+    return { success: true };
+  };
+
+  const handleAcceptFollowRequest = (requestId) => {
+    const nextRequests = followRequests.map(request => (
+      request.id === requestId ? { ...request, status: "accepted", acceptedAt: new Date().toISOString() } : request
+    ));
+    persistFollowRequests(nextRequests);
+  };
+
+  const handleDeclineFollowRequest = (requestId) => {
+    const nextRequests = followRequests.map(request => (
+      request.id === requestId ? { ...request, status: "declined", declinedAt: new Date().toISOString() } : request
+    ));
+    persistFollowRequests(nextRequests);
   };
 
   const filteredPosts = useMemo(() => {
@@ -1099,10 +1201,19 @@ export default function Community({ authToken = "", userData = {}, isSignedIn = 
                 </div>
               </section>
             </div>
-            <RightRail authToken={authToken} isSignedIn={isSignedIn} viewer={viewer} onFollowAccepted={handleFollowAccepted} />
+            <RightRail
+              authToken={authToken}
+              isSignedIn={isSignedIn}
+              viewer={viewer}
+              followRequests={followRequests}
+              onSendRequest={handleSendFollowRequest}
+              onAcceptRequest={handleAcceptFollowRequest}
+              onDeclineRequest={handleDeclineFollowRequest}
+            />
           </div>
         </div>
       </div>
     </main>
   );
 }
+
