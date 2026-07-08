@@ -3,6 +3,7 @@ import {
   Bell,
   Bookmark,
   Camera,
+  Clock,
   CheckCircle2,
   CheckCheck,
   FileText,
