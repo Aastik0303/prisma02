@@ -1446,7 +1446,7 @@ export default function App() {
       {/* HIGHLY FLEXIBLE HORIZONTAL NAVIGATION TOPBAR — only rendered once the visitor is a signed-in user */}
       {isSignedIn && (
         <header className="sticky top-0 z-40 w-full bg-white/70 dark:bg-darknavy/75 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/40">
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-3 sm:gap-4">
             
             {/* Logo & Branding */}
             <div 
@@ -1493,7 +1493,7 @@ export default function App() {
             </nav>
 
             {/* Status Stats, Theme & Kebab menu controls */}
-            <div className="flex items-center gap-4 sm:gap-6 shrink-0 relative">
+            <div className="flex items-center gap-2 sm:gap-6 shrink-0 relative">
               {/* Theme toggle */}
               <button 
                 onClick={toggleTheme}
@@ -1543,7 +1543,7 @@ export default function App() {
 
           {/* Mobile Flexible slide-down menu */}
           {mobileMenuOpen && (
-            <div className="lg:hidden absolute top-20 left-0 right-0 bg-white dark:bg-darknavy border-b border-slate-200 dark:border-slate-800 p-5 flex flex-col gap-2 shadow-xl z-50 text-xs font-bold">
+            <div className="lg:hidden absolute top-16 sm:top-20 left-0 right-0 max-h-[calc(100dvh-4rem)] overflow-y-auto bg-white dark:bg-darknavy border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-col gap-2 shadow-xl z-50 text-xs font-bold">
               {navigationItems.map(item => {
                 const Icon = item.icon;
                 const isActive = page === item.id;

@@ -3079,6 +3079,24 @@
 }
 
 /* Dashboard AI Copilot card */
+.dashboard-shell,
+.dashboard-shell * {
+  min-width: 0;
+}
+
+.dashboard-shell {
+  width: 100%;
+}
+
+.dashboard-card {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-card a,
+.dashboard-card button {
+  min-width: 0;
+}
+
 .dashboard-copilot-card {
   padding: 1rem;
   border-radius: 24px;
@@ -3440,6 +3458,126 @@
 
   .dashboard-copilot-modal-prompts {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-shell {
+    padding: 1rem;
+    overflow: visible;
+  }
+
+  .dashboard-shell > .pointer-events-none {
+    display: none;
+  }
+
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .dashboard-profile-column,
+  .dashboard-core-column,
+  .dashboard-sidebar-column {
+    width: 100%;
+    gap: 1rem;
+  }
+
+  .dashboard-profile-column {
+    order: 1;
+  }
+
+  .dashboard-core-column {
+    order: 2;
+  }
+
+  .dashboard-sidebar-column {
+    order: 3;
+  }
+
+  .dashboard-card,
+  .dashboard-copilot-card {
+    border-radius: 18px;
+    padding: 1rem;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    transform: none !important;
+  }
+
+  .dashboard-shell .grid,
+  .dashboard-shell .md\:grid-cols-2,
+  .dashboard-shell .sm\:grid-cols-3,
+  .dashboard-shell .sm\:grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-shell .grid-cols-2,
+  .dashboard-shell .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-shell .flex {
+    min-width: 0;
+  }
+
+  .dashboard-shell h3,
+  .dashboard-shell h4,
+  .dashboard-shell h5,
+  .dashboard-shell p,
+  .dashboard-shell span,
+  .dashboard-shell strong,
+  .dashboard-shell a,
+  .dashboard-shell button {
+    max-width: 100%;
+  }
+
+  .dashboard-shell h5.truncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .dashboard-shell [class*="hover\\:-translate-y"],
+  .dashboard-shell [class*="hover\\:shadow"] {
+    transform: none !important;
+  }
+
+  .dashboard-shell .rounded-\[24px\] {
+    border-radius: 18px !important;
+  }
+
+  .dashboard-copilot-card {
+    width: 100%;
+  }
+
+  .dashboard-copilot-messages {
+    max-height: 9rem;
+    overflow-y: auto;
+  }
+
+  .dashboard-copilot-bubble {
+    font-size: 0.78rem;
+  }
+
+  .dashboard-copilot-prompt,
+  .dashboard-copilot-open {
+    font-size: 0.78rem;
+    text-align: center;
+  }
+
+  .dashboard-copilot-modal {
+    width: 100%;
+    min-height: min(90vh, 42rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .dashboard-copilot-modal-messages .dashboard-copilot-bubble {
+    max-width: 100%;
+    font-size: 0.82rem;
+  }
+
+  .dashboard-copilot-modal .dashboard-copilot-form {
+    gap: 0.5rem;
   }
 }
 

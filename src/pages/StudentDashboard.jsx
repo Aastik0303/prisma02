@@ -46,7 +46,7 @@ const LinkedinIcon = (props) => (
   </svg>
 );
 
-const cardStyleClass = `rounded-[24px] bg-white/85 dark:bg-slate-900/78 backdrop-blur-[22px] border border-white/70 dark:border-slate-800/80 shadow-[0_18px_50px_rgba(15,23,42,0.07)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(79,70,229,0.14)] hover:border-indigo-300/70 dark:hover:border-indigo-500/35 transition-all duration-[350ms] ease-out`;
+const cardStyleClass = `dashboard-card rounded-[24px] bg-white/85 dark:bg-slate-900/78 backdrop-blur-[22px] border border-white/70 dark:border-slate-800/80 shadow-[0_18px_50px_rgba(15,23,42,0.07)] hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(79,70,229,0.14)] hover:border-indigo-300/70 dark:hover:border-indigo-500/35 transition-all duration-[350ms] ease-out`;
 const initialCopilotMessages = [
   {
     role: 'assistant',
@@ -482,15 +482,15 @@ export default function StudentDashboard({
   const hasProjects = userData?.projects && userData.projects.length > 0;
 
   return (
-    <div className="relative max-w-7xl mx-auto space-y-5 p-4 sm:p-6 text-left overflow-hidden">
+    <div className="dashboard-shell relative max-w-7xl mx-auto space-y-5 p-4 sm:p-6 text-left overflow-hidden">
       <div className="pointer-events-none absolute -top-28 left-10 h-72 w-72 rounded-full bg-cyan-400/14 blur-[90px]" />
       <div className="pointer-events-none absolute top-44 right-0 h-96 w-96 rounded-full bg-fuchsia-400/12 blur-[110px]" />
       <div className="pointer-events-none absolute bottom-24 left-1/3 h-80 w-80 rounded-full bg-emerald-400/10 blur-[100px]" />
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
+      <div className="dashboard-grid grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
 
         {/* LEFT COLUMN - PROFILE */}
-        <div className="xl:col-span-3 flex flex-col gap-5">
+        <div className="dashboard-profile-column xl:col-span-3 flex flex-col gap-5">
 
           {/* Profile Card */}
           <div className={`${cardStyleClass} p-5 text-center flex flex-col items-center space-y-4 relative overflow-hidden`}>
@@ -630,7 +630,7 @@ export default function StudentDashboard({
         </div>
 
         {/* CENTER PANEL - DASHBOARD CORE */}
-        <div className="xl:col-span-7 flex flex-col gap-5">
+        <div className="dashboard-core-column xl:col-span-7 flex flex-col gap-5">
 
           {/* MY COURSES SECTION */}
           <div className={`${cardStyleClass} p-5 ${!hasValidTracks ? 'flex flex-col' : ''}`}>
@@ -838,7 +838,7 @@ export default function StudentDashboard({
         </div>
 
         {/* RIGHT PANEL - SIDEBAR */}
-        <div className="xl:col-span-2 flex flex-col gap-5">
+        <div className="dashboard-sidebar-column xl:col-span-2 flex flex-col gap-5">
 
           {/* XP CARD */}
           <div className={`${cardStyleClass} p-4 relative overflow-hidden text-left`}>
