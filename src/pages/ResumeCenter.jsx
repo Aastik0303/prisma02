@@ -786,24 +786,124 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewText, targetRole]);
 
+  const escapeHtml = (value = '') => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  const cloneResumeForPrint = () => {
+    const source = previewRef.current;
+    if (!source) return null;
+
+    const clone = source.cloneNode(true);
+    const sourceNodes = [source, ...source.querySelectorAll('*')];
+    const cloneNodes = [clone, ...clone.querySelectorAll('*')];
+
+    sourceNodes.forEach((sourceNode, index) => {
+      const cloneNode = cloneNodes[index];
+      if (!cloneNode) return;
+
+      const computed = window.getComputedStyle(sourceNode);
+      const style = cloneNode.style;
+      for (const property of computed) {
+        style.setProperty(property, computed.getPropertyValue(property), computed.getPropertyPriority(property));
+      }
+
+      style.animation = 'none';
+      style.transition = 'none';
+      style.transform = 'none';
+      style.textShadow = 'none';
+    });
+
+    Object.assign(clone.style, {
+      width: '210mm',
+      minHeight: '297mm',
+      margin: '0',
+      border: '0',
+      borderRadius: '0',
+      boxShadow: 'none',
+      overflow: 'visible',
+      background: '#ffffff',
+      color: '#0f172a'
+    });
+
+    return clone;
+  };
+
+  const printResumeHtml = (printHtml, printFrame) => {
+    const printWindow = printFrame.contentWindow;
+    const doc = printFrame.contentDocument || printWindow.document;
+
+    doc.open();
+    doc.write(printHtml);
+    doc.close();
+
+    const runPrint = async () => {
+      try {
+        await doc.fonts?.ready;
+      } catch {
+        // System fonts are still available if the FontFaceSet API is unavailable.
+      }
+      printWindow.focus();
+      printWindow.print();
+      setIsExporting(false);
+      triggerConfetti();
+    };
+
+    if (doc.readyState === 'complete') {
+      setTimeout(runPrint, 150);
+    } else {
+      printFrame.onload = () => setTimeout(runPrint, 150);
+    }
+  };
+
   const handleExport = () => {
     if (!previewRef.current) return;
     setIsExporting(true);
-    const printContent = previewRef.current.innerHTML;
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contactInfo.name} - Resume</title><script src="https://cdn.tailwindcss.com"></script><style>@page{size:A4;margin:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif}.pdf-container{width:210mm;margin:0 auto;background:white}</style></head><body><div class="pdf-container">${printContent}</div></body></html>`;
+    const printableResume = cloneResumeForPrint();
+    if (!printableResume) {
+      setIsExporting(false);
+      return;
+    }
+
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
     let printFrame = printFrameRef.current;
-    if (!printFrame) { printFrame = document.createElement('iframe'); Object.assign(printFrame.style, { position: 'fixed', top: '-9999px', left: '-9999px', width: '0', height: '0', opacity: '0' }); document.body.appendChild(printFrame); printFrameRef.current = printFrame; }
-    setTimeout(() => {
-      try {
-        const doc = printFrame.contentDocument || printFrame.contentWindow.document;
-        doc.open(); doc.write(printHtml); doc.close();
-        setTimeout(() => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); setIsExporting(false); triggerConfetti(); }, 800);
-      } catch {
-        const pw = window.open('', '_blank');
-        if (pw) { pw.document.write(printHtml); pw.document.close(); setTimeout(() => { pw.print(); setIsExporting(false); triggerConfetti(); }, 800); }
-        else { alert('Popup blocked. Use Ctrl+P / Cmd+P to print.'); setIsExporting(false); }
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      Object.assign(printFrame.style, {
+        position: 'fixed',
+        top: '0',
+        left: '-100vw',
+        width: '210mm',
+        height: '297mm',
+        border: '0',
+        opacity: '0',
+        pointerEvents: 'none'
+      });
+      document.body.appendChild(printFrame);
+      printFrameRef.current = printFrame;
+    }
+
+    try {
+      printResumeHtml(printHtml, printFrame);
+    } catch {
+      const pw = window.open('', '_blank');
+      if (pw) {
+        pw.document.write(printHtml);
+        pw.document.close();
+        setTimeout(() => {
+          pw.focus();
+          pw.print();
+          setIsExporting(false);
+          triggerConfetti();
+        }, 250);
+      } else {
+        alert('Popup blocked. Use Ctrl+P / Cmd+P to print.');
+        setIsExporting(false);
       }
-    }, 100);
+    }
   };
 
   // ── Normalizers ──
