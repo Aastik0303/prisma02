@@ -3091,17 +3091,23 @@
   max-width: none !important;
 }
 
-.resume-preview-body > * {
+.resume-preview-body > *,
+.resume-full-width-section,
+.resume-section-content {
   width: 100% !important;
   max-width: none !important;
+  min-width: 0 !important;
 }
 
-.resume-preview-body > * + * {
+.resume-preview-body > * + *,
+.resume-full-width-section + .resume-full-width-section {
   margin-top: 0.75rem;
 }
 
-.resume-preview-body h4 {
+.resume-preview-body h4,
+.resume-full-width-section h4 {
   width: 100% !important;
+  max-width: none !important;
 }
 
 @media (max-width: 768px) {

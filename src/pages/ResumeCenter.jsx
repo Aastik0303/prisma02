@@ -822,6 +822,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       style.textShadow = 'none';
     });
 
+    const resumeBody = clone.querySelector('.resume-preview-body');
+    const stretchNode = (node) => {
+      if (!(node instanceof HTMLElement)) return;
+      node.style.width = '100%';
+      node.style.maxWidth = 'none';
+      node.style.minWidth = '0';
+    };
+
     Object.assign(clone.style, {
       width: '210mm',
       minHeight: '297mm',
@@ -835,11 +843,20 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     });
 
     Array.from(clone.children).forEach((child) => {
-      if (child instanceof HTMLElement) {
-        child.style.width = '100%';
-        child.style.maxWidth = 'none';
-      }
+      stretchNode(child);
     });
+
+    if (resumeBody instanceof HTMLElement) {
+      Object.assign(resumeBody.style, {
+        display: 'block',
+        width: '100%',
+        maxWidth: 'none',
+        gridTemplateColumns: 'none',
+        columnCount: 'auto'
+      });
+
+      resumeBody.querySelectorAll('section, h4, .resume-full-width-section, .resume-section-content').forEach(stretchNode);
+    }
 
     return clone;
   };
@@ -880,7 +897,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet,.resume-preview-body,.resume-full-width-section,.resume-section-content{width:100%!important;max-width:none!important}.resume-preview-body{display:block!important;grid-template-columns:none!important}.resume-preview-body>section+section{margin-top:12px}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -1441,12 +1458,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             </div>
 
                             {/* Body */}
-                            <div className={`resume-preview-body ${activePattern.body}`}>
+                            <div
+                              className={`resume-preview-body ${activePattern.body}`}
+                              style={{ display: 'block', width: '100%', maxWidth: 'none', gridTemplateColumns: 'none' }}
+                            >
                               {/* Skills */}
-                              <div>
+                              <section className="resume-full-width-section">
                                 <h4 className="border-b border-slate-900 pb-0.5 text-[13px] font-black uppercase tracking-normal text-slate-950">Skills</h4>
                                 {selectedSkillLayout === 'grouped-rows' && (
-                                  <div className="mt-1 space-y-0.5">
+                                  <div className="resume-section-content mt-1 space-y-0.5">
                                     {skillGroups.map(group => (
                                       <div key={group.id} className="grid grid-cols-[132px_1fr] gap-2 text-[10.5px] leading-snug text-slate-800">
                                         <span className="font-bold text-slate-950">{group.label} :</span>
@@ -1485,11 +1505,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                     ))}
                                   </div>
                                 )}
-                              </div>
+                              </section>
                               {/* Projects */}
-                              <div>
+                              <section className="resume-full-width-section">
                                 <h4 className="border-b border-slate-900 pb-0.5 text-[13px] font-black uppercase tracking-normal text-slate-950">Projects</h4>
-                                <div className={activePattern.projects}>
+                                <div className={`resume-section-content ${activePattern.projects}`}>
                                   {projects.map(p => {
                                     const TitleEl = p.url ? 'a' : 'span';
                                     const titleProps = p.url ? { href: p.url, target: '_blank', rel: 'noopener noreferrer', className: 'font-bold text-slate-900 hover:underline' } : { className: 'font-bold text-slate-900' };
@@ -1507,11 +1527,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                     );
                                   })}
                                 </div>
-                              </div>
+                              </section>
                               {/* Experience */}
-                              <div>
+                              <section className="resume-full-width-section">
                                 <h4 className="border-b border-slate-900 pb-0.5 text-[13px] font-black uppercase tracking-normal text-slate-950">Experience</h4>
-                                <div className="space-y-1.5">
+                                <div className="resume-section-content space-y-1.5">
                                   {experience.map(exp => (
                                     <div key={exp.id} className="text-[11px] leading-snug text-slate-600">
                                       <div className="flex items-center justify-between gap-2">
@@ -1525,11 +1545,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                     </div>
                                   ))}
                                 </div>
-                              </div>
+                              </section>
                               {/* Education */}
-                              <div>
+                              <section className="resume-full-width-section">
                                 <h4 className="border-b border-slate-900 pb-0.5 text-[13px] font-black uppercase tracking-normal text-slate-950">Education</h4>
-                                <div className="mt-1 space-y-1.5">
+                                <div className="resume-section-content mt-1 space-y-1.5">
                                   {education.map(edu => (
                                     <div key={edu.id} className="text-[11px] leading-snug text-slate-600">
                                       <div className="flex items-center justify-between gap-2">
@@ -1543,15 +1563,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                     </div>
                                   ))}
                                 </div>
-                              </div>
+                              </section>
                               {/* Custom */}
                               {customFields.length > 0 && (
-                                <div>
+                                <section className="resume-full-width-section">
                                   <h4 className={`text-[9px] font-black uppercase tracking-[0.2em] ${activeTheme.section} mb-1.5`}>Additional</h4>
-                                  <div className="space-y-0.5">
+                                  <div className="resume-section-content space-y-0.5">
                                     {customFields.map(f => <div key={f.id} className="text-[10px] text-slate-600"><span className="font-bold text-slate-700">{f.label}:</span> {f.value}</div>)}
                                   </div>
-                                </div>
+                                </section>
                               )}
                             </div>
                           </div>
