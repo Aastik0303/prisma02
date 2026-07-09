@@ -653,12 +653,6 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, on
             className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-slate-200"
           />
         </div>
-        {isSignedIn && (
-          <div className="flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-            <span>{loading ? "Searching..." : `${people.length} people found`}</span>
-            <span>{incomingRequests.length} request{incomingRequests.length === 1 ? "" : "s"}</span>
-          </div>
-        )}
         {!isSignedIn && (
           <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">
             Sign in to search people and manage follow requests.
@@ -669,7 +663,7 @@ function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, on
         {error && <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[11px] font-bold text-rose-700 dark:text-rose-300">{error}</p>}
       </div>
 
-      <div className="space-y-3">
+      <div className="max-h-[24rem] space-y-3 overflow-y-auto pr-1 sm:max-h-[30rem]">
         {people.length === 0 && !loading && (
           <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-bold text-slate-400 dark:border-slate-800">
             No people found.
