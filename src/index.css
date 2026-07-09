@@ -3085,6 +3085,25 @@
   margin-inline: auto;
 }
 
+.resume-preview-body {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.resume-preview-body > * {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.resume-preview-body > * + * {
+  margin-top: 0.75rem;
+}
+
+.resume-preview-body h4 {
+  width: 100% !important;
+}
+
 @media (max-width: 768px) {
   .resume-preview-sheet {
     min-height: auto;

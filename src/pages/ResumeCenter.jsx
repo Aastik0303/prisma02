@@ -1441,7 +1441,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             </div>
 
                             {/* Body */}
-                            <div className={activePattern.body}>
+                            <div className={`resume-preview-body ${activePattern.body}`}>
                               {/* Skills */}
                               <div>
                                 <h4 className="border-b border-slate-900 pb-0.5 text-[13px] font-black uppercase tracking-normal text-slate-950">Skills</h4>
