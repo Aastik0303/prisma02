@@ -807,7 +807,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
       const computed = window.getComputedStyle(sourceNode);
       const style = cloneNode.style;
+      const isFluidLayoutNode = cloneNode instanceof HTMLElement
+        && ['block', 'flex', 'grid', 'flow-root', 'list-item'].includes(computed.display);
+      const previewBoundSizeProps = new Set(['width', 'min-width', 'max-width', 'height', 'min-height', 'max-height']);
+
       for (const property of computed) {
+        if (isFluidLayoutNode && previewBoundSizeProps.has(property)) continue;
         style.setProperty(property, computed.getPropertyValue(property), computed.getPropertyPriority(property));
       }
 
@@ -827,6 +832,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       overflow: 'visible',
       background: '#ffffff',
       color: '#0f172a'
+    });
+
+    Array.from(clone.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        child.style.width = '100%';
+        child.style.maxWidth = 'none';
+      }
     });
 
     return clone;
@@ -1408,7 +1420,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     {showPreview && (
                       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: 'spring', stiffness: 200 }}>
                         <TiltCard intensity={8}>
-                          <div ref={previewRef} className="bg-white rounded-2xl border border-slate-200/60 shadow-2xl shadow-slate-200/50 overflow-hidden">
+                          <div ref={previewRef} className="resume-preview-sheet bg-white rounded-2xl border border-slate-200/60 shadow-2xl shadow-slate-200/50 overflow-hidden">
                             {/* Header */}
                             <div className={`p-3 ${activeTheme.header} ${activePattern.headerAlign}`}>
                               <h2 className={`text-xl font-black ${activeTheme.name}`}>{contactInfo.name}</h2>

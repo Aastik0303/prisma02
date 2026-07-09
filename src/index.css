@@ -3079,6 +3079,18 @@
 }
 
 /* Dashboard AI Copilot card */
+.resume-preview-sheet {
+  width: min(100%, 210mm);
+  min-height: 297mm;
+  margin-inline: auto;
+}
+
+@media (max-width: 768px) {
+  .resume-preview-sheet {
+    min-height: auto;
+  }
+}
+
 .dashboard-shell,
 .dashboard-shell * {
   min-width: 0;
