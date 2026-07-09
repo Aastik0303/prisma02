@@ -849,8 +849,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     if (resumeBody instanceof HTMLElement) {
       Object.assign(resumeBody.style, {
         display: 'block',
-        width: '100%',
-        maxWidth: 'none',
+        width: '182mm',
+        maxWidth: 'calc(100% - 28mm)',
+        marginLeft: 'auto',
+        marginRight: 'auto',
         gridTemplateColumns: 'none',
         columnCount: 'auto'
       });
@@ -897,7 +899,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet,.resume-preview-body,.resume-full-width-section,.resume-section-content{width:100%!important;max-width:none!important}.resume-preview-body{display:block!important;grid-template-columns:none!important}.resume-preview-body>section+section{margin-top:12px}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet{width:210mm!important;max-width:none!important}.resume-preview-body{display:block!important;width:182mm!important;max-width:calc(100% - 28mm)!important;margin-left:auto!important;margin-right:auto!important;grid-template-columns:none!important}.resume-full-width-section,.resume-section-content{width:100%!important;max-width:100%!important}.resume-preview-body>section+section{margin-top:12px}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -1460,7 +1462,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             {/* Body */}
                             <div
                               className={`resume-preview-body ${activePattern.body}`}
-                              style={{ display: 'block', width: '100%', maxWidth: 'none', gridTemplateColumns: 'none' }}
+                              style={{ display: 'block', width: 'calc(100% - 28mm)', maxWidth: '182mm', marginInline: 'auto', gridTemplateColumns: 'none' }}
                             >
                               {/* Skills */}
                               <section className="resume-full-width-section">

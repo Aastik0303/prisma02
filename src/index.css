@@ -3087,15 +3087,16 @@
 
 .resume-preview-body {
   display: block !important;
-  width: 100% !important;
-  max-width: none !important;
+  width: calc(100% - 28mm) !important;
+  max-width: 182mm !important;
+  margin-inline: auto !important;
 }
 
 .resume-preview-body > *,
 .resume-full-width-section,
 .resume-section-content {
   width: 100% !important;
-  max-width: none !important;
+  max-width: 100% !important;
   min-width: 0 !important;
 }
 
