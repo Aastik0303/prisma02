@@ -3087,32 +3087,17 @@
 }
 
 .resume-reference-header {
-  background: #fff !important;
-  background-image: none !important;
-  color: #0f172a !important;
   padding: 8mm 12mm 4mm !important;
   text-align: center !important;
 }
 
 .resume-reference-header h2 {
-  color: #0f172a !important;
   font-size: 25px !important;
   line-height: 1.05 !important;
 }
 
-.resume-reference-header p,
-.resume-reference-header span {
-  color: #334155 !important;
-}
-
 .resume-reference-header > div {
   justify-content: center !important;
-}
-
-.resume-reference-header a {
-  border: 1px solid #cbd5e1 !important;
-  background: #fff !important;
-  color: #0f172a !important;
 }
 
 .resume-preview-body {
