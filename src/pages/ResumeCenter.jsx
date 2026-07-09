@@ -849,10 +849,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     if (resumeBody instanceof HTMLElement) {
       Object.assign(resumeBody.style, {
         display: 'block',
-        width: '182mm',
-        maxWidth: 'calc(100% - 28mm)',
+        width: '186mm',
+        maxWidth: 'calc(100% - 24mm)',
         marginLeft: 'auto',
         marginRight: 'auto',
+        paddingTop: '4mm',
         gridTemplateColumns: 'none',
         columnCount: 'auto'
       });
@@ -899,7 +900,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet{width:210mm!important;max-width:none!important}.resume-preview-body{display:block!important;width:182mm!important;max-width:calc(100% - 28mm)!important;margin-left:auto!important;margin-right:auto!important;grid-template-columns:none!important}.resume-full-width-section,.resume-section-content{width:100%!important;max-width:100%!important}.resume-preview-body>section+section{margin-top:12px}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet{width:210mm!important;max-width:none!important;background:#fff!important}.resume-reference-header{background:#fff!important;background-image:none!important;text-align:center!important;padding:8mm 12mm 4mm!important;color:#0f172a!important}.resume-reference-header h2{color:#0f172a!important;font-size:25px!important;line-height:1.05!important}.resume-reference-header p{color:#334155!important}.resume-reference-header>div{justify-content:center!important}.resume-reference-header a{background:#fff!important;border:1px solid #cbd5e1!important;color:#0f172a!important}.resume-preview-body{display:block!important;width:186mm!important;max-width:calc(100% - 24mm)!important;margin-left:auto!important;margin-right:auto!important;padding-top:4mm!important;grid-template-columns:none!important}.resume-full-width-section,.resume-section-content{width:100%!important;max-width:100%!important}.resume-preview-body>section+section{margin-top:12px}.resume-full-width-section h4{font-size:14px!important;letter-spacing:.02em!important;border-bottom:1.5px solid #0f172a!important}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -1441,7 +1442,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         <TiltCard intensity={8}>
                           <div ref={previewRef} className="resume-preview-sheet bg-white rounded-2xl border border-slate-200/60 shadow-2xl shadow-slate-200/50 overflow-hidden">
                             {/* Header */}
-                            <div className={`p-3 ${activeTheme.header} ${activePattern.headerAlign}`}>
+                            <div className={`resume-reference-header p-3 ${activeTheme.header} ${activePattern.headerAlign}`}>
                               <h2 className={`text-xl font-black ${activeTheme.name}`}>{contactInfo.name}</h2>
                               <p className={`text-xs mt-0.5 font-semibold ${activeTheme.role}`}>{contactInfo.title}</p>
                               <div className={`flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-[10px] ${activeTheme.meta}`}>
@@ -1462,7 +1463,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             {/* Body */}
                             <div
                               className={`resume-preview-body ${activePattern.body}`}
-                              style={{ display: 'block', width: 'calc(100% - 28mm)', maxWidth: '182mm', marginInline: 'auto', gridTemplateColumns: 'none' }}
+                              style={{ display: 'block', width: 'calc(100% - 24mm)', maxWidth: '186mm', marginInline: 'auto', gridTemplateColumns: 'none' }}
                             >
                               {/* Skills */}
                               <section className="resume-full-width-section">
