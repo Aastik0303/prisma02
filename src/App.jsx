@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { 
   Compass, ShieldCheck, Users, FolderGit2, Award,
   Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
   MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Shield, Key, CheckCircle2, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 
-// Import Pages
-import HomeScreen from './pages/HomeScreen';
-import StudentDashboard from './pages/StudentDashboard';
-import LearningPath from './pages/LearningPath';
-import CoursesShowcase from './pages/CoursesShowcase';
-import ProjectHub from './pages/ProjectHub';
-import ResumeCenter from './pages/ResumeCenter';
-import Mentorship from './pages/Mentorship';
-import Community from './pages/Community';
+// Route-level splitting keeps the mobile bundle light and avoids parsing every dashboard page at startup.
+const HomeScreen = lazy(() => import('./pages/HomeScreen'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+const LearningPath = lazy(() => import('./pages/LearningPath'));
+const CoursesShowcase = lazy(() => import('./pages/CoursesShowcase'));
+const ProjectHub = lazy(() => import('./pages/ProjectHub'));
+const ResumeCenter = lazy(() => import('./pages/ResumeCenter'));
+const Mentorship = lazy(() => import('./pages/Mentorship'));
+const Community = lazy(() => import('./pages/Community'));
 
 // Import Global Mock Data
 import { 
@@ -205,6 +205,19 @@ const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
   'X-CSRF-Token': csrfToken,
   ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
 });
+
+const PageFallback = () => (
+  <div className="min-h-[55vh] flex items-center justify-center px-6">
+    <div className="flex flex-col items-center gap-3 text-center">
+      <img
+        src="/prisma-mark.svg"
+        alt="Prisma Embedded Codes"
+        className="h-12 w-12 rounded-2xl object-cover shadow-sm shadow-indigo-500/15"
+      />
+      <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">Loading workspace...</p>
+    </div>
+  </div>
+);
 
 const authRequest = async (path, body, accessToken) => {
   let csrf = await getCsrfToken();
@@ -1570,7 +1583,9 @@ export default function App() {
 
       {/* FULL WIDTH ROUTABLE CANVASES */}
       <main className="min-w-0 flex-1 overflow-x-hidden">
-        {renderPage()}
+        <Suspense fallback={<PageFallback />}>
+          {renderPage()}
+        </Suspense>
       </main>
 
       {/* ==================================================
