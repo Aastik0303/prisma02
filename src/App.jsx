@@ -1,19 +1,32 @@
-import { Suspense, lazy, useState, useEffect, useCallback } from 'react';
+import { Suspense, lazy, startTransition, useState, useEffect, useCallback } from 'react';
 import { 
   Compass, ShieldCheck, Users, FolderGit2, Award,
   Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
   MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Shield, Key, CheckCircle2, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 
-// Route-level splitting keeps the mobile bundle light and avoids parsing every dashboard page at startup.
-const HomeScreen = lazy(() => import('./pages/HomeScreen'));
-const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
-const LearningPath = lazy(() => import('./pages/LearningPath'));
-const CoursesShowcase = lazy(() => import('./pages/CoursesShowcase'));
-const ProjectHub = lazy(() => import('./pages/ProjectHub'));
-const ResumeCenter = lazy(() => import('./pages/ResumeCenter'));
-const Mentorship = lazy(() => import('./pages/Mentorship'));
-const Community = lazy(() => import('./pages/Community'));
+// Route-level splitting keeps startup light; preloading below makes later navigation feel instant.
+const pageLoaders = {
+  home: () => import('./pages/HomeScreen'),
+  dashboard: () => import('./pages/StudentDashboard'),
+  roadmap: () => import('./pages/LearningPath'),
+  learning: () => import('./pages/CoursesShowcase'),
+  projects: () => import('./pages/ProjectHub'),
+  resume: () => import('./pages/ResumeCenter'),
+  mentorship: () => import('./pages/Mentorship'),
+  community: () => import('./pages/Community')
+};
+
+const preloadPage = (pageId) => pageLoaders[pageId]?.();
+
+const HomeScreen = lazy(pageLoaders.home);
+const StudentDashboard = lazy(pageLoaders.dashboard);
+const LearningPath = lazy(pageLoaders.roadmap);
+const CoursesShowcase = lazy(pageLoaders.learning);
+const ProjectHub = lazy(pageLoaders.projects);
+const ResumeCenter = lazy(pageLoaders.resume);
+const Mentorship = lazy(pageLoaders.mentorship);
+const Community = lazy(pageLoaders.community);
 
 // Import Global Mock Data
 import { 
@@ -391,22 +404,25 @@ export default function App() {
 
   const navigateTo = useCallback((nextPage, { replace = false } = {}) => {
     const targetPage = nextPage || 'dashboard';
+    const routePage = targetPage === 'login' || targetPage === 'signup' ? 'home' : targetPage;
+    preloadPage(routePage);
 
     if (protectedPages.has(targetPage) && !isSignedIn) {
-      setPage('home');
+      startTransition(() => setPage('home'));
       setActiveModal('signin');
       window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
       return;
     }
 
     if ((targetPage === 'login' || targetPage === 'signup' || targetPage === 'home') && isSignedIn) {
-      setPage('dashboard');
+      preloadPage('dashboard');
+      startTransition(() => setPage('dashboard'));
       setActiveModal(null);
       window.history.replaceState({ page: 'dashboard' }, '', pathForPage('dashboard'));
       return;
     }
 
-    setPage(targetPage === 'login' || targetPage === 'signup' ? 'home' : targetPage);
+    startTransition(() => setPage(routePage));
     if (targetPage === 'login') setActiveModal('signin');
     if (targetPage === 'signup') setActiveModal('signup');
 
@@ -422,21 +438,23 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextPage = pageFromLocation();
+      preloadPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage);
       if (protectedPages.has(nextPage) && !isSignedIn) {
-        setPage('home');
+        startTransition(() => setPage('home'));
         setActiveModal('signin');
         window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
         return;
       }
 
       if ((nextPage === 'login' || nextPage === 'signup' || nextPage === 'home') && isSignedIn) {
-        setPage('dashboard');
+        preloadPage('dashboard');
+        startTransition(() => setPage('dashboard'));
         setActiveModal(null);
         window.history.replaceState({ page: 'dashboard' }, '', pathForPage('dashboard'));
         return;
       }
 
-      setPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage);
+      startTransition(() => setPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage));
       setActiveModal(nextPage === 'login' ? 'signin' : nextPage === 'signup' ? 'signup' : null);
       setMobileMenuOpen(false);
     };
@@ -464,6 +482,34 @@ export default function App() {
       setActiveModal(currentPage === 'login' ? 'signin' : 'signup');
     }
   }, [authResolved, isSignedIn, navigateTo]);
+
+  useEffect(() => {
+    if (!authResolved) return undefined;
+
+    const pagesToPreload = isSignedIn
+      ? ['dashboard', 'learning', 'roadmap', 'resume', 'community', 'projects', 'mentorship']
+      : ['home'];
+
+    let cancelled = false;
+    const preloadAll = () => {
+      if (cancelled) return;
+      pagesToPreload.forEach(preloadPage);
+    };
+
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(preloadAll, { timeout: 1800 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(preloadAll, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [authResolved, isSignedIn]);
 
   const buildWorkspaceMetadata = (workspace) => ({
     college: workspace.userData.college,
@@ -1488,6 +1534,9 @@ export default function App() {
                 return (
                   <button
                     key={item.id}
+                    onMouseEnter={() => preloadPage(item.id)}
+                    onFocus={() => preloadPage(item.id)}
+                    onTouchStart={() => preloadPage(item.id)}
                     onClick={() => navigateTo(item.id)}
                     className={`px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-all shrink-0 ${
                       isActive 
@@ -1564,6 +1613,9 @@ export default function App() {
                 return (
                   <button
                     key={item.id}
+                    onMouseEnter={() => preloadPage(item.id)}
+                    onFocus={() => preloadPage(item.id)}
+                    onTouchStart={() => preloadPage(item.id)}
                     onClick={() => { navigateTo(item.id); setMobileMenuOpen(false); }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                       isActive 
