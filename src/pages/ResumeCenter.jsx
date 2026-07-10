@@ -868,8 +868,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setSavedResumes(current => current.filter(resume => resume.id !== id));
     if (selectedResumeId === id) setSelectedResumeId('');
     try {
-      await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
-      await loadSavedResumes();
+      const result = await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
+      if (!result?.deleted) throw new Error('Resume delete did not complete. Please refresh and try again.');
+      setSavedResumes(current => current.filter(resume => resume.id !== id));
     } catch (error) {
       setSavedResumes(previousResumes);
       setSelectedResumeId(previousSelectedResumeId);

@@ -347,9 +347,19 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   fastify.delete('/resumes/:id', {
     preHandler: [requireAuth]
   }, async (request, reply) => {
-    const resume = await getOwnedResume(request);
-    await resumeStore(fastify).delete({ where: { id: resume.id } });
-    return reply.code(204).send();
+    const params = resumeIdParamsSchema.parse(request.params);
+    const result = await resumeStore(fastify).deleteMany({
+      where: {
+        id: params.id,
+        userId: request.user!.id
+      }
+    });
+
+    if (result.count === 0) {
+      throw new AppError(404, 'RESUME_NOT_FOUND', 'Resume not found or already deleted.');
+    }
+
+    return reply.code(200).send({ deleted: true, id: params.id });
   });
 
   fastify.post('/upload', {

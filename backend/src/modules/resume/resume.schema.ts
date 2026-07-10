@@ -2,45 +2,47 @@ import { z } from 'zod';
 
 const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional().default('');
+const resumeContentText = nonEmptyText;
+const optionalResumeContentText = optionalText;
 
 const resumeLinkSchema = z.object({
-  label: nonEmptyText.max(160),
-  url: nonEmptyText.max(500)
+  label: resumeContentText,
+  url: resumeContentText
 });
 
 const resumeExperienceSchema = z.object({
-  company: optionalText,
-  title: optionalText,
-  startDate: optionalText,
-  endDate: optionalText,
-  location: optionalText,
-  bullets: z.array(nonEmptyText.max(700)).max(12).default([])
+  company: optionalResumeContentText,
+  title: optionalResumeContentText,
+  startDate: optionalResumeContentText,
+  endDate: optionalResumeContentText,
+  location: optionalResumeContentText,
+  bullets: z.array(resumeContentText).max(30).default([])
 });
 
 const resumeEducationSchema = z.object({
-  institution: optionalText,
-  degree: optionalText,
-  startDate: optionalText,
-  endDate: optionalText,
-  details: z.array(nonEmptyText.max(500)).max(10).default([])
+  institution: optionalResumeContentText,
+  degree: optionalResumeContentText,
+  startDate: optionalResumeContentText,
+  endDate: optionalResumeContentText,
+  details: z.array(resumeContentText).max(30).default([])
 });
 
 const resumeProjectSchema = z.object({
-  title: nonEmptyText.max(160),
-  url: optionalText,
-  bullets: z.array(nonEmptyText.max(700)).max(12).default([])
+  title: resumeContentText,
+  url: optionalResumeContentText,
+  bullets: z.array(resumeContentText).max(30).default([])
 });
 
 export const parsedResumeJsonSchema = z.object({
   personal_info: z.object({
-    name: optionalText,
-    email: optionalText,
-    phone: optionalText,
-    location: optionalText,
+    name: optionalResumeContentText,
+    email: optionalResumeContentText,
+    phone: optionalResumeContentText,
+    location: optionalResumeContentText,
     links: z.array(resumeLinkSchema).max(12).default([])
   }).default({}),
-  summary: optionalText,
-  skills: z.array(nonEmptyText.max(300)).max(120).default([]),
+  summary: optionalResumeContentText,
+  skills: z.array(resumeContentText).max(120).default([]),
   experience: z.array(resumeExperienceSchema).max(20).default([]),
   education: z.array(resumeEducationSchema).max(12).default([]),
   projects: z.array(resumeProjectSchema).max(20).default([])
