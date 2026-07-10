@@ -2009,7 +2009,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleBuilderAiPolish} disabled={builderPolishing || (!projects.length && !experience.length)} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50">
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                       {builderPolishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
-                      {builderPolishing ? 'Polishing...' : selectedResumeId ? 'AI Improve Saved JSON' : 'AI Grammar & Format Fix'}
+                      {builderPolishing ? 'Polishing...' : selectedResumeId ? 'AI Improve Saved Resume' : 'AI Grammar & Format Fix'}
                     </motion.button>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveBuilderResume} disabled={resumeSaving} className="px-5 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-100 flex items-center gap-2 min-w-[120px] justify-center disabled:opacity-50">
                       {resumeSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
