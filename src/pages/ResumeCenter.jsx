@@ -545,6 +545,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [savedResumes, setSavedResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState('');
+  const [deletingResumeId, setDeletingResumeId] = useState('');
   const [resumeLibraryLoading, setResumeLibraryLoading] = useState(false);
   const [resumeSaving, setResumeSaving] = useState(false);
   const [fixingIssueId, setFixingIssueId] = useState('');
@@ -838,7 +839,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const loadStoredResume = async (id) => {
-    if (!id) return;
+    if (!id) {
+      setSelectedResumeId('');
+      return;
+    }
     setResumeLibraryLoading(true);
     setResumeError('');
     try {
@@ -857,16 +861,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   const deleteStoredResume = async (id = selectedResumeId) => {
     if (!id) return;
-    setResumeLibraryLoading(true);
+    setDeletingResumeId(id);
     setResumeError('');
+    const previousResumes = savedResumes;
+    const previousSelectedResumeId = selectedResumeId;
+    setSavedResumes(current => current.filter(resume => resume.id !== id));
+    if (selectedResumeId === id) setSelectedResumeId('');
     try {
       await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
-      if (selectedResumeId === id) setSelectedResumeId('');
       await loadSavedResumes();
     } catch (error) {
+      setSavedResumes(previousResumes);
+      setSelectedResumeId(previousSelectedResumeId);
       setResumeError(error.message);
     } finally {
-      setResumeLibraryLoading(false);
+      setDeletingResumeId('');
     }
   };
 
@@ -1519,22 +1528,42 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </button>
                     </div>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <select value={selectedResumeId} onChange={e => loadStoredResume(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                       <option value="">Current unsaved resume</option>
                       {savedResumes.map(resume => (
                         <option key={resume.id} value={resume.id}>{resume.title}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => downloadStoredResumePdf()} className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 flex items-center justify-center gap-1.5">
+                    <button type="button" onClick={() => downloadStoredResumePdf()} disabled={!selectedResumeId} className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
                       <Download className="w-3.5 h-3.5" /> Backend PDF
-                    </button>
-                    <button type="button" onClick={() => deleteStoredResume()} disabled={!selectedResumeId || resumeLibraryLoading} className="rounded-xl bg-red-50 px-3 py-2.5 text-[11px] font-black text-red-600 hover:bg-red-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
                   </div>
                   {savedResumes.length >= 4 && (
-                    <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Maximum resume limit reached. Delete one saved resume before creating another.</p>
+                    <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Maximum resume limit reached. Delete one saved resume below before creating another.</p>
+                  )}
+                  {savedResumes.length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      {savedResumes.map(resume => {
+                        const isSelectedResume = resume.id === selectedResumeId;
+                        const isDeletingResume = resume.id === deletingResumeId;
+                        return (
+                          <div key={resume.id} className={`grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[1fr_auto_auto] sm:items-center ${isSelectedResume ? 'border-indigo-200 bg-indigo-50/60' : 'border-slate-100 bg-slate-50/70'}`}>
+                            <button type="button" onClick={() => loadStoredResume(resume.id)} className="min-w-0 text-left">
+                              <p className="truncate text-xs font-black text-slate-800">{resume.title}</p>
+                              <p className="mt-0.5 text-[10px] font-bold text-slate-400">{new Date(resume.updatedAt || resume.createdAt).toLocaleDateString()}</p>
+                            </button>
+                            <button type="button" onClick={() => downloadStoredResumePdf(resume.id)} className="rounded-lg bg-emerald-50 px-2.5 py-2 text-[10px] font-black text-emerald-700 hover:bg-emerald-100 flex items-center justify-center gap-1.5">
+                              <Download className="w-3.5 h-3.5" /> PDF
+                            </button>
+                            <button type="button" onClick={() => deleteStoredResume(resume.id)} disabled={Boolean(deletingResumeId)} className="rounded-lg bg-red-50 px-2.5 py-2 text-[10px] font-black text-red-600 hover:bg-red-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
+                              {isDeletingResume ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              {isDeletingResume ? 'Deleting' : 'Delete'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
