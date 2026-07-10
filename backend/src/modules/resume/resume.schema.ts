@@ -65,7 +65,24 @@ export const templateConfigSchema = z.object({
     y: z.number().min(0).max(2500),
     width: z.number().positive().max(2000),
     style: z.record(z.unknown()).optional()
-  })).max(40).default([])
+  })).max(40).default([]),
+  uploadedPdf: z.object({
+    pages: z.array(z.object({
+      page: z.number().int().positive(),
+      width: z.number().positive().max(5000),
+      height: z.number().positive().max(5000)
+    })).max(10).default([]),
+    blocks: z.array(z.object({
+      page: z.number().int().positive(),
+      text: z.string().trim().max(2000),
+      x: z.number().min(0).max(5000),
+      y: z.number().min(0).max(5000),
+      width: z.number().min(0).max(5000),
+      height: z.number().min(0).max(5000),
+      fontSize: z.number().min(4).max(96).default(10),
+      fontFamily: z.string().trim().max(120).default('Arial, sans-serif')
+    })).max(900).default([])
+  }).optional()
 });
 
 export const resumeProblemSchema = z.object({

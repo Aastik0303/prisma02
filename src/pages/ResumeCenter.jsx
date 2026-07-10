@@ -543,7 +543,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [targetRole, setTargetRole] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
-  const [uploadedPdfLayout, setUploadedPdfLayout] = useState(null);
   const [savedResumes, setSavedResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState('');
   const [resumeLibraryLoading, setResumeLibraryLoading] = useState(false);
@@ -781,134 +780,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     })));
   };
 
-  const escapePdfText = (value = '') => String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
-
-  const normalizePdfText = (value = '') => String(value)
-    .replace(/[\u2022\u25E6\u2043]/g, '-')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
-
-  const wrapPdfLine = (line, maxChars = 96) => {
-    if (line.length <= maxChars) return [line];
-    const indent = line.match(/^\s*/)?.[0] || '';
-    const words = line.trim().split(/\s+/);
-    const lines = [];
-    let current = indent;
-
-    words.forEach(word => {
-      const next = current.trim() ? `${current} ${word}` : `${indent}${word}`;
-      if (next.length > maxChars && current.trim()) {
-        lines.push(current);
-        current = `${indent}  ${word}`;
-      } else {
-        current = next;
-      }
-    });
-
-    if (current.trim()) lines.push(current);
-    return lines;
-  };
-
-  const clampNumber = (value, min, max) => Math.max(min, Math.min(max, value));
-
-  const inferPdfTextLayout = (text, sourceLayout = null) => {
-    const pageWidth = sourceLayout?.pageWidth || 612;
-    const pageHeight = sourceLayout?.pageHeight || 792;
-    const rawLines = normalizePdfText(text).replace(/\r\n/g, '\n').split('\n');
-    const lineLengths = rawLines.filter(line => line.trim()).map(line => line.length).sort((a, b) => a - b);
-    const p90Length = lineLengths.length ? lineLengths[Math.floor(lineLengths.length * 0.9)] : 96;
-    const originalPages = sourceLayout?.pageCount || 1;
-    const targetLinesPerPage = Math.max(18, Math.ceil(rawLines.length / originalPages));
-    const lineHeight = clampNumber(Math.floor((pageHeight - 96) / targetLinesPerPage), 10, 15);
-
-    return {
-      pageWidth,
-      pageHeight,
-      marginX: sourceLayout?.marginX || 42,
-      marginTop: sourceLayout?.marginTop || 48,
-      fontSize: clampNumber(lineHeight - 3, 8, 11),
-      lineHeight,
-      maxChars: clampNumber(Math.max(p90Length + 8, 78), 78, 120)
-    };
-  };
-
-  const createResumePdfBlob = (text, sourceLayout = uploadedPdfLayout) => {
-    const layout = inferPdfTextLayout(text, sourceLayout);
-    const { pageWidth, pageHeight, marginX, marginTop, fontSize, lineHeight, maxChars } = layout;
-    const linesPerPage = Math.max(1, Math.floor((pageHeight - marginTop - 42) / lineHeight));
-    const lines = normalizePdfText(text)
-      .replace(/\r\n/g, '\n')
-      .split('\n')
-      .flatMap(line => line.trim() ? wrapPdfLine(line, maxChars) : ['']);
-    const pages = [];
-
-    for (let index = 0; index < lines.length; index += linesPerPage) {
-      pages.push(lines.slice(index, index + linesPerPage));
-    }
-    if (pages.length === 0) pages.push(['']);
-
-    const objects = [
-      '<< /Type /Catalog /Pages 2 0 R >>',
-      `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`
-    ];
-
-    pages.forEach((pageLines, pageIndex) => {
-      const pageObjectId = 3 + pageIndex * 2;
-      const contentObjectId = pageObjectId + 1;
-      const textCommands = pageLines.map((line, lineIndex) => {
-        const y = pageHeight - marginTop - lineIndex * lineHeight;
-        return `BT /F1 ${fontSize} Tf ${marginX} ${y} Td (${escapePdfText(line)}) Tj ET`;
-      }).join('\n');
-
-      objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Courier >> >> >> /Contents ${contentObjectId} 0 R >>`);
-      objects.push(`<< /Length ${textCommands.length} >>\nstream\n${textCommands}\nendstream`);
-    });
-
-    let pdf = '%PDF-1.4\n';
-    const offsets = [0];
-    objects.forEach((object, index) => {
-      offsets.push(pdf.length);
-      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    });
-    const xrefOffset = pdf.length;
-    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-    offsets.slice(1).forEach(offset => {
-      pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-    });
-    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-    return new Blob([pdf], { type: 'application/pdf' });
-  };
-
-  const readUploadedPdfLayout = async (file) => {
-    if (!file || file.name.toLowerCase().split('.').pop() !== 'pdf') return null;
-    try {
-      const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
-      const source = new TextDecoder('latin1').decode(buffer);
-      const mediaBox = source.match(/\/MediaBox\s*\[\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\]/);
-      const pageMatches = source.match(/\/Type\s*\/Page\b/g) || [];
-      if (!mediaBox) return { pageWidth: 612, pageHeight: 792, pageCount: Math.max(pageMatches.length, 1) };
-
-      const [, x1, y1, x2, y2] = mediaBox.map(Number);
-      const pageWidth = Math.abs(x2 - x1);
-      const pageHeight = Math.abs(y2 - y1);
-      if (!Number.isFinite(pageWidth) || !Number.isFinite(pageHeight) || pageWidth < 200 || pageHeight < 200) return null;
-
-      return {
-        pageWidth,
-        pageHeight,
-        pageCount: Math.max(pageMatches.length, 1)
-      };
-    } catch {
-      return null;
-    }
-  };
-
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -918,14 +789,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  };
-
-  const downloadResumeText = (text = reviewText, label = 'resume') => {
-    const cleanText = text.trim();
-    if (!cleanText) return;
-    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    downloadBlob(createResumePdfBlob(cleanText, uploadedPdfLayout), `${safeLabel}-${dateStamp}.pdf`);
   };
 
   const loadSavedResumes = async () => {
@@ -1067,6 +930,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     } catch (error) {
       setResumeError(error.message);
     }
+  };
+
+  const downloadScannerResumePdf = async () => {
+    if (!selectedResumeId) {
+      setResumeError('Save the resume first so the backend can export it with the preserved template.');
+      return;
+    }
+    await downloadStoredResumePdf(selectedResumeId);
   };
 
   useEffect(() => {
@@ -1229,7 +1100,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setScanProgress(15);
     setResumeError('');
     setUploadedFileName(file.name);
-    setUploadedPdfLayout(await readUploadedPdfLayout(file));
     try {
       const createUploadFormData = () => {
         const formData = new FormData();
@@ -2292,7 +2162,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       {(comparison?.improvedText || scanText.trim()) && (
                         <button
                           type="button"
-                          onClick={() => selectedResumeId ? downloadStoredResumePdf(selectedResumeId) : downloadResumeText(comparison?.improvedText || scanText, comparison?.improvedText ? 'updated-resume' : 'resume')}
+                          onClick={downloadScannerResumePdf}
                           className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
                         >
                           <Download className="w-4 h-4" /> Download PDF
@@ -2426,7 +2296,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => selectedResumeId ? downloadStoredResumePdf(selectedResumeId) : downloadResumeText(comparison.improvedText, 'updated-resume')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
+                      <button onClick={downloadScannerResumePdf} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
                         <Download className="w-4 h-4" /> Download updated PDF
                       </button>
                       <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">

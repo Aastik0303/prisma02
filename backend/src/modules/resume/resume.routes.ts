@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../../app.js';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { resumeAiRateLimit, resumeUploadRateLimit } from '../../plugins/rateLimit.js';
-import { MAX_RESUME_BYTES } from './resume.extractor.js';
+import { extractResumeDocument, MAX_RESUME_BYTES, type ExtractedPdfLayout } from './resume.extractor.js';
 import { parseResumeTextToJson, improveParsedResumeJson } from './resume.ai.js';
 import { renderResumeHtml, renderResumePdf, resumeJsonToLines } from './resume.renderer.js';
 import {
@@ -45,6 +45,21 @@ const defaultTemplateConfig = () => templateConfigSchema.parse({
     { key: 'education', x: 48, y: 590, width: 516 }
   ]
 });
+
+const uploadedPdfTemplateConfig = (layout?: ExtractedPdfLayout) => {
+  if (!layout?.blocks.length) return defaultTemplateConfig();
+
+  return templateConfigSchema.parse({
+    ...defaultTemplateConfig(),
+    templateId: 'uploaded-pdf-layout',
+    page: {
+      width: layout.pages[0]?.width || 595,
+      height: layout.pages[0]?.height || 842,
+      margin: 0
+    },
+    uploadedPdf: layout
+  });
+};
 
 async function enforceResumeLimit(request: FastifyRequest, _reply: FastifyReply) {
   const count = await resumeStore(request.server).count({
@@ -211,13 +226,17 @@ export async function resumeRoutes(fastify: FastifyInstance) {
       || 'Untitled resume';
     const targetRole = extractMultipartField(part, 'targetRole', 120);
 
+    let extracted;
     let result;
     try {
+      extracted = await extractResumeDocument({
+        buffer,
+        filename: part.filename,
+        mimetype: part.mimetype
+      });
       result = await runResumeWorkflow({
         operation: 'analyze',
-        fileBuffer: buffer,
-        filename: part.filename,
-        mimetype: part.mimetype,
+        resumeText: extracted.text,
         targetRole
       });
     } finally {
@@ -225,7 +244,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     }
 
     const parsedJsonData = await parseResumeTextToJson(result.resumeText);
-    const templateConfig = defaultTemplateConfig();
+    const templateConfig = uploadedPdfTemplateConfig(extracted?.uploadedPdfLayout);
     const resume = await resumeStore(fastify).create({
       data: {
         userId: request.user!.id,

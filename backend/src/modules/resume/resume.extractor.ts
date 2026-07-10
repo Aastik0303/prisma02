@@ -1,5 +1,6 @@
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { AppError } from '../../app.js';
 
 export const MAX_RESUME_BYTES = 5 * 1024 * 1024;
@@ -10,6 +11,24 @@ const DOCX_MIMES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/octet-stream'
 ]);
+
+export type ExtractedPdfLayout = {
+  pages: Array<{
+    page: number;
+    width: number;
+    height: number;
+  }>;
+  blocks: Array<{
+    page: number;
+    text: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fontSize: number;
+    fontFamily: string;
+  }>;
+};
 
 function hasPdfSignature(buffer: Buffer) {
   return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
@@ -105,6 +124,105 @@ async function extractPdfText(buffer: Buffer) {
   }
 }
 
+function roundLayoutNumber(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function normalizePdfFont(fontName = '') {
+  const clean = fontName.replace(/^[A-Z0-9]{6}\+/, '').replace(/[_-]+/g, ' ').trim();
+  if (/times|serif/i.test(clean)) return 'Times New Roman, serif';
+  if (/courier|mono/i.test(clean)) return 'Courier New, monospace';
+  return 'Arial, sans-serif';
+}
+
+function mergePdfLineBlocks(blocks: ExtractedPdfLayout['blocks']) {
+  const merged: ExtractedPdfLayout['blocks'] = [];
+  const sorted = [...blocks].sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+
+  for (const block of sorted) {
+    const previous = merged[merged.length - 1];
+    const sameLine = previous
+      && previous.page === block.page
+      && Math.abs(previous.y - block.y) <= Math.max(3, previous.fontSize * 0.35);
+
+    if (!sameLine) {
+      merged.push({ ...block });
+      continue;
+    }
+
+    const gap = block.x - (previous.x + previous.width);
+    const joiner = gap > previous.fontSize * 0.3 ? ' ' : '';
+    previous.text = `${previous.text}${joiner}${block.text}`.trim().slice(0, 2000);
+    const right = Math.max(previous.x + previous.width, block.x + block.width);
+    previous.x = roundLayoutNumber(Math.min(previous.x, block.x));
+    previous.y = roundLayoutNumber(Math.min(previous.y, block.y));
+    previous.width = roundLayoutNumber(right - previous.x);
+    previous.height = roundLayoutNumber(Math.max(previous.height, block.height));
+    previous.fontSize = roundLayoutNumber(Math.max(previous.fontSize, block.fontSize));
+  }
+
+  return merged;
+}
+
+async function extractPdfLayout(buffer: Buffer): Promise<ExtractedPdfLayout | undefined> {
+  const loadingTask = getDocument({
+    data: new Uint8Array(buffer),
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: true
+  });
+
+  const document = await loadingTask.promise;
+  try {
+    const pages: ExtractedPdfLayout['pages'] = [];
+    const blocks: ExtractedPdfLayout['blocks'] = [];
+
+    for (let pageNumber = 1; pageNumber <= Math.min(document.numPages, 10); pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      pages.push({
+        page: pageNumber,
+        width: roundLayoutNumber(viewport.width),
+        height: roundLayoutNumber(viewport.height)
+      });
+
+      const content = await page.getTextContent({ includeMarkedContent: false });
+      for (const rawItem of content.items) {
+        if (!('str' in rawItem)) continue;
+        const text = sanitizeResumeText(String(rawItem.str || ''));
+        if (!text) continue;
+
+        const item = rawItem as typeof rawItem & {
+          width?: number;
+          height?: number;
+          fontName?: string;
+          transform?: number[];
+        };
+        const transform = item.transform || [1, 0, 0, 1, 0, 0];
+        const fontSize = Math.max(6, Math.min(40, Math.hypot(transform[2] || 0, transform[3] || 0) || item.height || 10));
+        const x = transform[4] || 0;
+        const y = viewport.height - (transform[5] || 0) - fontSize;
+
+        blocks.push({
+          page: pageNumber,
+          text: text.slice(0, 2000),
+          x: roundLayoutNumber(Math.max(0, x)),
+          y: roundLayoutNumber(Math.max(0, y)),
+          width: roundLayoutNumber(Math.max(item.width || text.length * fontSize * 0.45, 2)),
+          height: roundLayoutNumber(Math.max(item.height || fontSize * 1.2, fontSize)),
+          fontSize: roundLayoutNumber(fontSize),
+          fontFamily: normalizePdfFont(item.fontName)
+        });
+      }
+    }
+
+    const lineBlocks = mergePdfLineBlocks(blocks).filter(block => block.text.length >= 2);
+    return lineBlocks.length ? { pages, blocks: lineBlocks.slice(0, 900) } : undefined;
+  } finally {
+    await document.destroy();
+  }
+}
+
 export function sanitizeResumeText(value: string) {
   return value
     .normalize('NFKC')
@@ -122,6 +240,14 @@ export async function extractResumeText(input: {
   filename: string;
   mimetype: string;
 }) {
+  return (await extractResumeDocument(input)).text;
+}
+
+export async function extractResumeDocument(input: {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}) {
   const extension = input.filename.toLowerCase().split('.').pop();
 
   if (input.buffer.length === 0 || input.buffer.length > MAX_RESUME_BYTES) {
@@ -129,10 +255,12 @@ export async function extractResumeText(input: {
   }
 
   let rawText = '';
+  let uploadedPdfLayout: ExtractedPdfLayout | undefined;
 
   try {
     if (extension === 'pdf' && input.mimetype === PDF_MIME && hasPdfSignature(input.buffer)) {
       rawText = await extractPdfText(input.buffer);
+      uploadedPdfLayout = await extractPdfLayout(input.buffer);
     } else if (extension === 'docx' && DOCX_MIMES.has(input.mimetype) && hasZipSignature(input.buffer)) {
       rawText = (await mammoth.extractRawText({ buffer: input.buffer })).value;
     } else {
@@ -152,5 +280,8 @@ export async function extractResumeText(input: {
     );
   }
 
-  return text;
+  return {
+    text,
+    uploadedPdfLayout
+  };
 }

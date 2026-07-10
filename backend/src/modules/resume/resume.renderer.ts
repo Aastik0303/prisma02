@@ -16,6 +16,8 @@ const pushSection = (lines: string[], title: string, body: string[]) => {
   lines.push(...cleanBody);
 };
 
+const px = (value: number) => `${Math.round(value * 100) / 100}px`;
+
 export function resumeJsonToLines(data: ParsedResumeJson) {
   const lines: string[] = [];
   const personal = data.personal_info || {};
@@ -46,6 +48,10 @@ export function renderResumeHtml(input: {
   data: ParsedResumeJson;
   template: TemplateConfig;
 }) {
+  if (input.template.uploadedPdf?.blocks?.length) {
+    return renderUploadedPdfHtml(input);
+  }
+
   const { data, template } = input;
   const colors = {
     text: template.colors.text || '#0f172a',
@@ -103,6 +109,79 @@ export function renderResumeHtml(input: {
     ${data.projects?.length ? `<section><h2>Projects</h2>${data.projects.map(item => `<p><strong>${escapeHtml(item.title)}</strong>${item.url ? ` <span class="muted">${escapeHtml(item.url)}</span>` : ''}</p><ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`).join('')}</section>` : ''}
     ${data.education?.length ? `<section><h2>Education</h2>${data.education.map(item => `<p><strong>${escapeHtml([item.degree, item.institution].filter(Boolean).join(', '))}</strong> <span class="muted">${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(' - '))}</span></p>${item.details?.length ? `<ul>${item.details.map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}</ul>` : ''}`).join('')}</section>` : ''}
   </main>
+</body>
+</html>`;
+}
+
+function renderUploadedPdfHtml(input: {
+  data: ParsedResumeJson;
+  template: TemplateConfig;
+}) {
+  const { template } = input;
+  const layout = template.uploadedPdf!;
+  const colors = {
+    text: template.colors.text || '#0f172a',
+    background: template.colors.background || '#ffffff'
+  };
+  const lines = resumeJsonToLines(input.data);
+  const blocks = [...layout.blocks].sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+  const pages = layout.pages.length
+    ? layout.pages
+    : [{ page: 1, width: template.page.width || 595, height: template.page.height || 842 }];
+  const firstPage = pages[0];
+
+  let lineIndex = 0;
+  const pageHtml = pages.map(page => {
+    const blocksHtml = blocks
+      .filter(block => block.page === page.page)
+      .map(block => {
+        const text = lines[lineIndex] || '';
+        lineIndex += 1;
+        if (!text) return '';
+        const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(text);
+        return `<div class="pdf-text ${isHeading ? 'heading' : ''}" style="left:${px(block.x)};top:${px(block.y)};width:${px(Math.max(block.width, 60))};min-height:${px(block.height)};font-size:${px(block.fontSize)};font-family:${escapeHtml(block.fontFamily)};">${escapeHtml(text)}</div>`;
+      })
+      .join('');
+
+    return `<section class="pdf-page" style="width:${px(page.width)};height:${px(page.height)};">${blocksHtml}</section>`;
+  }).join('');
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: ${px(firstPage.width)} ${px(firstPage.height)}; margin: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: ${colors.background};
+      color: ${colors.text};
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .pdf-page {
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      background: ${colors.background};
+    }
+    .pdf-page:last-child { page-break-after: auto; }
+    .pdf-text {
+      position: absolute;
+      white-space: pre-wrap;
+      line-height: 1.16;
+      overflow: hidden;
+    }
+    .pdf-text.heading {
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+  </style>
+</head>
+<body>
+  ${pageHtml}
 </body>
 </html>`;
 }
