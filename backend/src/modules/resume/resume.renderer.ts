@@ -1,4 +1,5 @@
 import type { ParsedResumeJson, TemplateConfig } from './resume.schema.js';
+import puppeteer, { type Browser } from 'puppeteer';
 
 const escapeHtml = (value = '') => String(value)
   .replace(/&/g, '&amp;')
@@ -6,12 +7,6 @@ const escapeHtml = (value = '') => String(value)
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
-
-const escapePdfText = (value = '') => String(value)
-  .replace(/\\/g, '\\\\')
-  .replace(/\(/g, '\\(')
-  .replace(/\)/g, '\\)')
-  .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
 
 const pushSection = (lines: string[], title: string, body: string[]) => {
   const cleanBody = body.map(line => line.trim()).filter(Boolean);
@@ -60,98 +55,87 @@ export function renderResumeHtml(input: {
   };
   const font = template.fonts.body?.family || 'Inter, Arial, sans-serif';
   const page = template.page;
+  const innerPadding = Math.max(8, Math.min(30, Math.round((page.margin || 48) * 0.352778)));
 
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
-    @page { size: ${page.width}pt ${page.height}pt; margin: ${page.margin}pt; }
-    body { margin: 0; background: ${colors.background}; color: ${colors.text}; font-family: ${font}; font-size: ${template.fonts.body?.size || 10}pt; }
-    h1 { margin: 0; font-size: ${template.fonts.name?.size || 24}pt; color: ${colors.text}; }
-    h2 { margin: 14pt 0 5pt; padding-bottom: 3pt; border-bottom: 1pt solid ${colors.accent}; font-size: ${template.fonts.heading?.size || 11}pt; color: ${colors.accent}; text-transform: uppercase; }
+    @page { size: A4; margin: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 210mm;
+      min-height: 297mm;
+      background: ${colors.background};
+      color: ${colors.text};
+      font-family: ${font};
+      font-size: ${template.fonts.body?.size || 10}pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: ${innerPadding}mm 20mm;
+      background: ${colors.background};
+      overflow: hidden;
+    }
+    h1 { margin: 0; font-size: ${template.fonts.name?.size || 24}pt; color: ${colors.text}; line-height: 1.05; }
+    h2 { margin: 12pt 0 5pt; padding-bottom: 3pt; border-bottom: 1pt solid ${colors.accent}; font-size: ${template.fonts.heading?.size || 11}pt; color: ${colors.accent}; text-transform: uppercase; break-after: avoid; }
     p { margin: 0 0 4pt; line-height: 1.35; }
-    ul { margin: 3pt 0 0 14pt; padding: 0; }
-    li { margin: 0 0 3pt; line-height: 1.3; }
+    ul { margin: 3pt 0 7pt 14pt; padding: 0; }
+    li { margin: 0 0 3pt; line-height: 1.3; break-inside: avoid; }
     .muted { color: ${colors.muted}; }
     .row { display: flex; justify-content: space-between; gap: 14pt; }
+    section { break-inside: avoid; }
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(data.personal_info?.name || 'Resume')}</h1>
-  <p class="muted">${escapeHtml([data.personal_info?.email, data.personal_info?.phone, data.personal_info?.location].filter(Boolean).join(' | '))}</p>
-  ${data.summary ? `<h2>Summary</h2><p>${escapeHtml(data.summary)}</p>` : ''}
-  ${data.skills?.length ? `<h2>Skills</h2><p>${escapeHtml(data.skills.join(' | '))}</p>` : ''}
-  ${data.experience?.length ? `<h2>Experience</h2>${data.experience.map(item => `<p><strong>${escapeHtml([item.title, item.company].filter(Boolean).join(', '))}</strong> <span class="muted">${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(' - '))}</span></p><ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`).join('')}` : ''}
-  ${data.projects?.length ? `<h2>Projects</h2>${data.projects.map(item => `<p><strong>${escapeHtml(item.title)}</strong>${item.url ? ` <span class="muted">${escapeHtml(item.url)}</span>` : ''}</p><ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`).join('')}` : ''}
-  ${data.education?.length ? `<h2>Education</h2>${data.education.map(item => `<p><strong>${escapeHtml([item.degree, item.institution].filter(Boolean).join(', '))}</strong> <span class="muted">${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(' - '))}</span></p>${item.details?.length ? `<ul>${item.details.map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}</ul>` : ''}`).join('')}` : ''}
+  <main class="page">
+    <h1>${escapeHtml(data.personal_info?.name || 'Resume')}</h1>
+    <p class="muted">${escapeHtml([data.personal_info?.email, data.personal_info?.phone, data.personal_info?.location].filter(Boolean).join(' | '))}</p>
+    ${data.summary ? `<section><h2>Summary</h2><p>${escapeHtml(data.summary)}</p></section>` : ''}
+    ${data.skills?.length ? `<section><h2>Skills</h2><p>${escapeHtml(data.skills.join(' | '))}</p></section>` : ''}
+    ${data.experience?.length ? `<section><h2>Experience</h2>${data.experience.map(item => `<p><strong>${escapeHtml([item.title, item.company].filter(Boolean).join(', '))}</strong> <span class="muted">${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(' - '))}</span></p><ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`).join('')}</section>` : ''}
+    ${data.projects?.length ? `<section><h2>Projects</h2>${data.projects.map(item => `<p><strong>${escapeHtml(item.title)}</strong>${item.url ? ` <span class="muted">${escapeHtml(item.url)}</span>` : ''}</p><ul>${item.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`).join('')}</section>` : ''}
+    ${data.education?.length ? `<section><h2>Education</h2>${data.education.map(item => `<p><strong>${escapeHtml([item.degree, item.institution].filter(Boolean).join(', '))}</strong> <span class="muted">${escapeHtml([item.startDate, item.endDate].filter(Boolean).join(' - '))}</span></p>${item.details?.length ? `<ul>${item.details.map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}</ul>` : ''}`).join('')}</section>` : ''}
+  </main>
 </body>
 </html>`;
 }
 
-export function renderResumePdf(input: {
+let browserPromise: Promise<Browser> | undefined;
+
+const getBrowser = async () => {
+  if (!browserPromise) {
+    browserPromise = puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none']
+    });
+  }
+  return browserPromise;
+};
+
+export async function renderResumePdf(input: {
   data: ParsedResumeJson;
   template: TemplateConfig;
 }) {
-  const { template } = input;
-  const pageWidth = template.page.width;
-  const pageHeight = template.page.height;
-  const margin = template.page.margin;
-  const fontSize = template.fonts.body?.size || 10;
-  const lineHeight = Math.max(fontSize + 3, 12);
-  const maxChars = Math.max(72, Math.floor((pageWidth - margin * 2) / (fontSize * 0.55)));
-  const sourceLines = resumeJsonToLines(input.data).flatMap(line => {
-    if (line.length <= maxChars) return [line];
-    const words = line.split(/\s+/);
-    const wrapped: string[] = [];
-    let current = '';
-    for (const word of words) {
-      const next = current ? `${current} ${word}` : word;
-      if (next.length > maxChars && current) {
-        wrapped.push(current);
-        current = word;
-      } else {
-        current = next;
-      }
-    }
-    if (current) wrapped.push(current);
-    return wrapped;
-  });
-  const linesPerPage = Math.max(1, Math.floor((pageHeight - margin * 2) / lineHeight));
-  const pages: string[][] = [];
-  for (let index = 0; index < sourceLines.length; index += linesPerPage) {
-    pages.push(sourceLines.slice(index, index + linesPerPage));
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(renderResumeHtml(input), { waitUntil: 'load' });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0px', bottom: '0px', left: '0px', right: '0px' }
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close();
   }
-  if (!pages.length) pages.push(['']);
-
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`
-  ];
-
-  pages.forEach((pageLines, pageIndex) => {
-    const pageObjectId = 3 + pageIndex * 2;
-    const contentObjectId = pageObjectId + 1;
-    const commands = pageLines.map((line, lineIndex) => {
-      const y = pageHeight - margin - lineIndex * lineHeight;
-      return `BT /F1 ${fontSize} Tf ${margin} ${y} Td (${escapePdfText(line)}) Tj ET`;
-    }).join('\n');
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents ${contentObjectId} 0 R >>`);
-    objects.push(`<< /Length ${commands.length} >>\nstream\n${commands}\nendstream`);
-  });
-
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach(offset => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  return Buffer.from(pdf, 'binary');
 }

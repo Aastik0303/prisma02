@@ -959,6 +959,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         ? await resumeApiRequest(`/resumes/${selectedResumeId}`, { method: 'PUT', body: JSON.stringify(body), authRequired: true })
         : await resumeApiRequest('/resumes', { method: 'POST', body: JSON.stringify(body), authRequired: true });
       setSelectedResumeId(saved.id);
+      if (saved.scannerSession?.analysis) {
+        const scannedText = saved.scannerSession.resumeText || saved.rawExtractedText || rawExtractedText;
+        setScanText(scannedText);
+        applyAnalysis(saved.scannerSession.analysis, scannedText);
+        setComparison(null);
+      }
       await loadSavedResumes();
       triggerConfetti();
     } catch (error) {
@@ -1018,6 +1024,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         })
       });
       applyParsedJsonToBuilder(updated.parsedJsonData || {});
+      if (updated.scannerSession?.analysis) {
+        const scannedText = updated.scannerSession.resumeText || updated.rawExtractedText || scanText;
+        setScanText(scannedText);
+        applyAnalysis(updated.scannerSession.analysis, scannedText);
+        setComparison(null);
+      }
       await loadSavedResumes();
       setBuilderPolishMessage('Saved resume content improved with AI.');
       triggerConfetti();

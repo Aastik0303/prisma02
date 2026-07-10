@@ -5,7 +5,7 @@ import { requireAuth } from '../auth/auth.middleware.js';
 import { resumeAiRateLimit, resumeUploadRateLimit } from '../../plugins/rateLimit.js';
 import { MAX_RESUME_BYTES } from './resume.extractor.js';
 import { parseResumeTextToJson, improveParsedResumeJson } from './resume.ai.js';
-import { renderResumeHtml, renderResumePdf } from './resume.renderer.js';
+import { renderResumeHtml, renderResumePdf, resumeJsonToLines } from './resume.renderer.js';
 import {
   analyzeResumeBodySchema,
   createResumeBodySchema,
@@ -97,6 +97,49 @@ function serializeResumeRecord(resume: any) {
   };
 }
 
+function buildResumeTextForScan(parsedJsonData: unknown, fallbackText = '') {
+  const parsed = parsedResumeJsonSchema.safeParse(parsedJsonData);
+  const structuredText = parsed.success ? resumeJsonToLines(parsed.data).join('\n') : '';
+  const scanText = structuredText.trim().length >= 50 ? structuredText : fallbackText;
+  return scanText.trim();
+}
+
+async function runSavedResumeScan(input: {
+  parsedJsonData: unknown;
+  rawExtractedText: string;
+  targetRole?: string;
+}) {
+  const resumeText = buildResumeTextForScan(input.parsedJsonData, input.rawExtractedText);
+  if (resumeText.length < 50) return undefined;
+
+  try {
+    const result = await runResumeWorkflow({
+      operation: 'analyze',
+      resumeText,
+      targetRole: input.targetRole
+    });
+
+    return {
+      resumeText: result.resumeText,
+      analysis: result.analysis,
+      suggestions: result.suggestions
+    };
+  } catch (error) {
+    console.warn('Saved resume ATS scan failed after persistence', {
+      name: (error as { name?: string })?.name,
+      message: (error as { message?: string })?.message?.slice(0, 300)
+    });
+    return undefined;
+  }
+}
+
+function serializeResumeWithScannerSession(resume: any, scannerSession?: Awaited<ReturnType<typeof runSavedResumeScan>>) {
+  return {
+    ...serializeResumeRecord(resume),
+    ...(scannerSession ? { scannerSession } : {})
+  };
+}
+
 export async function resumeRoutes(fastify: FastifyInstance) {
   await fastify.register(multipart, {
     limits: {
@@ -121,8 +164,12 @@ export async function resumeRoutes(fastify: FastifyInstance) {
         templateConfig: body.templateConfig
       }
     });
+    const scannerSession = await runSavedResumeScan({
+      parsedJsonData: resume.parsedJsonData,
+      rawExtractedText: resume.rawExtractedText
+    });
 
-    return reply.code(201).send(serializeResumeRecord(resume));
+    return reply.code(201).send(serializeResumeWithScannerSession(resume, scannerSession));
   });
 
   fastify.get('/resumes', {
@@ -213,7 +260,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     const resume = await getOwnedResume(request);
     const data = parsedResumeJsonSchema.parse(resume.parsedJsonData);
     const template = templateConfigSchema.parse(resume.templateConfig);
-    const pdf = renderResumePdf({ data, template });
+    const pdf = await renderResumePdf({ data, template });
     const safeTitle = resume.title.replace(/[^a-z0-9-]+/gi, '-').replace(/(^-|-$)/g, '') || 'resume';
 
     return reply
@@ -241,8 +288,13 @@ export async function resumeRoutes(fastify: FastifyInstance) {
         parsedJsonData: improvedJson
       }
     });
+    const scannerSession = await runSavedResumeScan({
+      parsedJsonData: updated.parsedJsonData,
+      rawExtractedText: updated.rawExtractedText,
+      targetRole: body.targetRole
+    });
 
-    return serializeResumeRecord(updated);
+    return serializeResumeWithScannerSession(updated, scannerSession);
   });
 
   fastify.get('/resumes/:id', {
@@ -265,8 +317,12 @@ export async function resumeRoutes(fastify: FastifyInstance) {
         ...(body.templateConfig !== undefined ? { templateConfig: body.templateConfig } : {})
       }
     });
+    const scannerSession = await runSavedResumeScan({
+      parsedJsonData: updated.parsedJsonData,
+      rawExtractedText: updated.rawExtractedText
+    });
 
-    return serializeResumeRecord(updated);
+    return serializeResumeWithScannerSession(updated, scannerSession);
   });
 
   fastify.delete('/resumes/:id', {
