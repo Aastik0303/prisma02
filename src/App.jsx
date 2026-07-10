@@ -4,6 +4,7 @@ import {
   Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
   MoreVertical, User, LogIn, UserPlus, LogOut, ShieldAlert, Shield, Key, CheckCircle2, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 // Route-level splitting keeps startup light; preloading below makes later navigation feel instant.
 const pageLoaders = {
@@ -2435,6 +2436,7 @@ export default function App() {
         </div>
       )}
 
+      <Analytics />
     </div>
   );
 }
