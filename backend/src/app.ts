@@ -60,6 +60,25 @@ const normalizeOrigin = (value?: string | null) => {
 
 const isLocalOrigin = (value: string) => /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value);
 
+const formatValidationMessage = (issues: any[] = []) => {
+  const firstIssue = issues[0];
+  if (!firstIssue) return 'Input validation failed.';
+
+  const field = Array.isArray(firstIssue.path) && firstIssue.path.length
+    ? firstIssue.path.join('.')
+    : 'input';
+
+  if (firstIssue.code === 'too_big' && firstIssue.type === 'string') {
+    return `${field} is too long. Please shorten that field and try again.`;
+  }
+
+  if (firstIssue.code === 'too_small' && firstIssue.type === 'string') {
+    return `${field} needs more content before it can be processed.`;
+  }
+
+  return firstIssue.message || 'Input validation failed.';
+};
+
 const oauthCallbackUri = (provider: 'google' | 'github') => (request: FastifyRequest) => {
   const configuredOrigin = normalizeOrigin(config.BACKEND_URL);
   if (configuredOrigin && (config.NODE_ENV !== 'production' || !isLocalOrigin(configuredOrigin))) {
@@ -231,7 +250,7 @@ export async function buildApp(opts = {}) {
         statusCode: 400,
         error: 'Bad Request',
         code: 'VALIDATION_ERROR',
-        message: error.issues?.[0]?.message || 'Input validation failed',
+        message: formatValidationMessage(error.issues),
         details,
         requestId
       });

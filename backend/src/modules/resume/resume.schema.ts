@@ -4,7 +4,7 @@ const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional().default('');
 
 const resumeLinkSchema = z.object({
-  label: nonEmptyText.max(80),
+  label: nonEmptyText.max(160),
   url: nonEmptyText.max(500)
 });
 
@@ -40,7 +40,7 @@ export const parsedResumeJsonSchema = z.object({
     links: z.array(resumeLinkSchema).max(12).default([])
   }).default({}),
   summary: optionalText,
-  skills: z.array(nonEmptyText.max(80)).max(80).default([]),
+  skills: z.array(nonEmptyText.max(300)).max(120).default([]),
   experience: z.array(resumeExperienceSchema).max(20).default([]),
   education: z.array(resumeEducationSchema).max(12).default([]),
   projects: z.array(resumeProjectSchema).max(20).default([])
