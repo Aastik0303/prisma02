@@ -472,6 +472,16 @@ let idCounter = 0;
 const genId = () => `item_${++idCounter}_${Date.now()}`;
 const RESUME_API_BASE_URL = import.meta.env.VITE_RESUME_API_BASE_URL || '/api/resume';
 const AUTH_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const AUTH_SESSION_KEY = 'pec_auth_session';
+
+const getStoredAccessToken = () => {
+  try {
+    const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || '{}');
+    return typeof session.accessToken === 'string' ? session.accessToken : '';
+  } catch {
+    return '';
+  }
+};
 
 const getCsrfToken = async () => {
   const response = await fetch(`${AUTH_API_BASE_URL}/auth/csrf-token`, {
@@ -491,14 +501,22 @@ const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
 });
 
 const resumeApiRequest = async (path, options = {}) => {
+  const { authRequired = false, accessToken: providedAccessToken, ...fetchOptions } = options;
   const csrf = await getCsrfToken();
+  const accessToken = providedAccessToken ?? getStoredAccessToken();
+  if (authRequired && !accessToken) {
+    const error = new Error('Please sign in to save and manage resumes.');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
   const response = await fetch(`${RESUME_API_BASE_URL}${path}`, {
-    ...options,
+    ...fetchOptions,
     credentials: 'include',
     headers: {
       ...buildCsrfHeaders(csrf),
-      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...options.headers
+      ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...fetchOptions.headers
     }
   });
   const payload = await response.json().catch(() => ({}));
@@ -911,9 +929,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const loadSavedResumes = async () => {
+    if (!getStoredAccessToken()) {
+      setSavedResumes([]);
+      return;
+    }
     setResumeLibraryLoading(true);
     try {
-      const resumes = await resumeApiRequest('/resumes', { method: 'GET' });
+      const resumes = await resumeApiRequest('/resumes', { method: 'GET', authRequired: true });
       setSavedResumes(Array.isArray(resumes) ? resumes : []);
     } catch (error) {
       setResumeError(error.message);
@@ -934,8 +956,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         templateConfig: currentTemplateConfig()
       };
       const saved = selectedResumeId
-        ? await resumeApiRequest(`/resumes/${selectedResumeId}`, { method: 'PUT', body: JSON.stringify(body) })
-        : await resumeApiRequest('/resumes', { method: 'POST', body: JSON.stringify(body) });
+        ? await resumeApiRequest(`/resumes/${selectedResumeId}`, { method: 'PUT', body: JSON.stringify(body), authRequired: true })
+        : await resumeApiRequest('/resumes', { method: 'POST', body: JSON.stringify(body), authRequired: true });
       setSelectedResumeId(saved.id);
       await loadSavedResumes();
       triggerConfetti();
@@ -951,7 +973,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setResumeLibraryLoading(true);
     setResumeError('');
     try {
-      const resume = await resumeApiRequest(`/resumes/${id}`, { method: 'GET' });
+      const resume = await resumeApiRequest(`/resumes/${id}`, { method: 'GET', authRequired: true });
       setSelectedResumeId(resume.id);
       setScanText(resume.rawExtractedText || '');
       setComparison(null);
@@ -969,7 +991,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setResumeLibraryLoading(true);
     setResumeError('');
     try {
-      await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE' });
+      await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
       if (selectedResumeId === id) setSelectedResumeId('');
       await loadSavedResumes();
     } catch (error) {
@@ -989,6 +1011,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     try {
       const updated = await resumeApiRequest(`/resumes/${selectedResumeId}/improve`, {
         method: 'POST',
+        authRequired: true,
         body: JSON.stringify({
           targetRole: contactInfo.title || targetRole,
           instruction: 'Improve resume content for ATS while preserving facts and keeping template_config unchanged.'
@@ -1012,9 +1035,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     }
     try {
       const csrf = await getCsrfToken();
+      const accessToken = getStoredAccessToken();
+      if (!accessToken) throw new Error('Please sign in to download saved resume PDFs.');
       const response = await fetch(`${RESUME_API_BASE_URL}/resumes/${id}/download`, {
         credentials: 'include',
-        headers: buildCsrfHeaders(csrf)
+        headers: {
+          ...buildCsrfHeaders(csrf),
+          Authorization: `Bearer ${accessToken}`
+        }
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -1191,20 +1219,39 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setUploadedFileName(file.name);
     setUploadedPdfLayout(await readUploadedPdfLayout(file));
     try {
-      const formData = new FormData();
-      formData.append('title', file.name.replace(/\.[^.]+$/, ''));
-      formData.append('targetRole', targetRole);
-      formData.append('resume', file);
+      const createUploadFormData = () => {
+        const formData = new FormData();
+        formData.append('title', file.name.replace(/\.[^.]+$/, ''));
+        formData.append('targetRole', targetRole);
+        formData.append('resume', file);
+        return formData;
+      };
       setScanProgress(45);
-      const result = await resumeApiRequest('/resumes/upload', { method: 'POST', body: formData });
+      const hasAccessToken = Boolean(getStoredAccessToken());
+      let result;
+      try {
+        result = await resumeApiRequest(hasAccessToken ? '/resumes/upload' : '/upload', {
+          method: 'POST',
+          body: createUploadFormData(),
+          authRequired: hasAccessToken
+        });
+      } catch (error) {
+        if (!hasAccessToken || !['UNAUTHORIZED', 'TOKEN_EXPIRED', 'AUTH_REQUIRED'].includes(error.code)) throw error;
+        result = await resumeApiRequest('/upload', {
+          method: 'POST',
+          body: createUploadFormData()
+        });
+      }
       const storedResume = result.resume;
       setScanProgress(100);
       setSelectedResumeId(storedResume?.id || '');
-      setScanText(storedResume?.rawExtractedText || '');
-      if (storedResume?.parsedJsonData) applyParsedJsonToBuilder(storedResume.parsedJsonData);
-      await loadSavedResumes();
+      setScanText(storedResume?.rawExtractedText || result.resumeText || '');
+      if (storedResume?.parsedJsonData) {
+        applyParsedJsonToBuilder(storedResume.parsedJsonData);
+        await loadSavedResumes();
+      }
       setComparison(null);
-      applyAnalysis(result.analysis, storedResume?.rawExtractedText || '');
+      applyAnalysis(result.analysis, storedResume?.rawExtractedText || result.resumeText || '');
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
