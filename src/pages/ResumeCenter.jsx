@@ -583,6 +583,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [newProjectDate, setNewProjectDate] = useState('');
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [builderPolishing, setBuilderPolishing] = useState(false);
+  const [builderPolishMessage, setBuilderPolishMessage] = useState('');
 
   // Experience — now with startDate, endDate, duration
   const [experience, setExperience] = useState([
@@ -624,19 +626,195 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   const reviewText = comparison?.improvedText || scanText;
 
-  const downloadResumeText = (text = reviewText, label = 'resume') => {
-    const cleanText = text.trim();
-    if (!cleanText) return;
-    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
-    const blob = new Blob([cleanText], { type: 'text/plain;charset=utf-8' });
+  const escapePdfText = (value = '') => String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+
+  const normalizePdfText = (value = '') => String(value)
+    .replace(/[\u2022\u25E6\u2043]/g, '-')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
+
+  const wrapPdfLine = (line, maxChars = 96) => {
+    if (line.length <= maxChars) return [line];
+    const indent = line.match(/^\s*/)?.[0] || '';
+    const words = line.trim().split(/\s+/);
+    const lines = [];
+    let current = indent;
+
+    words.forEach(word => {
+      const next = current.trim() ? `${current} ${word}` : `${indent}${word}`;
+      if (next.length > maxChars && current.trim()) {
+        lines.push(current);
+        current = `${indent}  ${word}`;
+      } else {
+        current = next;
+      }
+    });
+
+    if (current.trim()) lines.push(current);
+    return lines;
+  };
+
+  const createResumePdfBlob = (text) => {
+    const pageWidth = 612;
+    const pageHeight = 792;
+    const marginX = 48;
+    const marginTop = 54;
+    const lineHeight = 13;
+    const linesPerPage = Math.floor((pageHeight - marginTop - 42) / lineHeight);
+    const lines = normalizePdfText(text)
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .flatMap(line => line.trim() ? wrapPdfLine(line) : ['']);
+    const pages = [];
+
+    for (let index = 0; index < lines.length; index += linesPerPage) {
+      pages.push(lines.slice(index, index + linesPerPage));
+    }
+    if (pages.length === 0) pages.push(['']);
+
+    const objects = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`
+    ];
+
+    pages.forEach((pageLines, pageIndex) => {
+      const pageObjectId = 3 + pageIndex * 2;
+      const contentObjectId = pageObjectId + 1;
+      const textCommands = pageLines.map((line, lineIndex) => {
+        const y = pageHeight - marginTop - lineIndex * lineHeight;
+        return `BT /F1 10 Tf ${marginX} ${y} Td (${escapePdfText(line)}) Tj ET`;
+      }).join('\n');
+
+      objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Courier >> >> >> /Contents ${contentObjectId} 0 R >>`);
+      objects.push(`<< /Length ${textCommands.length} >>\nstream\n${textCommands}\nendstream`);
+    });
+
+    let pdf = '%PDF-1.4\n';
+    const offsets = [0];
+    objects.forEach((object, index) => {
+      offsets.push(pdf.length);
+      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const xrefOffset = pdf.length;
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    offsets.slice(1).forEach(offset => {
+      pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+    });
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+    return new Blob([pdf], { type: 'application/pdf' });
+  };
+
+  const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${safeLabel}-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadResumeText = (text = reviewText, label = 'resume') => {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadBlob(createResumePdfBlob(cleanText), `${safeLabel}-${dateStamp}.pdf`);
+  };
+
+  const serializeBuilderSections = () => [
+    'PROJECTS',
+    ...projects.flatMap(project => [
+      `[[PROJECT:${project.id}]]`,
+      `Title: ${project.title || ''}`,
+      `Date: ${project.date || ''}`,
+      `URL: ${project.url || ''}`,
+      `Description: ${project.description || ''}`,
+      ''
+    ]),
+    'EXPERIENCE',
+    ...experience.flatMap(exp => [
+      `[[EXPERIENCE:${exp.id}]]`,
+      `Title: ${exp.title || ''}`,
+      `Start: ${exp.startDate || ''}`,
+      `End: ${exp.endDate || ''}`,
+      `Duration: ${exp.duration || ''}`,
+      `Description: ${exp.description || ''}`,
+      ''
+    ])
+  ].join('\n');
+
+  const readMarkedField = (block, label) => {
+    const match = block.match(new RegExp(`^${label}:\\s*([\\s\\S]*?)(?=\\n(?:Title|Date|URL|Start|End|Duration|Description):|$)`, 'im'));
+    return match ? match[1].trim() : undefined;
+  };
+
+  const applyBuilderPolish = (improvedText) => {
+    const projectMatches = [...improvedText.matchAll(/\[\[PROJECT:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
+    const experienceMatches = [...improvedText.matchAll(/\[\[EXPERIENCE:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
+
+    if (!projectMatches.length && !experienceMatches.length) {
+      throw new Error('AI polish finished, but the response could not be mapped back into the builder fields.');
+    }
+
+    setProjects(current => current.map(project => {
+      const match = projectMatches.find(item => item[1] === project.id);
+      if (!match) return project;
+      const block = match[2];
+      return {
+        ...project,
+        title: readMarkedField(block, 'Title') ?? project.title,
+        date: readMarkedField(block, 'Date') ?? project.date,
+        url: readMarkedField(block, 'URL') ?? project.url,
+        description: readMarkedField(block, 'Description') ?? project.description
+      };
+    }));
+
+    setExperience(current => current.map(exp => {
+      const match = experienceMatches.find(item => item[1] === exp.id);
+      if (!match) return exp;
+      const block = match[2];
+      return {
+        ...exp,
+        title: readMarkedField(block, 'Title') ?? exp.title,
+        startDate: readMarkedField(block, 'Start') ?? exp.startDate,
+        endDate: readMarkedField(block, 'End') ?? exp.endDate,
+        duration: readMarkedField(block, 'Duration') ?? exp.duration,
+        description: readMarkedField(block, 'Description') ?? exp.description
+      };
+    }));
+  };
+
+  const handleBuilderAiPolish = async () => {
+    if (builderPolishing || (!projects.length && !experience.length)) return;
+    setBuilderPolishing(true);
+    setBuilderPolishMessage('');
+    setResumeError('');
+
+    try {
+      const result = await resumeApiRequest('/fix', {
+        method: 'POST',
+        body: JSON.stringify({
+          resumeText: serializeBuilderSections(),
+          targetRole: contactInfo.title || targetRole,
+          instruction: 'Polish only project and experience wording. Fix grammar, spelling, capitalization, tense, and resume formatting. Keep every [[PROJECT:id]] and [[EXPERIENCE:id]] marker exactly unchanged. Keep every field label exactly unchanged. Preserve titles, dates, URLs, duration values, employers, technologies, and facts. Do not add new items.'
+        })
+      });
+      applyBuilderPolish(result.improvedText || '');
+      setBuilderPolishMessage('Projects and experience polished with AI.');
+      triggerConfetti();
+    } catch (error) {
+      setBuilderPolishMessage(error.message);
+    } finally {
+      setBuilderPolishing(false);
+    }
   };
 
   const handleScan = async () => {
@@ -736,13 +914,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       const instruction = problem
         ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
         : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
+      const formatInstruction = ' Preserve the uploaded resume format exactly as much as possible: keep the same section order, heading names, line breaks, bullet symbols, separators, and plain-text layout. Do not convert it into a different template.';
       const result = await resumeApiRequest('/fix', {
         method: 'POST',
         body: JSON.stringify({
           resumeText: reviewText,
           targetRole,
           issueId: problem?.id,
-          instruction
+          instruction: `${instruction}${formatInstruction}`
         })
       });
       setComparison({
@@ -974,8 +1153,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setAnalyzingLeetcode(true); setLeetcodeResult(null);
     setTimeout(() => { setAnalyzingLeetcode(false); setLeetcodeResult({ handle, score: 76, solved: 312, easy: 145, medium: 142, hard: 25, streak: 18, ranking: 82340, findings: [{ type: 'good', text: "312 problems solved — puts you in the top 15% of active users." }, { type: 'warn', text: "Only 25 hard problems. Target 50+ to signal senior-level readiness." }, { type: 'improve', text: "18-day streak is good. A 60+ day streak increases recruiter visibility significantly." }] }); }, 1800);
   };
-
-  const handleOptimize = () => { setResumeScore(p => Math.min(p + 5, 100)); triggerConfetti(); };
 
   // ── CRUD helpers ──
   const addSkill = () => { if (!newSkillName.trim()) return; setSkills(p => [...p, { id: genId(), name: newSkillName.trim(), level: newSkillLevel }]); setNewSkillName(''); setNewSkillLevel(80); triggerConfetti(); };
@@ -1417,15 +1594,23 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3">
-                  <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleOptimize} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                    <BrainCircuit className="w-5 h-5" /> AI Optimize
-                  </motion.button>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
-                    {isExporting ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> : <Download className="w-4 h-4" />}
-                    {isExporting ? 'Exporting...' : 'Export PDF'}
-                  </motion.button>
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleBuilderAiPolish} disabled={builderPolishing || (!projects.length && !experience.length)} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                      {builderPolishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
+                      {builderPolishing ? 'Polishing...' : 'AI Grammar & Format Fix'}
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
+                      {isExporting ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> : <Download className="w-4 h-4" />}
+                      {isExporting ? 'Exporting...' : 'Export PDF'}
+                    </motion.button>
+                  </div>
+                  {builderPolishMessage && (
+                    <div className={`rounded-xl px-3 py-2 text-xs font-bold ${builderPolishMessage.includes('polished') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      {builderPolishMessage}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1696,7 +1881,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           onClick={() => downloadResumeText(comparison?.improvedText || scanText, comparison?.improvedText ? 'updated-resume' : 'resume')}
                           className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
                         >
-                          <Download className="w-4 h-4" /> Download resume
+                          <Download className="w-4 h-4" /> Download PDF
                         </button>
                       )}
                       {resumeReview && (
@@ -1828,7 +2013,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => downloadResumeText(comparison.improvedText, 'updated-resume')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
-                        <Download className="w-4 h-4" /> Download updated
+                        <Download className="w-4 h-4" /> Download updated PDF
                       </button>
                       <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck

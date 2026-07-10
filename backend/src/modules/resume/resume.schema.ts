@@ -56,7 +56,7 @@ export const analyzeResumeBodySchema = z.object({
 
 export const fixResumeBodySchema = analyzeResumeBodySchema.extend({
   issueId: z.string().trim().max(120).optional(),
-  instruction: z.string().trim().max(500).optional()
+  instruction: z.string().trim().max(2000).optional()
 });
 
 export type ResumeAnalysis = z.infer<typeof resumeAnalysisSchema>;
