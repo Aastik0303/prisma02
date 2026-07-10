@@ -525,6 +525,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [targetRole, setTargetRole] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadedPdfLayout, setUploadedPdfLayout] = useState(null);
   const [fixingIssueId, setFixingIssueId] = useState('');
   const [comparison, setComparison] = useState(null);
   const [rechecking, setRechecking] = useState(false);
@@ -659,17 +660,37 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     return lines;
   };
 
-  const createResumePdfBlob = (text) => {
-    const pageWidth = 612;
-    const pageHeight = 792;
-    const marginX = 48;
-    const marginTop = 54;
-    const lineHeight = 13;
-    const linesPerPage = Math.floor((pageHeight - marginTop - 42) / lineHeight);
+  const clampNumber = (value, min, max) => Math.max(min, Math.min(max, value));
+
+  const inferPdfTextLayout = (text, sourceLayout = null) => {
+    const pageWidth = sourceLayout?.pageWidth || 612;
+    const pageHeight = sourceLayout?.pageHeight || 792;
+    const rawLines = normalizePdfText(text).replace(/\r\n/g, '\n').split('\n');
+    const lineLengths = rawLines.filter(line => line.trim()).map(line => line.length).sort((a, b) => a - b);
+    const p90Length = lineLengths.length ? lineLengths[Math.floor(lineLengths.length * 0.9)] : 96;
+    const originalPages = sourceLayout?.pageCount || 1;
+    const targetLinesPerPage = Math.max(18, Math.ceil(rawLines.length / originalPages));
+    const lineHeight = clampNumber(Math.floor((pageHeight - 96) / targetLinesPerPage), 10, 15);
+
+    return {
+      pageWidth,
+      pageHeight,
+      marginX: sourceLayout?.marginX || 42,
+      marginTop: sourceLayout?.marginTop || 48,
+      fontSize: clampNumber(lineHeight - 3, 8, 11),
+      lineHeight,
+      maxChars: clampNumber(Math.max(p90Length + 8, 78), 78, 120)
+    };
+  };
+
+  const createResumePdfBlob = (text, sourceLayout = uploadedPdfLayout) => {
+    const layout = inferPdfTextLayout(text, sourceLayout);
+    const { pageWidth, pageHeight, marginX, marginTop, fontSize, lineHeight, maxChars } = layout;
+    const linesPerPage = Math.max(1, Math.floor((pageHeight - marginTop - 42) / lineHeight));
     const lines = normalizePdfText(text)
       .replace(/\r\n/g, '\n')
       .split('\n')
-      .flatMap(line => line.trim() ? wrapPdfLine(line) : ['']);
+      .flatMap(line => line.trim() ? wrapPdfLine(line, maxChars) : ['']);
     const pages = [];
 
     for (let index = 0; index < lines.length; index += linesPerPage) {
@@ -687,7 +708,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       const contentObjectId = pageObjectId + 1;
       const textCommands = pageLines.map((line, lineIndex) => {
         const y = pageHeight - marginTop - lineIndex * lineHeight;
-        return `BT /F1 10 Tf ${marginX} ${y} Td (${escapePdfText(line)}) Tj ET`;
+        return `BT /F1 ${fontSize} Tf ${marginX} ${y} Td (${escapePdfText(line)}) Tj ET`;
       }).join('\n');
 
       objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Courier >> >> >> /Contents ${contentObjectId} 0 R >>`);
@@ -710,6 +731,30 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     return new Blob([pdf], { type: 'application/pdf' });
   };
 
+  const readUploadedPdfLayout = async (file) => {
+    if (!file || file.name.toLowerCase().split('.').pop() !== 'pdf') return null;
+    try {
+      const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+      const source = new TextDecoder('latin1').decode(buffer);
+      const mediaBox = source.match(/\/MediaBox\s*\[\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\]/);
+      const pageMatches = source.match(/\/Type\s*\/Page\b/g) || [];
+      if (!mediaBox) return { pageWidth: 612, pageHeight: 792, pageCount: Math.max(pageMatches.length, 1) };
+
+      const [, x1, y1, x2, y2] = mediaBox.map(Number);
+      const pageWidth = Math.abs(x2 - x1);
+      const pageHeight = Math.abs(y2 - y1);
+      if (!Number.isFinite(pageWidth) || !Number.isFinite(pageHeight) || pageWidth < 200 || pageHeight < 200) return null;
+
+      return {
+        pageWidth,
+        pageHeight,
+        pageCount: Math.max(pageMatches.length, 1)
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -726,7 +771,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     if (!cleanText) return;
     const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
     const dateStamp = new Date().toISOString().slice(0, 10);
-    downloadBlob(createResumePdfBlob(cleanText), `${safeLabel}-${dateStamp}.pdf`);
+    downloadBlob(createResumePdfBlob(cleanText, uploadedPdfLayout), `${safeLabel}-${dateStamp}.pdf`);
   };
 
   const serializeBuilderSections = () => [
@@ -880,6 +925,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setScanProgress(15);
     setResumeError('');
     setUploadedFileName(file.name);
+    setUploadedPdfLayout(await readUploadedPdfLayout(file));
     try {
       const formData = new FormData();
       formData.append('targetRole', targetRole);
@@ -893,6 +939,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
+      setUploadedPdfLayout(null);
       setScanProgress(0);
       setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
         ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
@@ -914,7 +961,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       const instruction = problem
         ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
         : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
-      const formatInstruction = ' Preserve the uploaded resume format exactly as much as possible: keep the same section order, heading names, line breaks, bullet symbols, separators, and plain-text layout. Do not convert it into a different template.';
+      const formatInstruction = ' Return the updated resume in the same extracted text format as the uploaded PDF. Preserve section order, heading names/casing, blank lines, indentation, line breaks, bullet symbols, separators, date alignment cues, and plain-text layout. Do not convert it into a different template. Do not collapse separate lines into paragraphs.';
       const result = await resumeApiRequest('/fix', {
         method: 'POST',
         body: JSON.stringify({

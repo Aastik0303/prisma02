@@ -92,6 +92,9 @@ section order, heading names/casing, line breaks, bullet symbols, separators, an
 overall plain-text layout. Improve wording inside the existing structure instead of
 rebuilding the resume into a different template. Only add a new section if the request
 explicitly asks for a missing section or ATS-critical information cannot fit anywhere else.
+If the resume came from a PDF extraction, treat the extracted line breaks, blank lines,
+indentation, bullets, and separators as the user's source format. Do not collapse lines
+into paragraphs, do not reorder sections, and do not replace the layout with a new template.
 Return only a JSON object with this exact shape:
 {{
   "improvedText": "the complete improved resume as a plain text string",
