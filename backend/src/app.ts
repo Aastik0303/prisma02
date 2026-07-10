@@ -204,6 +204,13 @@ export async function buildApp(opts = {}) {
     });
   });
 
+  app.get('/healthz', async (_request, reply) => {
+    return reply.code(200).send({
+      status: 'ok',
+      service: 'prisma-embedded-codes-backend'
+    });
+  });
+
   // 9. Global Error Handler
   app.setErrorHandler((error: any, request: FastifyRequest, reply: FastifyReply) => {
     const requestId = request.id;

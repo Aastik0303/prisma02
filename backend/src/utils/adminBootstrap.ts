@@ -16,6 +16,11 @@ export async function ensureAdminUser(prisma: PrismaClient, options: AdminBootst
   const fullName = (options.fullName ?? process.env.ADMIN_FULL_NAME ?? DEFAULT_ADMIN_NAME).trim();
 
   if (!email || !password) {
+    if (options.nodeEnv === 'production') {
+      console.warn('Skipping admin bootstrap because ADMIN_EMAIL or ADMIN_PASSWORD is not configured.');
+      return;
+    }
+
     throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required to bootstrap the admin user.');
   }
 

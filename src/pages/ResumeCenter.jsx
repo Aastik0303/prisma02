@@ -526,6 +526,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [uploadedPdfLayout, setUploadedPdfLayout] = useState(null);
+  const [savedResumes, setSavedResumes] = useState([]);
+  const [selectedResumeId, setSelectedResumeId] = useState('');
+  const [resumeLibraryLoading, setResumeLibraryLoading] = useState(false);
+  const [resumeSaving, setResumeSaving] = useState(false);
   const [fixingIssueId, setFixingIssueId] = useState('');
   const [comparison, setComparison] = useState(null);
   const [rechecking, setRechecking] = useState(false);
@@ -626,6 +630,138 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const reviewText = comparison?.improvedText || scanText;
+
+  const builderRawText = () => [
+    contactInfo.name,
+    [contactInfo.email, contactInfo.phone, contactInfo.location].filter(Boolean).join(' | '),
+    links.map(link => link.url).filter(Boolean).join(' | '),
+    '',
+    'SKILLS',
+    selectedSkillLayout === 'grouped-rows' || selectedSkillLayout === 'category-columns'
+      ? skillGroups.map(group => `${group.label}: ${group.value}`).join('\n')
+      : skills.map(skill => skill.name).join(' | '),
+    '',
+    'PROJECTS',
+    ...projects.flatMap(project => [
+      [project.title, project.date, project.url].filter(Boolean).join(' | '),
+      project.description ? `- ${project.description}` : ''
+    ]),
+    '',
+    'EXPERIENCE',
+    ...experience.flatMap(exp => [
+      [exp.title, [exp.startDate, exp.endDate].filter(Boolean).join(' - '), exp.duration].filter(Boolean).join(' | '),
+      exp.description ? `- ${exp.description}` : ''
+    ]),
+    '',
+    'EDUCATION',
+    ...education.flatMap(edu => [
+      [edu.degree, edu.institution, [edu.startDate, edu.endDate].filter(Boolean).join(' - ')].filter(Boolean).join(' | '),
+      edu.details ? `- ${edu.details}` : ''
+    ]),
+    '',
+    ...customFields.map(field => `${field.label}: ${field.value}`)
+  ].filter(line => line !== undefined && line !== null).join('\n').trim();
+
+  const builderToParsedJson = () => ({
+    personal_info: {
+      name: contactInfo.name || '',
+      email: contactInfo.email || '',
+      phone: contactInfo.phone || '',
+      location: contactInfo.location || '',
+      links: [
+        ...(contactInfo.portfolio ? [{ label: 'Portfolio', url: contactInfo.portfolio }] : []),
+        ...links
+          .filter(link => link.label?.trim() || link.url?.trim())
+          .map(link => ({ label: link.label || 'Link', url: link.url || '' }))
+      ]
+    },
+    summary: contactInfo.title || '',
+    skills: selectedSkillLayout === 'grouped-rows' || selectedSkillLayout === 'category-columns'
+      ? skillGroups.flatMap(group => group.value.split(',').map(skill => skill.trim()).filter(Boolean))
+      : skills.map(skill => skill.name).filter(Boolean),
+    experience: experience.map(exp => ({
+      company: exp.title?.includes(',') ? exp.title.split(',').slice(1).join(',').trim() : '',
+      title: exp.title || '',
+      startDate: exp.startDate || '',
+      endDate: exp.endDate || '',
+      location: '',
+      bullets: exp.description ? [exp.description] : []
+    })),
+    education: education.map(edu => ({
+      institution: edu.institution || '',
+      degree: edu.degree || '',
+      startDate: edu.startDate || '',
+      endDate: edu.endDate || '',
+      details: edu.details ? [edu.details] : []
+    })),
+    projects: projects.map(project => ({
+      title: project.title || 'Project',
+      url: project.url || '',
+      bullets: project.description ? [project.description] : []
+    }))
+  });
+
+  const currentTemplateConfig = () => ({
+    templateId: selectedTemplate,
+    page: { width: 612, height: 792, margin: 48 },
+    fonts: {
+      name: { family: 'Helvetica', size: 24, weight: 700 },
+      heading: { family: 'Helvetica', size: 11, weight: 700 },
+      body: { family: 'Helvetica', size: 10 }
+    },
+    colors: {
+      text: '#0f172a',
+      muted: '#475569',
+      accent: '#4f46e5',
+      background: '#ffffff'
+    },
+    sections: [
+      { key: 'personal_info', x: 48, y: 48, width: 516 },
+      { key: 'skills', x: 48, y: 206, width: 516 },
+      { key: 'experience', x: 48, y: 280, width: 516 },
+      { key: 'projects', x: 48, y: 450, width: 516 },
+      { key: 'education', x: 48, y: 590, width: 516 }
+    ]
+  });
+
+  const applyParsedJsonToBuilder = (data = {}) => {
+    const personal = data.personal_info || {};
+    setContactInfo(current => ({
+      ...current,
+      name: personal.name || current.name,
+      title: data.summary || current.title,
+      email: personal.email || current.email,
+      phone: personal.phone || current.phone,
+      location: personal.location || current.location,
+      portfolio: personal.links?.find(link => /portfolio|website|site/i.test(link.label))?.url || current.portfolio
+    }));
+    setLinks((personal.links || []).map(link => ({ id: genId(), label: link.label || 'Link', url: link.url || '' })));
+    setSkillGroups([{ id: genId(), label: 'Core Skills', value: (data.skills || []).join(', ') }]);
+    setSkills((data.skills || []).map(skill => ({ id: genId(), name: skill, level: 80 })));
+    setProjects((data.projects || []).map(project => ({
+      id: genId(),
+      title: project.title || 'Project',
+      date: '',
+      url: project.url || '',
+      description: (project.bullets || []).join(' ')
+    })));
+    setExperience((data.experience || []).map(exp => ({
+      id: genId(),
+      title: [exp.title, exp.company].filter(Boolean).join(', ') || 'Experience',
+      startDate: exp.startDate || '',
+      endDate: exp.endDate || '',
+      duration: '',
+      description: (exp.bullets || []).join(' ')
+    })));
+    setEducation((data.education || []).map(edu => ({
+      id: genId(),
+      degree: edu.degree || '',
+      institution: edu.institution || '',
+      startDate: edu.startDate || '',
+      endDate: edu.endDate || '',
+      details: (edu.details || []).join(' ')
+    })));
+  };
 
   const escapePdfText = (value = '') => String(value)
     .replace(/\\/g, '\\\\')
@@ -774,6 +910,130 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     downloadBlob(createResumePdfBlob(cleanText, uploadedPdfLayout), `${safeLabel}-${dateStamp}.pdf`);
   };
 
+  const loadSavedResumes = async () => {
+    setResumeLibraryLoading(true);
+    try {
+      const resumes = await resumeApiRequest('/resumes', { method: 'GET' });
+      setSavedResumes(Array.isArray(resumes) ? resumes : []);
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setResumeLibraryLoading(false);
+    }
+  };
+
+  const saveBuilderResume = async () => {
+    setResumeSaving(true);
+    setResumeError('');
+    try {
+      const rawExtractedText = builderRawText();
+      const body = {
+        title: contactInfo.name ? `${contactInfo.name} Resume` : 'Untitled Resume',
+        rawExtractedText,
+        parsedJsonData: builderToParsedJson(),
+        templateConfig: currentTemplateConfig()
+      };
+      const saved = selectedResumeId
+        ? await resumeApiRequest(`/resumes/${selectedResumeId}`, { method: 'PUT', body: JSON.stringify(body) })
+        : await resumeApiRequest('/resumes', { method: 'POST', body: JSON.stringify(body) });
+      setSelectedResumeId(saved.id);
+      await loadSavedResumes();
+      triggerConfetti();
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setResumeSaving(false);
+    }
+  };
+
+  const loadStoredResume = async (id) => {
+    if (!id) return;
+    setResumeLibraryLoading(true);
+    setResumeError('');
+    try {
+      const resume = await resumeApiRequest(`/resumes/${id}`, { method: 'GET' });
+      setSelectedResumeId(resume.id);
+      setScanText(resume.rawExtractedText || '');
+      setComparison(null);
+      applyParsedJsonToBuilder(resume.parsedJsonData || {});
+      setActiveTab('builder');
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setResumeLibraryLoading(false);
+    }
+  };
+
+  const deleteStoredResume = async (id = selectedResumeId) => {
+    if (!id) return;
+    setResumeLibraryLoading(true);
+    setResumeError('');
+    try {
+      await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE' });
+      if (selectedResumeId === id) setSelectedResumeId('');
+      await loadSavedResumes();
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setResumeLibraryLoading(false);
+    }
+  };
+
+  const improveStoredResume = async () => {
+    if (!selectedResumeId) {
+      await saveBuilderResume();
+      return;
+    }
+    setBuilderPolishing(true);
+    setResumeError('');
+    try {
+      const updated = await resumeApiRequest(`/resumes/${selectedResumeId}/improve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          targetRole: contactInfo.title || targetRole,
+          instruction: 'Improve resume content for ATS while preserving facts and keeping template_config unchanged.'
+        })
+      });
+      applyParsedJsonToBuilder(updated.parsedJsonData || {});
+      await loadSavedResumes();
+      setBuilderPolishMessage('Saved resume content improved with AI.');
+      triggerConfetti();
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setBuilderPolishing(false);
+    }
+  };
+
+  const downloadStoredResumePdf = async (id = selectedResumeId) => {
+    if (!id) {
+      handleExport();
+      return;
+    }
+    try {
+      const csrf = await getCsrfToken();
+      const response = await fetch(`${RESUME_API_BASE_URL}/resumes/${id}/download`, {
+        credentials: 'include',
+        headers: buildCsrfHeaders(csrf)
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || 'Resume PDF download failed.');
+      }
+      const blob = await response.blob();
+      const resume = savedResumes.find(item => item.id === id);
+      const safeLabel = (resume?.title || contactInfo.name || 'resume').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
+      downloadBlob(blob, `${safeLabel}.pdf`);
+    } catch (error) {
+      setResumeError(error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadSavedResumes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const serializeBuilderSections = () => [
     'PROJECTS',
     ...projects.flatMap(project => [
@@ -838,6 +1098,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const handleBuilderAiPolish = async () => {
+    if (selectedResumeId) {
+      await improveStoredResume();
+      return;
+    }
     if (builderPolishing || (!projects.length && !experience.length)) return;
     setBuilderPolishing(true);
     setBuilderPolishMessage('');
@@ -928,14 +1192,19 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setUploadedPdfLayout(await readUploadedPdfLayout(file));
     try {
       const formData = new FormData();
+      formData.append('title', file.name.replace(/\.[^.]+$/, ''));
       formData.append('targetRole', targetRole);
       formData.append('resume', file);
       setScanProgress(45);
-      const result = await resumeApiRequest('/upload', { method: 'POST', body: formData });
+      const result = await resumeApiRequest('/resumes/upload', { method: 'POST', body: formData });
+      const storedResume = result.resume;
       setScanProgress(100);
-      setScanText(result.resumeText);
+      setSelectedResumeId(storedResume?.id || '');
+      setScanText(storedResume?.rawExtractedText || '');
+      if (storedResume?.parsedJsonData) applyParsedJsonToBuilder(storedResume.parsedJsonData);
+      await loadSavedResumes();
       setComparison(null);
-      applyAnalysis(result.analysis, result.resumeText);
+      applyAnalysis(result.analysis, storedResume?.rawExtractedText || '');
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
@@ -1305,6 +1574,41 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
             <motion.div key="builder" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid lg:grid-cols-5 gap-6">
               <div className="lg:col-span-3 space-y-4">
 
+                {/* Saved resumes */}
+                <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-sm">
+                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-indigo-500" /> Saved Resumes</h3>
+                      <p className="mt-0.5 text-[11px] font-semibold text-slate-400">Stored in backend session JSON and limited to 4 resumes per account.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={loadSavedResumes} disabled={resumeLibraryLoading} className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-50">
+                        {resumeLibraryLoading ? 'Loading...' : 'Refresh'}
+                      </button>
+                      <button type="button" onClick={saveBuilderResume} disabled={resumeSaving} className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700 disabled:opacity-50">
+                        {resumeSaving ? 'Saving...' : selectedResumeId ? 'Save Changes' : 'Save New'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <select value={selectedResumeId} onChange={e => loadStoredResume(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                      <option value="">Current unsaved resume</option>
+                      {savedResumes.map(resume => (
+                        <option key={resume.id} value={resume.id}>{resume.title}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => downloadStoredResumePdf()} className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 flex items-center justify-center gap-1.5">
+                      <Download className="w-3.5 h-3.5" /> Backend PDF
+                    </button>
+                    <button type="button" onClick={() => deleteStoredResume()} disabled={!selectedResumeId || resumeLibraryLoading} className="rounded-xl bg-red-50 px-3 py-2.5 text-[11px] font-black text-red-600 hover:bg-red-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  </div>
+                  {savedResumes.length >= 4 && (
+                    <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Maximum resume limit reached. Delete one saved resume before creating another.</p>
+                  )}
+                </div>
+
                 {/* Templates */}
                 <TiltCard intensity={6}>
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-sm">
@@ -1646,7 +1950,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleBuilderAiPolish} disabled={builderPolishing || (!projects.length && !experience.length)} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50">
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                       {builderPolishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
-                      {builderPolishing ? 'Polishing...' : 'AI Grammar & Format Fix'}
+                      {builderPolishing ? 'Polishing...' : selectedResumeId ? 'AI Improve Saved JSON' : 'AI Grammar & Format Fix'}
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveBuilderResume} disabled={resumeSaving} className="px-5 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-100 flex items-center gap-2 min-w-[120px] justify-center disabled:opacity-50">
+                      {resumeSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Save
                     </motion.button>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
                       {isExporting ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> : <Download className="w-4 h-4" />}
@@ -1925,7 +2233,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       {(comparison?.improvedText || scanText.trim()) && (
                         <button
                           type="button"
-                          onClick={() => downloadResumeText(comparison?.improvedText || scanText, comparison?.improvedText ? 'updated-resume' : 'resume')}
+                          onClick={() => selectedResumeId ? downloadStoredResumePdf(selectedResumeId) : downloadResumeText(comparison?.improvedText || scanText, comparison?.improvedText ? 'updated-resume' : 'resume')}
                           className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
                         >
                           <Download className="w-4 h-4" /> Download PDF
@@ -2059,7 +2367,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => downloadResumeText(comparison.improvedText, 'updated-resume')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
+                      <button onClick={() => selectedResumeId ? downloadStoredResumePdf(selectedResumeId) : downloadResumeText(comparison.improvedText, 'updated-resume')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
                         <Download className="w-4 h-4" /> Download updated PDF
                       </button>
                       <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
