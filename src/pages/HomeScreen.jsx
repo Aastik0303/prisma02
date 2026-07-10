@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Compass, ShieldCheck, Users, FolderGit2, Sparkles, ArrowRight, Target,
-  ChevronDown, Eye, Zap, Globe, Award, Cpu, Rocket, Heart,
+  Eye, Zap, Globe, Award, Cpu, Rocket, Heart,
   Phone, Mail, TrendingUp,
-  Hexagon, Triangle, Circle, Square, Pentagon, Octagon, Diamond,
+  Hexagon, Circle, Diamond,
   Fingerprint, BrainCircuit, Code2,
   Crown
 } from 'lucide-react';
@@ -235,6 +235,122 @@ const AnimatedCounter = ({ value, suffix = '' }) => {
   return <span ref={ref} className="tabular-nums">{display}{suffix}</span>;
 };
 
+const TypewriterText = ({ text, startDelay = 700, speed = 32, className = '' }) => {
+  const [visibleText, setVisibleText] = useState('');
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setVisibleText(text);
+      return undefined;
+    }
+
+    setVisibleText('');
+    let index = 0;
+    let intervalId;
+    const timeoutId = window.setTimeout(() => {
+      intervalId = window.setInterval(() => {
+        index += 1;
+        setVisibleText(text.slice(0, index));
+        if (index >= text.length) {
+          window.clearInterval(intervalId);
+        }
+      }, speed);
+    }, startDelay);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [text, startDelay, speed]);
+
+  return (
+    <span className={className} aria-label={text}>
+      <span aria-hidden="true">{visibleText}</span>
+      {visibleText.length < text.length && (
+        <span aria-hidden="true" className="ml-1 inline-block h-[1em] w-[2px] translate-y-[0.12em] animate-pulse rounded-full bg-slate-800" />
+      )}
+    </span>
+  );
+};
+
+const CodeTypewriter = () => {
+  const codeLines = [
+    { text: '// Welcome to Prisma Embedded Codes', tone: 'text-slate-400' },
+    { text: '', tone: '' },
+    { text: "import { Roadmap, Project, Mentor } from '@prisma/core';", tone: 'text-slate-600' },
+    { text: '', tone: '' },
+    { text: 'const journey = new Roadmap({', tone: 'text-slate-600' },
+    { text: "  track: 'embedded-systems',", tone: 'text-slate-600' },
+    { text: '  level: 1,', tone: 'text-slate-600' },
+    { text: '  mentor: Mentor.assign(),', tone: 'text-slate-600' },
+    { text: '});', tone: 'text-slate-600' },
+    { text: '', tone: '' },
+    { text: 'journey.start();', tone: 'text-slate-600' }
+  ];
+  const fullText = codeLines.map(line => line.text).join('\n');
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [cursorVisible, setCursorVisible] = useState(true);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setVisibleCount(fullText.length);
+      return undefined;
+    }
+
+    setVisibleCount(0);
+    const intervalId = window.setInterval(() => {
+      setVisibleCount(count => {
+        if (count >= fullText.length) {
+          window.clearInterval(intervalId);
+          return count;
+        }
+        return count + 1;
+      });
+    }, 24);
+
+    return () => window.clearInterval(intervalId);
+  }, [fullText]);
+
+  useEffect(() => {
+    const blinkId = window.setInterval(() => setCursorVisible(value => !value), 530);
+    return () => window.clearInterval(blinkId);
+  }, []);
+
+  let remaining = visibleCount;
+  const visibleLines = codeLines.map(line => {
+    const textLength = line.text.length;
+    const visibleText = line.text.slice(0, Math.max(0, Math.min(remaining, textLength)));
+    remaining -= textLength + 1;
+    return visibleText;
+  });
+  const activeLine = Math.min(
+    visibleLines.findIndex((line, index) => line.length < codeLines[index].text.length),
+    codeLines.length - 1
+  );
+  const cursorLine = activeLine === -1 ? codeLines.length - 1 : activeLine;
+
+  return (
+    <div className="space-y-0" aria-label={fullText}>
+      {codeLines.map((line, index) => (
+        <div key={`${line.text}-${index}`} className="min-h-[1.85em]">
+          <span aria-hidden="true" className={line.tone || 'text-slate-600'}>
+            {visibleLines[index] || '\u00a0'}
+          </span>
+          {index === cursorLine && (
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-[1.2em] w-[2px] align-text-bottom bg-indigo-500 transition-opacity"
+              style={{ opacity: cursorVisible ? 1 : 0 }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    This screen is only ever rendered for new / signed-out visitors.
@@ -270,8 +386,8 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
     },
     {
       id: 'projects',
-      title: "GitHub Blueprints",
-      description: "Access advanced code repositories, review file structure explorers, and view presentation delivery slides.",
+      title: "Project Hub",
+      description: "Turning Imagination into Innovation. From concept to code, we build premium AI, web, and software solutions.",
       icon: FolderGit2,
       gradient: "from-cyan-500 to-blue-600",
       lightGradient: "from-cyan-50 to-blue-50",
@@ -281,8 +397,8 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
     },
     {
       id: 'resume',
-      title: "ATS Resume Shield",
-      description: "Scan your technical CV, analyze formatting, identify keyword deficits, and build Vercel-style clean templates.",
+      title: "ATS Resume",
+      description: "Scan your technical Resume, analyze formatting, identify keyword deficits, and build ATS Friendly Resumes.",
       icon: ShieldCheck,
       gradient: "from-emerald-500 to-teal-600",
       lightGradient: "from-emerald-50 to-teal-50",
@@ -443,136 +559,136 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       {/* ═══════════════════════════════════════════════════════════════
           HERO SECTION
       ═══════════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {!isMobile && (
-          <>
-            <ParticleCanvas />
+      <section className="relative min-h-screen overflow-hidden bg-[#f7f8ff]">
+        <div className="absolute inset-x-0 top-0 h-px bg-indigo-100" />
+        <div className="absolute inset-x-0 top-[72px] h-px bg-slate-200/55" />
 
-            {/* Floating Shapes */}
-            <FloatingShape shape={Hexagon} className="text-indigo-300/30 w-16 h-16" delay={0} duration={8} x="10%" y="20%" />
-            <FloatingShape shape={Triangle} className="text-purple-300/30 w-12 h-12" delay={1} duration={7} x="85%" y="15%" />
-            <FloatingShape shape={Circle} className="text-cyan-300/30 w-20 h-20" delay={2} duration={9} x="75%" y="70%" />
-            <FloatingShape shape={Square} className="text-pink-300/30 w-14 h-14" delay={0.5} duration={6} x="15%" y="75%" />
-            <FloatingShape shape={Pentagon} className="text-amber-300/30 w-10 h-10" delay={1.5} duration={8} x="50%" y="10%" />
-            <FloatingShape shape={Octagon} className="text-emerald-300/30 w-16 h-16" delay={3} duration={7} x="90%" y="50%" />
-            <FloatingShape shape={Diamond} className="text-rose-300/30 w-12 h-12" delay={2.5} duration={9} x="5%" y="50%" />
-
-            {/* Ambient Orbs */}
-            <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-400/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-purple-400/10 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-cyan-400/8 rounded-full blur-[80px] pointer-events-none" />
-          </>
-        )}
-
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 text-center">
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-indigo-200/50 shadow-lg shadow-indigo-500/10 mb-8"
+        <header className="relative z-20 mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6">
+          <button
+            type="button"
+            onClick={onStartJourney}
+            className="flex min-h-0 items-center gap-2 text-left"
+            aria-label="Prisma Embedded Codes home"
           >
-            <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
-            <span className="text-xs font-bold text-indigo-600">Core Workspace Launchpad</span>
-          </motion.div>
-
-          {/* Main Headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl sm:text-7xl lg:text-8xl font-black text-slate-900 leading-[1.05] tracking-tight mb-6"
-          >
-            Learn. Build.
-            <br />
-            <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-              Earn. Grow.
+            <img
+              src="/prisma-mark.svg"
+              alt=""
+              className="h-8 w-8 rounded-lg object-cover shadow-sm shadow-indigo-500/15"
+            />
+            <span className="font-sora text-[20px] font-extrabold leading-none text-indigo-600">
+              Prisma Embedded Codes
             </span>
-          </motion.h1>
+          </button>
 
-          {/* Subheadline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg sm:text-xl text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed"
-          >
-            Welcome to <strong className="text-slate-800">Prisma Embedded Codes</strong>. Boot into active technical roadmaps, 
-            download production files, bid on global freelance contracts, and sync with industry mentors.
-          </motion.p>
-
-          {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-            className="flex gap-4 items-center justify-center flex-wrap"
-          >
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onStartJourney}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-2xl flex items-center gap-2 shadow-xl shadow-indigo-500/25 relative overflow-hidden group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-              <Rocket className="w-5 h-5" /> Start Your Journey
-              <ArrowRight className="w-4 h-4" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
+            <a href="#launch-gates" className="border-b-2 border-indigo-500 pb-2 text-indigo-600">Roadmaps</a>
+            <a href="#contact" className="pb-2 transition-colors hover:text-indigo-600">Contracts</a>
+            <a href="#launch-gates" className="pb-2 transition-colors hover:text-indigo-600">Projects</a>
+            <button
+              type="button"
               onClick={onSignIn}
-              className="px-8 py-4 bg-white text-slate-700 font-bold text-sm rounded-2xl border border-slate-200 flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
+              className="rounded-full bg-indigo-600 px-7 py-3 text-xs font-extrabold text-white shadow-lg shadow-indigo-500/25 transition-transform hover:-translate-y-0.5"
             >
-              <Target className="w-5 h-5" /> View Dashboard
-            </motion.button>
-          </motion.div>
+              Dashboard
+            </button>
+          </nav>
+        </header>
 
-          {/* Stats Row */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="flex justify-center gap-8 sm:gap-16 mt-16"
-          >
-            {[
-              { value: 10000, suffix: '+', label: 'Students' },
-              { value: 500, suffix: '+', label: 'Projects' },
-              { value: 98, suffix: '%', label: 'Success Rate' },
-              { value: 50, suffix: '+', label: 'Mentors' }
-            ].map(stat => (
-              <div key={stat.label} className="text-center">
-                <div className="text-2xl sm:text-3xl font-black text-slate-900">
-                  <AnimatedCounter value={stat.value} suffix={stat.suffix} />
-                </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </motion.div>
+        <div className="relative z-10 mx-auto grid max-w-7xl grid-cols-1 gap-14 px-6 pb-16 pt-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:pb-20 lg:pt-16">
+          <div className="text-left">
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.1 }}
+              className="font-sora text-[48px] font-extrabold leading-[1.06] text-slate-950 sm:text-[54px] lg:text-[50px]"
+            >
+              Learn. Build.
+              <br />
+              <span className="text-indigo-600">Earn. Grow.</span>
+            </motion.h1>
 
-          {/* Scroll Indicator */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          >
+            <motion.p
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.25 }}
+              className="mt-6 max-w-md text-[15px] leading-relaxed text-slate-500"
+            >
+              Welcome to Prisma Embedded Codes. Boot into active technical roadmaps, download production files, bid on global freelance contracts, and sync with industry mentors.
+            </motion.p>
+
             <motion.div
-              animate={{ y: [0, 10, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="flex flex-col items-center gap-2 text-slate-400"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.3 }}
+              className="mt-10 flex flex-col gap-3 sm:flex-row"
             >
-              <span className="text-[10px] font-bold uppercase tracking-widest">Scroll</span>
-              <ChevronDown className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={onStartJourney}
+                className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-indigo-600 px-8 text-sm font-extrabold text-white shadow-xl shadow-indigo-500/25 transition-transform hover:-translate-y-0.5"
+              >
+                Start Your Journey
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </button>
+              <button
+                type="button"
+                onClick={onSignIn}
+                className="inline-flex h-14 items-center justify-center rounded-xl border border-slate-300 bg-white px-8 text-sm font-extrabold text-indigo-600 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                View Projects
+              </button>
             </motion.div>
-          </motion.div>
+          </div>
+
+          <div className="relative">
+            <div className="relative mx-auto w-full max-w-[560px] overflow-hidden rounded-2xl border border-slate-200/80 bg-white text-left shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+              <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                  <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+                  <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                </div>
+                <span className="ml-3 text-[11px] font-medium text-slate-400">main.tsx</span>
+              </div>
+              <div className="bg-[#fafafa] px-5 py-5 font-mono text-[13px] leading-[1.85] text-slate-600">
+                <CodeTypewriter />
+              </div>
+            </div>
+
+            <div
+              className="absolute -right-2 top-8 hidden items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-lg shadow-slate-900/5 lg:flex"
+              style={{ animation: 'float 5s ease-in-out infinite' }}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50">
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-[12px] font-bold text-slate-800">ATS scan passed</p>
+                <p className="text-[11px] text-slate-400">98% match rate</p>
+              </div>
+            </div>
+
+            <div
+              className="absolute -left-4 bottom-12 hidden items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-lg shadow-slate-900/5 lg:flex"
+              style={{ animation: 'float 6s ease-in-out 1s infinite' }}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50">
+                <Zap className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-[12px] font-bold text-slate-800">Active streak</p>
+                <p className="text-[11px] text-slate-400">12 days on track</p>
+              </div>
+            </div>
+          </div>
         </div>
+
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
           LAUNCH OPTIONS (BENTO GRID)
       ═══════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 px-6">
+      <section id="launch-gates" className="relative py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <ScrollReveal>
             <div className="text-center mb-16">
@@ -838,7 +954,7 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       {/* ═══════════════════════════════════════════════════════════════
           CONTACT US
       ═══════════════════════════════════════════════════════════════ */}
-      <section className="relative py-32 px-6 overflow-hidden">
+      <section id="contact" className="relative py-32 px-6 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900" />
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent" />
 
