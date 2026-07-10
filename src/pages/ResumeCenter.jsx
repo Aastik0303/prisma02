@@ -868,13 +868,16 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setSavedResumes(current => current.filter(resume => resume.id !== id));
     if (selectedResumeId === id) setSelectedResumeId('');
     try {
-      const result = await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
-      if (!result?.deleted) throw new Error('Resume delete did not complete. Please refresh and try again.');
+      await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
       setSavedResumes(current => current.filter(resume => resume.id !== id));
     } catch (error) {
-      setSavedResumes(previousResumes);
-      setSelectedResumeId(previousSelectedResumeId);
-      setResumeError(error.message);
+      if (error.code === 'RESUME_NOT_FOUND') {
+        setSavedResumes(current => current.filter(resume => resume.id !== id));
+      } else {
+        setSavedResumes(previousResumes);
+        setSelectedResumeId(previousSelectedResumeId);
+        setResumeError(error.message);
+      }
     } finally {
       setDeletingResumeId('');
     }
@@ -1524,21 +1527,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <button type="button" onClick={loadSavedResumes} disabled={resumeLibraryLoading} className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-50">
                         {resumeLibraryLoading ? 'Loading...' : 'Refresh'}
                       </button>
+                      {selectedResumeId && (
+                        <button type="button" onClick={() => setSelectedResumeId('')} className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100">
+                          New Draft
+                        </button>
+                      )}
                       <button type="button" onClick={saveBuilderResume} disabled={resumeSaving} className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700 disabled:opacity-50">
                         {resumeSaving ? 'Saving...' : selectedResumeId ? 'Save Changes' : 'Save New'}
                       </button>
                     </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <select value={selectedResumeId} onChange={e => loadStoredResume(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-                      <option value="">Current unsaved resume</option>
-                      {savedResumes.map(resume => (
-                        <option key={resume.id} value={resume.id}>{resume.title}</option>
-                      ))}
-                    </select>
-                    <button type="button" onClick={() => downloadStoredResumePdf()} disabled={!selectedResumeId} className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
-                      <Download className="w-3.5 h-3.5" /> Backend PDF
-                    </button>
                   </div>
                   {savedResumes.length >= 4 && (
                     <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Maximum resume limit reached. Delete one saved resume below before creating another.</p>
