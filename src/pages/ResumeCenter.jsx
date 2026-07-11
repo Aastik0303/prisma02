@@ -1058,6 +1058,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setScanning(true);
     setScanProgress(20);
     setResumeError('');
+    const progressTimer = window.setInterval(() => {
+      setScanProgress(current => {
+        if (current >= 90) return current;
+        return Math.min(90, current + (current < 60 ? 7 : 2));
+      });
+    }, 650);
     try {
       setScanProgress(55);
       const result = await resumeApiRequest('/analyze', {
@@ -1071,6 +1077,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setScanProgress(0);
       setResumeError(error.message);
     } finally {
+      window.clearInterval(progressTimer);
       setScanning(false);
     }
   };

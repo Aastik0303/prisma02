@@ -255,6 +255,8 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
   const lower = text.toLowerCase();
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const bulletLines = lines.filter(line => /^[-*\u2022]/.test(line));
+  const words = keywordTokens(text);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
   const targetKeywords = keywordTokens(targetRole).filter(token => !['intern', 'engineer', 'developer', 'analyst'].includes(token));
   const matchedKeywords = targetKeywords.filter(token => lower.includes(token));
   const missingKeywords = targetKeywords.filter(token => !lower.includes(token)).slice(0, 12);
@@ -267,19 +269,72 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
   const hasExperience = hasAny(lower, ['experience', 'intern', 'developer', 'engineer', 'analyst', 'worked', 'built']);
   const hasEducation = hasAny(lower, ['education', 'degree', 'university', 'college', 'b.tech', 'btech', 'bachelor']);
   const hasMetrics = /\b\d+[%+]?|\b\d{2,}\b/.test(text);
-  const hasActionVerbs = hasAny(lower, ['built', 'developed', 'implemented', 'designed', 'optimized', 'automated', 'integrated', 'trained', 'deployed']);
+  const actionVerbMatches = Array.from(lower.matchAll(/\b(built|developed|implemented|designed|optimized|automated|integrated|trained|deployed|created|managed|analyzed|engineered|led|delivered|improved|reduced|increased|launched|architected|shipped|maintained|tested|debugged)\b/g)).length;
+  const hasActionVerbs = actionVerbMatches >= 2;
   const longParagraphs = lines.filter(line => line.length > 180).length;
+  const sectionCount = [hasSkills, hasProjects, hasExperience, hasEducation].filter(Boolean).length;
+  const metricMatches = Array.from(text.matchAll(/\b\d+(?:\.\d+)?\s*(?:%|\+|k|m|x|ms|sec|seconds|users|projects|teams|hours|days|months|years)?\b/gi)).length;
+  const linkCount = (lower.match(/https?:\/\/|linkedin|github|portfolio/g) || []).length;
+  const bulletRatio = lines.length ? bulletLines.length / lines.length : 0;
+  const avgLineLength = lines.length ? lines.reduce((sum, line) => sum + line.length, 0) / lines.length : 0;
+  const duplicatePenalty = Math.max(0, words.length - new Set(words).size) > words.length * 0.35 ? 5 : 0;
+  const lengthScore = wordCount < 120
+    ? 35
+    : wordCount < 250
+      ? 58
+      : wordCount <= 850
+        ? 78
+        : 66;
 
-  const atsCompatibility = clampScore(45 + (hasEmail ? 8 : 0) + (hasPhone ? 8 : 0) + (hasLinks ? 6 : 0) + (hasSkills ? 8 : 0) + (hasProjects ? 8 : 0) + (hasEducation ? 7 : 0));
-  const structure = clampScore(45 + Math.min(lines.length, 20) + (bulletLines.length >= 4 ? 12 : 0) - longParagraphs * 5);
-  const grammar = clampScore(72 - longParagraphs * 3);
-  const skills = clampScore(hasSkills ? 78 : 50);
-  const projects = clampScore(hasProjects ? 78 : 48);
-  const experience = clampScore(hasExperience ? 76 : 50);
-  const education = clampScore(hasEducation ? 78 : 48);
-  const keywords = clampScore(targetKeywords.length ? 50 + (matchedKeywords.length / targetKeywords.length) * 45 : 68);
-  const formatting = clampScore(72 + (bulletLines.length >= 4 ? 8 : 0) - longParagraphs * 6);
-  const atsScore = clampScore((atsCompatibility + structure + grammar + skills + projects + experience + education + keywords + formatting) / 9);
+  const atsCompatibility = clampScore(
+    30
+    + (hasEmail ? 10 : 0)
+    + (hasPhone ? 10 : 0)
+    + Math.min(linkCount, 3) * 4
+    + sectionCount * 7
+    + (wordCount >= 180 ? 8 : 0)
+    - longParagraphs * 4
+  );
+  const structure = clampScore(
+    28
+    + sectionCount * 10
+    + Math.min(lines.length, 28) * 1.1
+    + Math.min(bulletLines.length, 12) * 2.2
+    - longParagraphs * 6
+  );
+  const grammar = clampScore(
+    62
+    + (avgLineLength > 35 && avgLineLength < 135 ? 8 : 0)
+    + (bulletRatio > 0.15 ? 5 : 0)
+    - longParagraphs * 5
+    - duplicatePenalty
+  );
+  const skills = clampScore(hasSkills ? 58 + Math.min(words.length, 80) * 0.18 : 35 + Math.min(words.length, 50) * 0.12);
+  const projects = clampScore(hasProjects ? 54 + Math.min(metricMatches, 6) * 4 + Math.min(actionVerbMatches, 8) * 1.8 : 34);
+  const experience = clampScore(hasExperience ? 52 + Math.min(bulletLines.length, 10) * 2.4 + Math.min(actionVerbMatches, 10) * 1.6 : 36);
+  const education = clampScore(hasEducation ? 72 : 40);
+  const keywords = clampScore(targetKeywords.length
+    ? 35 + (matchedKeywords.length / targetKeywords.length) * 55 + Math.min(matchedKeywords.length, 5) * 2
+    : 48 + sectionCount * 5 + Math.min(words.length, 70) * 0.12);
+  const formatting = clampScore(
+    52
+    + (bulletRatio > 0.12 ? 12 : 0)
+    + (avgLineLength < 140 ? 8 : 0)
+    + Math.min(sectionCount, 4) * 4
+    - longParagraphs * 8
+  );
+  const atsScore = clampScore(
+    atsCompatibility * 0.15
+    + structure * 0.13
+    + grammar * 0.1
+    + skills * 0.11
+    + projects * 0.13
+    + experience * 0.13
+    + education * 0.08
+    + keywords * 0.08
+    + formatting * 0.04
+    + lengthScore * 0.05
+  );
 
   const problems: ResumeAnalysis['problems'] = [];
   if (!hasEmail || !hasPhone) {
@@ -358,7 +413,7 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
 
   return {
     atsScore,
-    scoreExplanation: 'Generated with the built-in ATS checker because the AI review service was unavailable for this request.',
+    scoreExplanation: `Generated with the built-in ATS checker because the AI review service was unavailable. Scored from ${wordCount} words, ${sectionCount} core sections, ${bulletLines.length} bullets, ${metricMatches} measurable detail(s), and ${matchedKeywords.length}/${targetKeywords.length || 0} target keywords.`,
     summary: targetRole
       ? `Resume checked against ${targetRole}. Focus on parser-safe formatting, stronger bullets, and missing target keywords.`
       : 'Resume checked for ATS formatting, structure, contact parsing, skills, projects, education, and measurable impact.',
