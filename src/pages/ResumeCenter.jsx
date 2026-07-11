@@ -1116,6 +1116,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setScanProgress(15);
     setResumeError('');
     setUploadedFileName(file.name);
+    const progressTimer = window.setInterval(() => {
+      setScanProgress(current => {
+        if (current >= 88) return current;
+        return Math.min(88, current + (current < 45 ? 8 : 3));
+      });
+    }, 700);
     try {
       const createUploadFormData = () => {
         const formData = new FormData();
@@ -1134,11 +1140,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
           authRequired: hasAccessToken
         });
       } catch (error) {
-        if (!hasAccessToken || !['UNAUTHORIZED', 'TOKEN_EXPIRED', 'AUTH_REQUIRED'].includes(error.code)) throw error;
+        const canRetryAsPublicScan = hasAccessToken && [
+          'UNAUTHORIZED',
+          'TOKEN_EXPIRED',
+          'AUTH_REQUIRED',
+          'MAXIMUM_RESUME_LIMIT_REACHED',
+          'INTERNAL_SERVER_ERROR'
+        ].includes(error.code);
+        if (!canRetryAsPublicScan) throw error;
         result = await resumeApiRequest('/upload', {
           method: 'POST',
           body: createUploadFormData()
         });
+        if (error.code === 'MAXIMUM_RESUME_LIMIT_REACHED') {
+          setResumeError('Resume scanned, but it was not saved because the 4-resume limit is reached. Delete one saved resume before saving this upload.');
+        }
       }
       const storedResume = result.resume;
       setScanProgress(100);
@@ -1153,12 +1169,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
-      setUploadedPdfLayout(null);
       setScanProgress(0);
       setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
         ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
         : error.message);
     } finally {
+      window.clearInterval(progressTimer);
       setScanning(false);
     }
   };

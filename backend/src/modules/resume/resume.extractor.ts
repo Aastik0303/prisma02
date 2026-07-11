@@ -240,13 +240,14 @@ export async function extractResumeText(input: {
   filename: string;
   mimetype: string;
 }) {
-  return (await extractResumeDocument(input)).text;
+  return (await extractResumeDocument({ ...input, includePdfLayout: false })).text;
 }
 
 export async function extractResumeDocument(input: {
   buffer: Buffer;
   filename: string;
   mimetype: string;
+  includePdfLayout?: boolean;
 }) {
   const extension = input.filename.toLowerCase().split('.').pop();
 
@@ -260,7 +261,16 @@ export async function extractResumeDocument(input: {
   try {
     if (extension === 'pdf' && input.mimetype === PDF_MIME && hasPdfSignature(input.buffer)) {
       rawText = await extractPdfText(input.buffer);
-      uploadedPdfLayout = await extractPdfLayout(input.buffer);
+      if (input.includePdfLayout) {
+        try {
+          uploadedPdfLayout = await extractPdfLayout(input.buffer);
+        } catch (layoutError) {
+          console.warn('PDF layout extraction skipped; text extraction succeeded', {
+            name: (layoutError as { name?: string })?.name,
+            message: (layoutError as { message?: string })?.message?.slice(0, 300)
+          });
+        }
+      }
     } else if (extension === 'docx' && DOCX_MIMES.has(input.mimetype) && hasZipSignature(input.buffer)) {
       rawText = (await mammoth.extractRawText({ buffer: input.buffer })).value;
     } else {

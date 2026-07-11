@@ -264,7 +264,8 @@ export async function resumeRoutes(fastify: FastifyInstance) {
       extracted = await extractResumeDocument({
         buffer,
         filename: part.filename,
-        mimetype: part.mimetype
+        mimetype: part.mimetype,
+        includePdfLayout: true
       });
       result = await runResumeWorkflow({
         operation: 'analyze',
