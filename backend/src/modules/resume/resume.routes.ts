@@ -165,6 +165,21 @@ function serializeResumeWithScannerSession(resume: any, scannerSession?: Awaited
   };
 }
 
+async function deleteOwnedResumeById(fastify: FastifyInstance, userId: string, resumeId: string) {
+  const result = await resumeStore(fastify).deleteMany({
+    where: {
+      id: resumeId,
+      userId
+    }
+  });
+
+  if (result.count === 0) {
+    throw new AppError(404, 'RESUME_NOT_FOUND', 'Resume not found or already deleted.');
+  }
+
+  return { deleted: true, id: resumeId };
+}
+
 export async function resumeRoutes(fastify: FastifyInstance) {
   await fastify.register(multipart, {
     limits: {
@@ -365,18 +380,14 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     preHandler: [requireAuth]
   }, async (request, reply) => {
     const params = resumeIdParamsSchema.parse(request.params);
-    const result = await resumeStore(fastify).deleteMany({
-      where: {
-        id: params.id,
-        userId: request.user!.id
-      }
-    });
+    return reply.code(200).send(await deleteOwnedResumeById(fastify, request.user!.id, params.id));
+  });
 
-    if (result.count === 0) {
-      throw new AppError(404, 'RESUME_NOT_FOUND', 'Resume not found or already deleted.');
-    }
-
-    return reply.code(200).send({ deleted: true, id: params.id });
+  fastify.post('/resumes/:id/delete', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const params = resumeIdParamsSchema.parse(request.params);
+    return reply.code(200).send(await deleteOwnedResumeById(fastify, request.user!.id, params.id));
   });
 
   fastify.post('/upload', {
