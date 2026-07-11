@@ -8,6 +8,12 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const env = {
+  ...process.env,
+  JWT_PRIVATE_KEY: process.env.JWT_PRIVATE_KEY ?? process.env.JWT_PRIVATE_KEY_BASE64 ?? '',
+  JWT_PUBLIC_KEY: process.env.JWT_PUBLIC_KEY ?? process.env.JWT_PUBLIC_KEY_BASE64 ?? ''
+};
+
 const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3001),
@@ -51,7 +57,7 @@ const configSchema = z.object({
   LOCKOUT_DURATION_MINUTES: z.coerce.number().default(30)
 });
 
-const parsedConfig = configSchema.safeParse(process.env);
+const parsedConfig = configSchema.safeParse(env);
 
 if (!parsedConfig.success) {
   throw new Error(`Invalid environment configuration: ${JSON.stringify(parsedConfig.error.format(), null, 2)}`);

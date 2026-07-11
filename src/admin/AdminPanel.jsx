@@ -55,6 +55,7 @@ export default function AdminPanel() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [deletingItem, setDeletingItem] = useState('')
+  const [deletingUserId, setDeletingUserId] = useState('')
   const [catalog, setCatalog] = useState({ courses: [], projects: [] })
   const [catalogTab, setCatalogTab] = useState('course')
   const [editingCourseId, setEditingCourseId] = useState('')
@@ -267,6 +268,48 @@ export default function AdminPanel() {
     } finally {
       setLoading(false)
       setDeletingItem('')
+    }
+  }
+
+  const deleteUser = async (user) => {
+    if (!user) return
+    if (currentAdmin?.id === user.id) {
+      setError('You cannot delete your own admin account from this panel.')
+      return
+    }
+    if (user.role === 'super_admin' && currentAdmin?.role !== 'super_admin') {
+      setError('Only a super admin can delete another super admin account.')
+      return
+    }
+    if (!window.confirm(`Delete account "${user.fullName || user.email}"? This action cannot be undone.`)) return
+
+    setLoading(true)
+    setDeletingUserId(user.id)
+    setError('')
+    setSuccess('')
+    try {
+      const csrf = await getCsrfToken()
+      const response = await fetch(`${API_BASE_URL}/users/admin/users/${user.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...buildCsrfHeaders(csrf)
+        }
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to delete this account.')
+      }
+
+      await fetchUsers(accessToken)
+      setSuccess(`Deleted ${user.email} successfully.`)
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to delete this account.')
+    } finally {
+      setLoading(false)
+      setDeletingUserId('')
     }
   }
 
@@ -533,6 +576,7 @@ export default function AdminPanel() {
                     <th className="px-4 py-3">MFA</th>
                     <th className="px-4 py-3">Last Login</th>
                     <th className="px-4 py-3">Created</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -551,6 +595,17 @@ export default function AdminPanel() {
                       <td className="px-4 py-4 text-slate-300">{user.mfaEnabled ? 'Enabled' : 'Off'}</td>
                       <td className="px-4 py-4 text-slate-400">{formatDate(user.lastLoginAt)}</td>
                       <td className="px-4 py-4 text-slate-400">{formatDate(user.createdAt)}</td>
+                      <td className="px-4 py-4">
+                        <button
+                          type="button"
+                          onClick={() => deleteUser(user)}
+                          disabled={loading || deletingUserId === user.id || currentAdmin?.id === user.id || (user.role === 'super_admin' && currentAdmin?.role !== 'super_admin')}
+                          className="flex items-center gap-1.5 rounded-lg border border-rose-500/20 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingUserId === user.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

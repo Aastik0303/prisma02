@@ -382,7 +382,9 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       lightGradient: "from-indigo-50 to-purple-50",
       border: "border-indigo-200 hover:border-indigo-400",
       iconBg: "bg-indigo-100",
-      iconColor: "text-indigo-600"
+      iconColor: "text-indigo-600",
+      gradientBg: "from-indigo-100 via-purple-50 to-indigo-100",
+      glowColor: "rgba(99, 102, 241, 0.3)"
     },
     {
       id: 'projects',
@@ -393,7 +395,9 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       lightGradient: "from-cyan-50 to-blue-50",
       border: "border-cyan-200 hover:border-cyan-400",
       iconBg: "bg-cyan-100",
-      iconColor: "text-cyan-600"
+      iconColor: "text-cyan-600",
+      gradientBg: "from-cyan-100 via-blue-50 to-cyan-100",
+      glowColor: "rgba(6, 182, 212, 0.3)"
     },
     {
       id: 'resume',
@@ -404,7 +408,9 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       lightGradient: "from-emerald-50 to-teal-50",
       border: "border-emerald-200 hover:border-emerald-400",
       iconBg: "bg-emerald-100",
-      iconColor: "text-emerald-600"
+      iconColor: "text-emerald-600",
+      gradientBg: "from-emerald-100 via-teal-50 to-emerald-100",
+      glowColor: "rgba(16, 185, 129, 0.3)"
     },
     {
       id: 'mentorship',
@@ -415,7 +421,9 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       lightGradient: "from-purple-50 to-pink-50",
       border: "border-purple-200 hover:border-purple-400",
       iconBg: "bg-purple-100",
-      iconColor: "text-purple-600"
+      iconColor: "text-purple-600",
+      gradientBg: "from-purple-100 via-pink-50 to-purple-100",
+      glowColor: "rgba(168, 85, 247, 0.3)"
     }
   ];
 
@@ -425,28 +433,36 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
       title: "See the Invisible",
       desc: "We envision a world where every student can see their career path with crystal clarity — no guesswork, no ambiguity.",
       color: "from-indigo-500 to-purple-600",
-      bg: "bg-indigo-50"
+      bg: "bg-indigo-50",
+      gradientBg: "from-indigo-100 via-purple-50 to-indigo-100",
+      glowColor: "rgba(99, 102, 241, 0.3)"
     },
     {
       icon: Zap,
       title: "Accelerate Potential",
       desc: "Technology should amplify human potential, not replace it. We build tools that make you 10x more capable.",
       color: "from-amber-500 to-orange-600",
-      bg: "bg-amber-50"
+      bg: "bg-amber-50",
+      gradientBg: "from-amber-100 via-orange-50 to-amber-100",
+      glowColor: "rgba(245, 158, 11, 0.3)"
     },
     {
       icon: Globe,
       title: "Borderless Learning",
       desc: "Geography is history. Our platform connects learners with global opportunities regardless of where they were born.",
       color: "from-sky-500 to-blue-600",
-      bg: "bg-sky-50"
+      bg: "bg-sky-50",
+      gradientBg: "from-sky-100 via-blue-50 to-sky-100",
+      glowColor: "rgba(14, 165, 233, 0.3)"
     },
     {
       icon: Heart,
       title: "Learn with Passion",
       desc: "Education should ignite curiosity, not extinguish it. Every feature we build starts with the question: 'Does this spark joy?'",
       color: "from-rose-500 to-pink-600",
-      bg: "bg-rose-50"
+      bg: "bg-rose-50",
+      gradientBg: "from-rose-100 via-pink-50 to-rose-100",
+      glowColor: "rgba(244, 63, 94, 0.3)"
     }
   ];
 
@@ -635,7 +651,7 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
                 onClick={onSignIn}
                 className="inline-flex h-14 items-center justify-center rounded-xl border border-slate-300 bg-white px-8 text-sm font-extrabold text-indigo-600 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50"
               >
-                View Projects
+                Continue
               </button>
             </motion.div>
           </div>
@@ -705,35 +721,53 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
                 <ScrollReveal key={option.id} delay={i * 0.1}>
                   <TiltCard>
                     <motion.div
-                      whileHover={{ y: -8 }}
+                      whileHover={{ y: -8, scale: 1.02 }}
                       onClick={onStartJourney}
-                      className={`bg-white rounded-3xl border ${option.border} p-8 relative overflow-hidden cursor-pointer group shadow-sm hover:shadow-xl transition-shadow`}
+                      className={`bg-gradient-to-br ${option.gradientBg} rounded-3xl border ${option.border} p-8 relative overflow-hidden cursor-pointer group shadow-sm hover:shadow-xl transition-all duration-300`}
+                      style={{
+                        boxShadow: `0 4px 20px ${option.glowColor}`
+                      }}
                     >
-                      {/* Gradient Background */}
-                      <div className={`absolute inset-0 bg-gradient-to-br ${option.lightGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-
-                      {/* Glow Ring */}
-                      <div className="absolute -inset-px rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                        style={{ boxShadow: `0 0 0 1px rgba(99,102,241,0.2), 0 20px 50px -15px rgba(99,102,241,0.2)` }} />
+                      {/* Animated gradient background */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${option.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+                      
+                      {/* Decorative glow circle */}
+                      <motion.div 
+                        className={`absolute -bottom-8 -right-8 w-40 h-40 rounded-full bg-gradient-to-br ${option.gradient} opacity-15 group-hover:opacity-25 transition-opacity duration-500`}
+                        animate={{ 
+                          scale: [1, 1.1, 1],
+                          rotate: [0, 5, -5, 0]
+                        }}
+                        transition={{ 
+                          duration: 4, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      />
+                      
+                      {/* Top accent line */}
+                      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${option.gradient} opacity-60`} />
 
                       <div className="relative z-10">
-                        <div className={`w-14 h-14 rounded-2xl ${option.iconBg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                          <IconComponent className={`w-7 h-7 ${option.iconColor}`} />
+                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${option.gradient} flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg`} style={{
+                          boxShadow: `0 8px 24px ${option.glowColor}`
+                        }}>
+                          <IconComponent className="w-7 h-7 text-white" />
                         </div>
-                        <h3 className="font-black text-slate-900 text-xl mb-2 group-hover:text-indigo-600 transition-colors">
+                        <h3 className={`font-black text-xl mb-2 bg-gradient-to-r ${option.gradient} bg-clip-text text-transparent`}>
                           {option.title}
                         </h3>
-                        <p className="text-sm text-slate-500 leading-relaxed mb-6">
+                        <p className="text-sm text-slate-600 leading-relaxed mb-6 font-medium">
                           {option.description}
                         </p>
-                        <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm">
+                        <div className={`flex items-center gap-2 font-bold text-sm bg-gradient-to-r ${option.gradient} bg-clip-text text-transparent`}>
                           <span>Launch console</span>
-                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" style={{ color: 'inherit' }} />
                         </div>
                       </div>
 
-                      {/* Decorative Corner */}
-                      <div className={`absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-gradient-to-br ${option.gradient} opacity-10 group-hover:opacity-20 transition-opacity`} />
+                      {/* Hover shine effect */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                     </motion.div>
                   </TiltCard>
                 </ScrollReveal>
@@ -812,15 +846,44 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
                 <ScrollReveal key={point.title} delay={i * 0.15}>
                   <TiltCard>
                     <motion.div
-                      whileHover={{ y: -8 }}
-                      className="bg-white rounded-2xl border border-slate-200/60 p-6 relative overflow-hidden group shadow-sm hover:shadow-lg transition-shadow h-full"
+                      whileHover={{ y: -8, scale: 1.02 }}
+                      className={`bg-gradient-to-br ${point.gradientBg} rounded-2xl border border-slate-200/60 p-6 relative overflow-hidden group shadow-sm hover:shadow-xl transition-all duration-300 h-full`}
+                      style={{
+                        boxShadow: `0 4px 20px ${point.glowColor}`
+                      }}
                     >
-                      <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br ${point.color} opacity-5 group-hover:opacity-10 transition-opacity`} />
-                      <div className={`w-12 h-12 rounded-xl ${point.bg} flex items-center justify-center mb-4`}>
-                        <Icon className={`w-6 h-6 bg-gradient-to-br ${point.color} bg-clip-text`} style={{ color: 'inherit' }} />
+                      {/* Animated gradient background */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${point.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+                      
+                      {/* Decorative glow circle */}
+                      <motion.div 
+                        className={`absolute -bottom-8 -right-8 w-40 h-40 rounded-full bg-gradient-to-br ${point.color} opacity-15 group-hover:opacity-25 transition-opacity duration-500`}
+                        animate={{ 
+                          scale: [1, 1.1, 1],
+                          rotate: [0, 5, -5, 0]
+                        }}
+                        transition={{ 
+                          duration: 4, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      />
+                      
+                      {/* Top accent line */}
+                      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${point.color} opacity-60`} />
+
+                      <div className="relative z-10">
+                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${point.color} flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg`} style={{
+                          boxShadow: `0 8px 24px ${point.glowColor}`
+                        }}>
+                          <Icon className="w-7 h-7 text-white" />
+                        </div>
+                        <h3 className={`font-black text-lg mb-2 bg-gradient-to-r ${point.color} bg-clip-text text-transparent`}>{point.title}</h3>
+                        <p className="text-sm text-slate-600 leading-relaxed font-medium">{point.desc}</p>
                       </div>
-                      <h3 className="font-black text-slate-900 text-lg mb-2">{point.title}</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed">{point.desc}</p>
+
+                      {/* Hover shine effect */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                     </motion.div>
                   </TiltCard>
                 </ScrollReveal>

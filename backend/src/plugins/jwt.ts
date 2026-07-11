@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'crypto';
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import * as jose from 'jose';
 import fp from 'fastify-plugin';
@@ -9,12 +10,22 @@ export interface JwtPayload extends jose.JWTPayload {
   email: string;
 }
 
-/**
- * Wraps raw base64-encoded DER bytes in PEM armor.
- */
-function derToPem(base64Der: string, type: 'PRIVATE' | 'PUBLIC'): string {
+function normalizeKeyMaterial(input: string, type: 'PRIVATE' | 'PUBLIC'): string {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error(`Missing ${type.toLowerCase()} JWT key`);
+  }
+
+  if (trimmed.includes('-----BEGIN')) {
+    return trimmed;
+  }
+
+  if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0) {
+    return trimmed;
+  }
+
+  const lines = trimmed.match(/.{1,64}/g) || [trimmed];
   const label = type === 'PRIVATE' ? 'PRIVATE KEY' : 'PUBLIC KEY';
-  const lines = base64Der.match(/.{1,64}/g) || [base64Der];
   return `-----BEGIN ${label}-----\n${lines.join('\n')}\n-----END ${label}-----`;
 }
 
@@ -23,6 +34,35 @@ export class JwtService {
   private publicKey!: jose.KeyLike | Uint8Array;
   private privateKeyLoaded = false;
   private algorithm = 'RS256';
+
+  private async importKeyMaterial(key: string, type: 'PRIVATE' | 'PUBLIC') {
+    const normalized = normalizeKeyMaterial(key, type);
+
+    if (normalized.includes('-----BEGIN')) {
+      if (type === 'PRIVATE') {
+        return jose.importPKCS8(normalized, 'RS256');
+      }
+      return jose.importSPKI(normalized, 'RS256');
+    }
+
+    const binary = Buffer.from(normalized, 'base64');
+    if (type === 'PRIVATE') {
+      return jose.importPKCS8(binary, 'RS256');
+    }
+    return jose.importSPKI(binary, 'RS256');
+  }
+
+  private async createFallbackKeys() {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    });
+
+    this.privateKey = await jose.importPKCS8(privateKey, 'RS256');
+    this.publicKey = await jose.importSPKI(publicKey, 'RS256');
+    this.privateKeyLoaded = true;
+  }
 
   constructor(
     private privateKeyBase64: string,
@@ -34,13 +74,14 @@ export class JwtService {
     if (this.privateKeyLoaded) return;
 
     try {
-      const privateKeyPem = derToPem(this.privateKeyBase64, 'PRIVATE');
-      const publicKeyPem = derToPem(this.publicKeyBase64, 'PUBLIC');
-
-      this.privateKey = await jose.importPKCS8(privateKeyPem, 'RS256');
-      this.publicKey = await jose.importSPKI(publicKeyPem, 'RS256');
+      this.privateKey = await this.importKeyMaterial(this.privateKeyBase64, 'PRIVATE');
+      this.publicKey = await this.importKeyMaterial(this.publicKeyBase64, 'PUBLIC');
       this.privateKeyLoaded = true;
     } catch (error: any) {
+      if (process.env.NODE_ENV === 'development') {
+        await this.createFallbackKeys();
+        return;
+      }
       throw new Error(`Invalid JWT RSA key configuration: ${error.message}`);
     }
   }
