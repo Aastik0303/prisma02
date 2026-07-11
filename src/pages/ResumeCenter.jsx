@@ -792,19 +792,22 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     URL.revokeObjectURL(url);
   };
 
-  const loadSavedResumes = async () => {
+  const loadSavedResumes = async ({ showLoading = true } = {}) => {
     if (!getStoredAccessToken()) {
       setSavedResumes([]);
       return;
     }
-    setResumeLibraryLoading(true);
+    if (showLoading) setResumeLibraryLoading(true);
     try {
       const resumes = await resumeApiRequest('/resumes', { method: 'GET', authRequired: true });
       setSavedResumes(Array.isArray(resumes) ? resumes : []);
+      if (selectedResumeId && Array.isArray(resumes) && !resumes.some(resume => resume.id === selectedResumeId)) {
+        setSelectedResumeId('');
+      }
     } catch (error) {
       setResumeError(error.message);
     } finally {
-      setResumeLibraryLoading(false);
+      if (showLoading) setResumeLibraryLoading(false);
     }
   };
 
@@ -869,7 +872,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     if (selectedResumeId === id) setSelectedResumeId('');
     try {
       await resumeApiRequest(`/resumes/${id}`, { method: 'DELETE', authRequired: true });
-      setSavedResumes(current => current.filter(resume => resume.id !== id));
+      await loadSavedResumes({ showLoading: false });
     } catch (error) {
       if (error.code === 'RESUME_NOT_FOUND') {
         setSavedResumes(current => current.filter(resume => resume.id !== id));

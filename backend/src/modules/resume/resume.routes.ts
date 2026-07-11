@@ -112,6 +112,16 @@ function serializeResumeRecord(resume: any) {
   };
 }
 
+function serializeResumeListItem(resume: any) {
+  return {
+    id: resume.id,
+    userId: resume.userId,
+    title: resume.title,
+    createdAt: resume.createdAt,
+    updatedAt: resume.updatedAt
+  };
+}
+
 function buildResumeTextForScan(parsedJsonData: unknown, fallbackText = '') {
   const parsed = parsedResumeJsonSchema.safeParse(parsedJsonData);
   const structuredText = parsed.success ? resumeJsonToLines(parsed.data).join('\n') : '';
@@ -192,9 +202,16 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const resumes = await resumeStore(fastify).findMany({
       where: { userId: request.user!.id },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true
+      }
     });
-    return resumes.map(serializeResumeRecord);
+    return resumes.map(serializeResumeListItem);
   });
 
   fastify.post('/resumes/upload', {
