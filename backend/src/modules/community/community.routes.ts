@@ -59,6 +59,14 @@ const metadataObject = (metadata: any) => (
   metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {}
 );
 
+const utcDayKey = (date = new Date()) => date.toISOString().slice(0, 10);
+
+const previousUtcDayKey = (date = new Date()) => {
+  const previous = new Date(date);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return utcDayKey(previous);
+};
+
 const normalizeProject = (project: any, index: number) => ({
   id: project?.id || `project-${index}`,
   title: project?.title || 'Untitled project',
@@ -174,6 +182,8 @@ export async function communityRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({
       user: {
         ...normalizeUser(user),
+        communityStreak: Math.max(0, Number(metadata.communityStreak || 0)),
+        lastCommunityPostDate: metadata.lastCommunityPostDate || '',
         college: metadata.college || '',
         degree: metadata.degree || '',
         year: metadata.year || '',
@@ -241,30 +251,46 @@ export async function communityRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const post = await fastify.prisma.communityPost.create({
-      data: {
-        authorId: request.user!.id,
-        content: content.slice(0, 2000),
-        tag: body.tag?.trim().slice(0, 40) || 'Discussion',
-        imageUrl: body.imageUrl?.trim() || null,
-        skills: Array.isArray(body.skills)
-          ? body.skills.map(skill => String(skill).trim()).filter(Boolean).slice(0, 6)
-          : ['Community', 'Learning']
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            role: true,
-            avatarUrl: true
-          }
+    const now = new Date();
+    const today = utcDayKey(now);
+    const yesterday = previousUtcDayKey(now);
+    const result = await fastify.prisma.$transaction(async prisma => {
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: request.user!.id },
+        select: { metadata: true }
+      });
+      const metadata = metadataObject(user.metadata);
+      const lastPostDate = String(metadata.lastCommunityPostDate || '');
+      const currentStreak = Math.max(0, Number(metadata.communityStreak ?? 0));
+      const nextStreak = lastPostDate === today
+        ? currentStreak
+        : lastPostDate === yesterday
+          ? currentStreak + 1
+          : 1;
+
+      const post = await prisma.communityPost.create({
+        data: {
+          authorId: request.user!.id,
+          content: content.slice(0, 2000),
+          tag: body.tag?.trim().slice(0, 40) || 'Discussion',
+          imageUrl: body.imageUrl?.trim() || null,
+          skills: Array.isArray(body.skills)
+            ? body.skills.map(skill => String(skill).trim()).filter(Boolean).slice(0, 6)
+            : ['Community', 'Learning']
+        },
+        include: {
+          author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true } }
         }
-      }
+      });
+
+      await prisma.user.update({
+        where: { id: request.user!.id },
+        data: { metadata: { ...metadata, communityStreak: nextStreak, lastCommunityPostDate: today } }
+      });
+      return { post, nextStreak };
     });
 
-    return reply.status(201).send(normalizePost(post));
+    return reply.status(201).send({ ...normalizePost(result.post), authorStreak: result.nextStreak });
   });
 
   fastify.get('/social', {

@@ -1,1656 +1,1530 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  BadgeCheck,
   Bell,
   Bookmark,
   Camera,
-  Clock,
-  CheckCircle2,
   CheckCheck,
-  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+  Flame,
+  Grid3x3,
   Heart,
-  Image,
-  Link2,
-  MessageCircle,
-  MessageSquare,
+  Image as ImageIcon,
   Mic,
+  MessageCircle,
   MoreHorizontal,
   Paperclip,
   Phone,
+  Plus,
   Search,
   Send,
-  ShieldCheck,
-  Share2,
   Smile,
-  Star,
+  Sparkles,
   TrendingUp,
-  Trophy,
   UserPlus,
   Users,
   Video,
   X,
+  Home,
+  PlusSquare,
 } from "lucide-react";
 
-const currentUser = {
-  name: "Aastik Srivastava",
-  role: "Full Stack Learner",
-  avatar:
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?fit=facearea&facepad=2&w=256&h=256&q=80",
-  cover:
-    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=900&h=360&fit=crop",
-  college: "Prisma Embedded Codes",
-  headline: "Building React apps, embedded projects, and placement-ready proof of work.",
-  followers: "2.4k",
-  connections: "318",
-};
+/* ============================================================================
+   PEER/ — a from-scratch, Instagram-shaped community for a builder audience.
+   Signature idea: "streak rings" replace plain story rings — a conic-gradient
+   ring around every avatar that fills in with that person's daily build
+   streak, and tapping it opens a "build log" story instead of a photo story.
 
-const initialPosts = [
-  {
-    id: 1,
-    author: "Priya Sharma",
-    role: "AI/ML Engineer in Training",
-    avatar:
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?fit=facearea&facepad=2&w=256&h=256&q=80",
-    time: "22 min",
-    tag: "Project Win",
-    content:
-      "Finished an LLM-powered resume analyzer today. The best part was turning messy feedback into clear ATS improvement steps. Sharing the repo after I clean up the README.",
-    image:
-      "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=900&h=460&fit=crop",
-    stats: { likes: 286, comments: 42, shares: 18 },
-    skills: ["LLM", "Python", "Resume ATS"],
-    featured: true,
-  },
-  {
-    id: 2,
-    author: "Karan Mehta",
-    role: "Embedded Systems Student",
-    avatar:
-      "https://images.unsplash.com/photo-1463453091185-61582044d556?fit=facearea&facepad=2&w=256&h=256&q=80",
-    time: "1 hr",
-    tag: "Need Advice",
-    content:
-      "Working on a FreeRTOS scheduling demo for interviews. What is the clearest way to explain priority inversion to a non-embedded recruiter?",
-    image: null,
-    stats: { likes: 94, comments: 27, shares: 7 },
-    skills: ["FreeRTOS", "Firmware", "Interview Prep"],
-  },
-  {
-    id: 3,
-    author: "Sneha Reddy",
-    role: "Product Design Learner",
-    avatar:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?fit=facearea&facepad=2&w=256&h=256&q=80",
-    time: "3 hr",
-    tag: "Showcase",
-    content:
-      "Redesigned a student dashboard with clearer progress signals and reduced visual clutter. Looking for feedback on the color balance and hierarchy.",
-    image:
-      "https://images.unsplash.com/photo-1559028012-481c04fa702d?w=900&h=460&fit=crop",
-    stats: { likes: 341, comments: 58, shares: 22 },
-    skills: ["UI/UX", "Figma", "Dashboard"],
-  },
-];
+   This file is intentionally self-contained (local demo state only) so it
+   can be dropped in and looked at immediately. Swap MOCK_* data and the
+   handler bodies for real API/WebSocket calls when wiring the backend back
+   in — every handler is named for exactly what it should eventually do.
+   ========================================================================== */
 
-const suggestions = [
-  {
-    name: "Elena Rostova",
-    role: "React Developer",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    name: "Vikram Malhotra",
-    role: "Backend + ML",
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    name: "Kavya Singh",
-    role: "Cybersecurity Track",
-    avatar:
-      "https://images.unsplash.com/photo-1580489944761-15a19d654956?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-];
+/* ---------------------------------- design tokens -------------------------- */
+const INK = "#0B0A16";
+const SURFACE = "rgba(24,21,38,0.72)";
+const SURFACE_2 = "rgba(32,28,50,0.78)";
+const VIOLET_GLOW = "#8B5CF6";
+const MAGENTA_GLOW = "#E7458A";
+const EMBER_GLOW = "#FF7A45";
+const CYAN_GLOW = "#2FE0C4";
+const GOLD_GLOW = "#FFC15E";
+const HAIRLINE = "rgba(255,255,255,0.09)";
+const GRADIENT = "linear-gradient(135deg,#FF6B4A 0%,#FF9F5A 38%,#8B5CF6 100%)";
 
-const messages = [
-  {
-    id: "neha",
-    name: "Neha Gupta",
-    role: "Portfolio Mentor",
-    text: "Can you review my portfolio hero?",
-    time: "2m",
-    unread: 2,
-    status: "online",
-    avatar:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    id: "rahul",
-    name: "Rahul Anand",
-    role: "Backend Builder",
-    text: "I shared the Node API checklist.",
-    time: "36m",
-    unread: 0,
-    status: "typing",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    id: "dev",
-    name: "Dev Narayan",
-    role: "Team Lead",
-    text: "Team call at 8 PM?",
-    time: "1h",
-    unread: 1,
-    status: "online",
-    avatar:
-      "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-];
+const GlobalStyle = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+    .peer-root, .peer-root input, .peer-root textarea, .peer-root button { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    .peer-display { font-family: 'Space Grotesk', 'Inter', ui-sans-serif, sans-serif; }
+    .peer-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .peer-scroll::-webkit-scrollbar { display: none; }
+    .peer-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes peerHeartBurst { 0% { opacity: 0; transform: scale(.4) rotate(-8deg); } 25% { opacity: 1; transform: scale(1.15) rotate(0deg); } 45% { transform: scale(.95); } 75% { opacity: 1; } 100% { opacity: 0; transform: scale(1.3); } }
+    .peer-burst { animation: peerHeartBurst .8s ease-out forwards; }
+    @keyframes peerPopIn { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes peerPopOut { from { opacity: 1; transform: scale(1) translateY(0); } to { opacity: 0; transform: scale(.96) translateY(8px); } }
+    @keyframes peerSlideUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes peerFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .peer-pop-in { animation: peerPopIn .22s cubic-bezier(.21,1.02,.73,1); }
+    .peer-pop-out { animation: peerPopOut .16s ease-in forwards; }
+    .peer-sheet-in { animation: peerSlideUp .24s cubic-bezier(.21,1.02,.73,1); }
+    .peer-fade-in { animation: peerFadeIn .18s ease-out; }
+    @keyframes peerBounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-3px); } }
+    .peer-dot-1 { animation: peerBounce 1.1s infinite; }
+    .peer-dot-2 { animation: peerBounce 1.1s .12s infinite; }
+    .peer-dot-3 { animation: peerBounce 1.1s .24s infinite; }
+    @keyframes peerDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,80px) scale(1.12); } }
+    @keyframes peerDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,-40px) scale(1.15); } }
+    @keyframes peerDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-60px) scale(1.08); } }
+    @keyframes peerDrift4 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,50px) scale(1.1); } }
+    @keyframes peerDrift5 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,30px) scale(1.06); } }
+    .peer-blob-1 { animation: peerDrift1 24s ease-in-out infinite; }
+    .peer-blob-2 { animation: peerDrift2 28s ease-in-out infinite; }
+    .peer-blob-3 { animation: peerDrift3 32s ease-in-out infinite; }
+    .peer-blob-4 { animation: peerDrift4 26s ease-in-out infinite; }
+    .peer-blob-5 { animation: peerDrift5 20s ease-in-out infinite; }
+    @keyframes peerAuroraShift { 0%,100% { opacity: .55; transform: translateX(0) scaleX(1); } 50% { opacity: .85; transform: translateX(3%) scaleX(1.04); } }
+    .peer-aurora { animation: peerAuroraShift 14s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .peer-blob-1, .peer-blob-2, .peer-blob-3, .peer-blob-4, .peer-blob-5, .peer-aurora { animation: none; }
+    }
+  `}</style>
+);
 
-const initialChatMessages = {
-  neha: [
-    { id: 1, from: "them", text: "Can you review my portfolio hero?", time: "2m" },
-    { id: 2, from: "me", text: "Yes, send the link. I will check hierarchy, CTA clarity, and mobile spacing.", time: "1m" },
-    { id: 3, from: "them", text: "Perfect. I mainly want it to feel more recruiter-ready.", time: "now" },
-    { id: 4, from: "them", type: "project", title: "Portfolio Hero Review", text: "CTA clarity, mobile spacing, visual hierarchy", time: "now" },
-  ],
-  rahul: [
-    { id: 1, from: "them", text: "I shared the Node API checklist.", time: "36m" },
-    { id: 2, from: "me", text: "Got it. I will compare it with the auth and rate-limit tasks.", time: "30m" },
-    { id: 3, from: "them", text: "Typing notes on refresh token expiry now...", time: "typing" },
-  ],
-  dev: [
-    { id: 1, from: "them", text: "Team call at 8 PM?", time: "1h" },
-    { id: 2, from: "me", text: "Works for me. Let us use the first 15 minutes for blockers.", time: "54m" },
-    { id: 3, from: "them", type: "project", title: "Tonight's Standup", text: "Blockers, demo order, deployment checklist", time: "48m" },
-  ],
-};
-
-const filters = ["For You", "Projects", "Doubts", "Jobs", "Events"];
-const chatEmojis = ["😀", "😂", "🔥", "✨", "🚀", "👏", "💡", "✅", "❤️", "🙏"];
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-const fallbackAvatar =
-  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?fit=facearea&facepad=2&w=256&h=256&q=80";
-
-const getCsrfToken = async () => {
-  const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
-    credentials: "include",
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.message || "Unable to prepare follow request.");
-  }
-  return {
-    csrfToken: data.csrfToken,
-    csrfSessionId: data.csrfSessionId,
-  };
-};
-
-const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
-  "X-CSRF-Token": csrfToken,
-  ...(csrfSessionId ? { "X-CSRF-Session-Id": csrfSessionId } : {}),
-});
-
-const formatCommunityRole = (role) => {
-  const normalized = String(role || "").toLowerCase();
-  if (!normalized) return "Learner";
-  if (normalized.includes("admin") || normalized.includes("super")) return "Learner";
-  if (["student", "mentor", "recruiter"].includes(normalized)) {
-    return normalized.replace(/_/g, " ");
-  }
-  return String(role).replace(/_/g, " ");
-};
-
-const normalizeDirectoryUser = (user) => ({
-  id: user.id || user.email || user.name,
-  name: user.fullName || user.name || "Learner",
-  role: formatCommunityRole(user.role),
-  email: user.email || "",
-  avatar: user.avatarUrl || user.avatar || fallbackAvatar,
-  isBackendUser: Boolean(user.id && user.fullName),
-});
-
-const getCommunityUserId = (user = {}) => user.backendUserId || user.id || user.email || user.name || "guest";
-
-const toCountNumber = (value) => {
-  if (typeof value === "number") return value;
-  const cleanValue = String(value ?? "0").trim().toLowerCase();
-  if (cleanValue.endsWith("k")) {
-    return Math.round((Number.parseFloat(cleanValue) || 0) * 1000);
-  }
-  return Number.parseInt(cleanValue.replace(/,/g, ""), 10) || 0;
-};
-
-const formatCount = (value) => Number(value || 0).toLocaleString();
-
-const formatAge = (date) => {
-  if (!date) return "now";
-  const diff = Math.max(0, Date.now() - new Date(date).getTime());
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr`;
-  return `${Math.floor(hours / 24)} d`;
-};
-
-const requestJson = async (path, { authToken, method = "GET", body } = {}) => {
-  const headers = {
-    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-  };
-
-  if (body) {
-    const csrf = await getCsrfToken();
-    headers["Content-Type"] = "application/json";
-    Object.assign(headers, buildCsrfHeaders(csrf));
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    credentials: "include",
-    headers,
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Community request failed.");
-  }
-
-  return data;
-};
-
-const getWsBaseUrl = () => {
-  if (import.meta.env.VITE_WS_BASE_URL) return import.meta.env.VITE_WS_BASE_URL;
-  if (/^https?:\/\//i.test(API_BASE_URL)) {
-    return API_BASE_URL.replace(/^http/i, "ws").replace(/\/api\/v1\/?$/, "");
-  }
-  const isViteDev = ["5173", "5174"].includes(window.location.port);
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  if (isViteDev) return `${protocol}://${window.location.hostname}:3001`;
-  return `${protocol}://${window.location.host}`;
-};
-
-const normalizeChatMessage = (message, viewerId) => ({
-  id: message.id || `${message.createdAt}-${message.content}`,
-  from: message.senderId === viewerId || message.sender?.id === viewerId ? "me" : "them",
-  text: message.content || message.text || "",
-  time: message.createdAt ? formatAge(message.createdAt) : "now",
-});
-
-function ProfileCard({ user = currentUser }) {
+/* A full-bleed aurora mesh behind the whole page — violet, magenta, ember,
+   gold and cyan glows woven across the entire viewport (not just tucked
+   into the corners), layered with a soft grain and a fine dot-grid so the
+   canvas reads as considered texture rather than empty black space. */
+function AmbientBackground() {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-      <img src={user.cover || currentUser.cover} alt="" className="h-24 w-full object-cover" />
-      <div className="px-5 pb-5">
-        <img
-          src={user.avatar || currentUser.avatar}
-          alt={user.name}
-          className="-mt-8 h-16 w-16 rounded-2xl border-4 border-white object-cover shadow-lg dark:border-darknavy-card"
-        />
-        <h2 className="mt-3 text-base font-black text-slate-950 dark:text-white">{user.name}</h2>
-        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{user.role}</p>
-        <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">{user.headline}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <div>
-            <p className="text-sm font-black text-slate-950 dark:text-white">{user.followers}</p>
-            <p className="text-[11px] font-semibold text-slate-500">Followers</p>
-          </div>
-          <div>
-            <p className="text-sm font-black text-slate-950 dark:text-white">{user.connections}</p>
-            <p className="text-[11px] font-semibold text-slate-500">Following</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" style={{ background: `linear-gradient(180deg, #120E22 0%, ${INK} 45%, #140B1E 100%)` }}>
+      {/* wide aurora band sweeping across the top third — the main color event */}
+      <div
+        className="peer-aurora absolute -top-1/4 left-1/2 h-[900px] w-[1400px] -translate-x-1/2"
+        style={{
+          background: `conic-gradient(from 200deg at 50% 50%, ${VIOLET_GLOW}, ${MAGENTA_GLOW}, ${EMBER_GLOW}, ${GOLD_GLOW}, ${CYAN_GLOW}, ${VIOLET_GLOW})`,
+          filter: "blur(150px)",
+          opacity: 0.55,
+        }}
+      />
+      <div
+        className="peer-blob-1 absolute -left-32 top-0 h-[620px] w-[620px] rounded-full opacity-60 blur-[130px]"
+        style={{ background: VIOLET_GLOW }}
+      />
+      <div
+        className="peer-blob-2 absolute -right-24 top-[8%] h-[560px] w-[560px] rounded-full opacity-50 blur-[140px]"
+        style={{ background: MAGENTA_GLOW }}
+      />
+      <div
+        className="peer-blob-3 absolute left-[8%] top-[38%] h-[520px] w-[520px] rounded-full opacity-40 blur-[150px]"
+        style={{ background: CYAN_GLOW }}
+      />
+      <div
+        className="peer-blob-4 absolute right-[6%] top-[42%] h-[480px] w-[480px] rounded-full opacity-[0.35] blur-[140px]"
+        style={{ background: EMBER_GLOW }}
+      />
+      <div
+        className="peer-blob-5 absolute bottom-0 left-1/3 h-[560px] w-[560px] rounded-full opacity-[0.3] blur-[150px]"
+        style={{ background: GOLD_GLOW }}
+      />
+      {/* fine dot-grid texture across the whole canvas */}
+      <div
+        className="absolute inset-0 opacity-[0.07]"
+        style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.9) 1px, transparent 1px)", backgroundSize: "26px 26px" }}
+      />
+      {/* subtle film-grain so large glow areas don't look flat */}
+      <div
+        className="absolute inset-0 opacity-[0.35] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
+      {/* gentle edge vignette only — keeps the center lively instead of fading to flat black */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(ellipse 120% 90% at 50% 20%, transparent 45%, rgba(11,10,22,0.55) 78%, rgba(11,10,22,0.85) 100%)" }}
+      />
+    </div>
   );
 }
 
-function Composer({ onPost, user = currentUser }) {
-  const [text, setText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+/* ---------------------------------- demo data ------------------------------ */
+const img = (id, w = 400, h = 400) => `https://images.unsplash.com/${id}?w=${w}&h=${h}&fit=crop&auto=format`;
 
-  const submit = async () => {
-    const cleanText = text.trim();
-    if (!cleanText || submitting) return;
-    setSubmitting(true);
-    try {
-      const posted = await onPost(cleanText);
-      if (posted !== false) setText("");
-    } finally {
-      setSubmitting(false);
-    }
+let MOCK_PEOPLE = [
+  { id: "p-priya", name: "Priya Sharma", handle: "@priya.builds", role: "AI/ML Engineer", avatar: img("photo-1517841905240-472988babdf9", 256, 256), streak: 14, verified: true, private: false, online: true },
+  { id: "p-karan", name: "Karan Mehta", handle: "@karan.rtos", role: "Embedded Systems", avatar: img("photo-1463453091185-61582044d556", 256, 256), streak: 6, verified: false, private: false, online: false },
+  { id: "p-sneha", name: "Sneha Reddy", handle: "@sneha.designs", role: "Product Design", avatar: img("photo-1438761681033-6461ffad8d80", 256, 256), streak: 21, verified: true, private: false, online: true },
+  { id: "p-elena", name: "Elena Rostova", handle: "@elena.codes", role: "React Developer", avatar: img("photo-1494790108377-be9c29b29330", 256, 256), streak: 3, verified: false, private: true, online: false },
+  { id: "p-vikram", name: "Vikram Malhotra", handle: "@vikram.ml", role: "Backend + ML", avatar: img("photo-1500648767791-00dcc994a43e", 256, 256), streak: 9, verified: false, private: false, online: true },
+  { id: "p-kavya", name: "Kavya Singh", handle: "@kavya.sec", role: "Cybersecurity", avatar: img("photo-1580489944761-15a19d654956", 256, 256), streak: 30, verified: true, private: true, online: false },
+  { id: "p-rahul", name: "Rahul Anand", handle: "@rahul.api", role: "Backend Builder", avatar: img("photo-1472099645785-5658abf4ff4e", 256, 256), streak: 11, verified: false, private: false, online: true },
+  { id: "p-dev", name: "Dev Narayan", handle: "@dev.leads", role: "Team Lead", avatar: img("photo-1519345182560-3f2917c472ef", 256, 256), streak: 45, verified: true, private: false, online: true },
+];
+
+let CURRENT_VIEWER = null;
+const byId = (id) => (CURRENT_VIEWER && (id === "me" || id === CURRENT_VIEWER.id) ? CURRENT_VIEWER : MOCK_PEOPLE.find((p) => p.id === id));
+
+let MOCK_STORIES = [
+  { id: "p-priya", title: "LLM Resume Analyzer", update: "Shipped v2 with ATS scoring + tone check.", image: img("photo-1677442136019-21780ecad995", 800, 1000) },
+  { id: "p-sneha", title: "Dashboard redesign", update: "Cut visual noise, added progress rings.", image: img("photo-1559028012-481c04fa702d", 800, 1000) },
+  { id: "p-karan", title: "FreeRTOS scheduler", update: "Priority inversion demo finally clicks.", image: img("photo-1518770660439-4636190af475", 800, 1000) },
+  { id: "p-dev", title: "Sprint retro", update: "Shaved 400ms off cold start.", image: img("photo-1461749280684-dccba630e2f6", 800, 1000) },
+  { id: "p-kavya", title: "CTF writeup", update: "Solved the crypto chain in under an hour.", image: img("photo-1526374965328-7f61d4dc18c5", 800, 1000) },
+  { id: "p-rahul", title: "Auth service", update: "Refresh tokens now rotate on reuse.", image: img("photo-1555066931-4365d14bab8c", 800, 1000) },
+];
+
+const tagTone = {
+  "Project Win": { chip: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30", dot: "bg-violet-400" },
+  "Need Advice": { chip: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30", dot: "bg-amber-400" },
+  Showcase: { chip: "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30", dot: "bg-cyan-400" },
+  Discussion: { chip: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30", dot: "bg-rose-400" },
+};
+
+const MOCK_POSTS = [
+  {
+    id: "post-1",
+    authorId: "p-priya",
+    time: "22m",
+    tag: "Project Win",
+    content: "Finished an LLM-powered resume analyzer today. The best part was turning messy feedback into clear ATS improvement steps.",
+    tags: ["LLM", "Python", "ResumeATS"],
+    image: img("photo-1677442136019-21780ecad995", 900, 1125),
+    likes: 286,
+    comments: [
+      { id: "c1", authorId: "p-elena", text: "This is exactly what I needed for placement season 🔥", time: "18m" },
+      { id: "c2", authorId: "p-rahul", text: "Repo link when?", time: "10m" },
+    ],
+  },
+  {
+    id: "post-2",
+    authorId: "p-karan",
+    time: "1h",
+    tag: "Need Advice",
+    content: "Working on a FreeRTOS scheduling demo for interviews. What's the clearest way to explain priority inversion to a non-embedded recruiter?",
+    tags: ["FreeRTOS", "Firmware", "InterviewPrep"],
+    image: null,
+    likes: 94,
+    comments: [
+      { id: "c3", authorId: "p-dev", text: "Use the 'someone important stuck behind traffic' analogy, always lands.", time: "40m" },
+    ],
+  },
+  {
+    id: "post-3",
+    authorId: "p-sneha",
+    time: "3h",
+    tag: "Showcase",
+    content: "Redesigned a student dashboard with clearer progress signals and less visual clutter. Feedback on the color balance welcome.",
+    tags: ["UIUX", "Figma", "Dashboard"],
+    image: img("photo-1559028012-481c04fa702d", 900, 1125),
+    likes: 341,
+    comments: [
+      { id: "c4", authorId: "p-kavya", text: "The contrast on the progress ring is so clean.", time: "2h" },
+    ],
+  },
+  {
+    id: "post-4",
+    authorId: "p-vikram",
+    time: "5h",
+    tag: "Discussion",
+    content: "Hot take: most students over-index on frameworks and under-index on reading their own stack traces. Change my mind.",
+    tags: ["Debugging", "CareerAdvice"],
+    image: img("photo-1517694712202-14dd9538aa97", 900, 1125),
+    likes: 512,
+    comments: [
+      { id: "c5", authorId: "p-priya", text: "Painfully accurate.", time: "4h" },
+      { id: "c6", authorId: "p-karan", text: "Every single time 😭", time: "3h" },
+    ],
+  },
+];
+
+/* ---------------------------------- helpers -------------------------------- */
+let uidCounter = 1000;
+const uid = (prefix = "id") => `${prefix}-${uidCounter++}-${Date.now().toString(36)}`;
+
+function streakPct(streak) {
+  return streak > 0 ? Math.max(14, Math.min(100, streak * 5)) : 0;
+}
+
+/* ================================ Streak Ring =============================== */
+function StreakRing({ user, size = 56, onOpen, dashed = false, ringOnly = false }) {
+  const pct = streakPct(user?.streak || 0);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative shrink-0 rounded-full outline-none transition active:scale-95"
+      style={{ width: size, height: size }}
+      aria-label={`Open ${user?.name || "story"}`}
+    >
+      <div
+        className="absolute inset-0 rounded-full"
+        style={
+          dashed
+            ? { border: "2px dashed rgba(255,255,255,0.25)" }
+            : { background: `conic-gradient(from -90deg, #FF6B4A ${pct}%, rgba(255,255,255,0.14) ${pct}%)` }
+        }
+      />
+      <div className="absolute inset-[3px] rounded-full p-[2px]" style={{ background: INK }}>
+        <img src={user?.avatar} alt="" className="h-full w-full rounded-full object-cover" />
+      </div>
+      {!ringOnly && user?.online && (
+        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full ring-2" style={{ background: "#34D399", borderColor: INK, boxShadow: `0 0 0 2px ${INK}` }} />
+      )}
+    </button>
+  );
+}
+
+/* ================================ Story Rail ================================ */
+function StoryRail({ viewer, onOpenStory, onOpenComposer }) {
+  return (
+    <div className="flex gap-4 overflow-x-auto px-4 py-4 peer-scroll sm:px-0">
+      <div className="flex shrink-0 flex-col items-center gap-1.5">
+        <div className="relative">
+          <StreakRing user={{ avatar: viewer.avatar }} dashed onOpen={onOpenComposer} />
+          <button
+            type="button"
+            onClick={onOpenComposer}
+            className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full text-white ring-2"
+            style={{ background: GRADIENT, borderColor: INK, boxShadow: `0 0 0 2px ${INK}` }}
+            aria-label="Share an update"
+          >
+            <Plus className="h-3 w-3" strokeWidth={3} />
+          </button>
+        </div>
+        <span className="text-[10px] font-semibold text-white/50">Your streak</span>
+      </div>
+      {MOCK_STORIES.map((story) => {
+        const person = byId(story.id);
+        if (!person) return null;
+        return (
+          <div key={story.id} className="flex shrink-0 flex-col items-center gap-1.5">
+            <StreakRing user={person} onOpen={() => onOpenStory(story.id)} />
+            <span className="max-w-[64px] truncate text-[10px] font-semibold text-white/60">{person.name.split(" ")[0]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ================================ Story Viewer =============================== */
+function StoryViewer({ startId, onClose }) {
+  const order = MOCK_STORIES.map((s) => s.id);
+  const [index, setIndex] = useState(Math.max(0, order.indexOf(startId)));
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef(null);
+
+  const story = MOCK_STORIES[index];
+  const person = byId(story.id);
+
+  useEffect(() => {
+    setProgress(0);
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setProgress((value) => {
+        if (value >= 100) {
+          goNext();
+          return 0;
+        }
+        return value + 100 / 45;
+      });
+    }, 100);
+    return () => clearInterval(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
+  const goNext = () => setIndex((value) => (value < order.length - 1 ? value + 1 : (onClose(), value)));
+  const goPrev = () => setIndex((value) => Math.max(0, value - 1));
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black peer-fade-in">
+      <div className="relative flex h-full w-full max-w-md flex-col overflow-hidden sm:h-[92vh] sm:rounded-3xl">
+        <img src={story.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/10 to-black/80" />
+
+        <div className="relative flex gap-1 px-3 pt-3">
+          {order.map((id, i) => (
+            <div key={id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/25">
+              <div
+                className="h-full rounded-full bg-white"
+                style={{ width: i < index ? "100%" : i === index ? `${progress}%` : "0%" }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="relative flex items-center gap-3 px-4 pt-3">
+          <img src={person.avatar} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-white/40" />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1 truncate text-sm font-bold text-white">
+              {person.name}
+              {person.verified && <BadgeCheck className="h-3.5 w-3.5 text-cyan-300" />}
+            </p>
+            <p className="peer-mono text-[10px] text-white/60">now building · {person.streak} day streak</p>
+          </div>
+          <button onClick={onClose} type="button" className="rounded-full bg-white/10 p-2 text-white" aria-label="Close story">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <button className="absolute inset-y-0 left-0 w-1/3" type="button" onClick={goPrev} aria-label="Previous story" />
+        <button className="absolute inset-y-0 right-0 w-1/3" type="button" onClick={goNext} aria-label="Next story" />
+
+        <div className="relative mt-auto space-y-2 px-5 pb-8">
+          <p className="peer-mono inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
+            <Flame className="h-3 w-3 text-orange-400" /> build log
+          </p>
+          <h3 className="peer-display text-2xl font-bold text-white">{story.title}</h3>
+          <p className="text-sm font-medium leading-6 text-white/85">{story.update}</p>
+        </div>
+
+        <div className="relative flex items-center gap-2 px-4 pb-5">
+          <input
+            placeholder={`Reply to ${person.name.split(" ")[0]}...`}
+            className="h-11 flex-1 rounded-full border border-white/20 bg-white/10 px-4 text-sm font-medium text-white outline-none placeholder:text-white/50 backdrop-blur focus:border-white/40"
+          />
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full text-white" style={{ background: GRADIENT }} aria-label="Send reply">
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================ Filter Chips =============================== */
+const FILTERS = ["For You", "Projects", "Doubts", "Showcase", "Jobs"];
+
+function FilterChips({ active, onChange }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto px-4 pb-1 peer-scroll sm:px-0">
+      {FILTERS.map((filter) => {
+        const isActive = active === filter;
+        return (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => onChange(filter)}
+            className={`h-9 shrink-0 rounded-full px-4 text-xs font-bold transition ${
+              isActive ? "text-white shadow-lg shadow-black/30" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+            }`}
+            style={isActive ? { background: GRADIENT } : undefined}
+          >
+            {filter}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ================================ Post Card =================================== */
+function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onOpenChat }) {
+  const author = byId(post.authorId);
+  const [burst, setBurst] = useState(false);
+  const tone = tagTone[post.tag] || tagTone.Discussion;
+
+  const handleDoubleTap = () => {
+    if (!post.liked) onToggleLike(post.id);
+    setBurst(true);
+    setTimeout(() => setBurst(false), 800);
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-      <div className="flex gap-3">
-        <img src={user.avatar || currentUser.avatar} alt="" className="h-12 w-12 rounded-2xl object-cover" />
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          rows={3}
-          placeholder="Start a discussion, ask a doubt, share a project update..."
-          className="min-h-24 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-indigo-500"
-        />
-      </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
-          {[
-            { icon: Image, label: "Media" },
-            { icon: Link2, label: "Resource" },
-            { icon: Smile, label: "Poll" },
-          ].map(({ icon: Icon, label }) => (
-            <button
-              key={label}
-              className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/10"
-              type="button"
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={submit}
-          disabled={!text.trim() || submitting}
-          className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-xs font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none dark:disabled:bg-slate-800"
-          type="button"
-        >
-          <Send className="h-4 w-4" />
-          {submitting ? "Publishing" : "Publish"}
+    <article className="overflow-hidden rounded-3xl border backdrop-blur-xl transition hover:border-white/15" style={{ background: SURFACE, borderColor: HAIRLINE }}>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4">
+        <button type="button" onClick={() => onOpenProfile(author.id)} className="flex min-w-0 items-center gap-3">
+          <StreakRing user={author} size={44} onOpen={() => onOpenProfile(author.id)} ringOnly />
+          <div className="min-w-0 text-left">
+            <span className="flex items-center gap-1">
+              <span className="truncate text-sm font-bold text-white">{author.name}</span>
+              {author.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-cyan-300" />}
+            </span>
+            <p className="peer-mono truncate text-[11px] text-white/45">
+              {author.handle} · {post.time}
+            </p>
+          </div>
+        </button>
+        <button type="button" className="rounded-full p-2 text-white/40 transition hover:bg-white/5 hover:text-white/80" aria-label="More options">
+          <MoreHorizontal className="h-4.5 w-4.5" />
         </button>
       </div>
-    </section>
-  );
-}
 
-function PostCard({ post, onViewProfile }) {
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const likeCount = post.stats.likes + (liked ? 1 : 0);
-
-  return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-darknavy-card">
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 gap-3">
-            <button type="button" onClick={() => post.authorId && onViewProfile?.(post.authorId)} className="shrink-0">
-              <img src={post.avatar} alt={post.author} className="h-12 w-12 rounded-2xl object-cover" />
-            </button>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => post.authorId && onViewProfile?.(post.authorId)}
-                  className="truncate text-left text-sm font-black text-slate-950 transition hover:text-indigo-600 dark:text-white dark:hover:text-indigo-300"
-                >
-                  {post.author}
-                </button>
-                {post.featured && <CheckCircle2 className="h-4 w-4 text-indigo-500" />}
-                <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
-                  {post.tag}
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                {post.role} · {post.time}
-              </p>
-            </div>
-          </div>
-          <button className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-200" type="button">
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
-        </div>
-
-        <p className="mt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">{post.content}</p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {post.skills.map((skill) => (
-            <span
-              key={skill}
-              className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-bold text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300"
-            >
-              #{skill}
-            </span>
-          ))}
-        </div>
+      <div className="px-4 pb-1 pt-3">
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${tone.chip}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+          {post.tag}
+        </span>
+        <p className="mt-3 text-[13px] leading-6 text-white/85">{post.content}</p>
+        {post.tags?.length > 0 && (
+          <p className="peer-mono mt-2 flex flex-wrap gap-x-2 text-[12px] font-medium" style={{ color: "#FF9F5A" }}>
+            {post.tags.map((t) => (
+              <span key={t}>#{t}</span>
+            ))}
+          </p>
+        )}
       </div>
 
-      {post.image && <img src={post.image} alt="" className="h-64 w-full object-cover" />}
+      {post.image && (
+        <div className="relative mt-3 select-none" onDoubleClick={handleDoubleTap}>
+          <img src={post.image} alt="" className="aspect-[4/5] w-full object-cover" draggable={false} />
+          {burst && (
+            <Heart className="peer-burst pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow-2xl" fill="white" />
+          )}
+        </div>
+      )}
 
-      <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs font-bold text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        <span>{likeCount.toLocaleString()} reactions</span>
-        <span>{post.stats.comments} comments · {post.stats.shares} shares</span>
-      </div>
-
-      <div className="grid grid-cols-4 border-t border-slate-100 p-2 dark:border-slate-800">
-        {[
-          { icon: Heart, label: "Like", active: liked, onClick: () => setLiked((value) => !value) },
-          { icon: MessageCircle, label: "Comment" },
-          { icon: Share2, label: "Share" },
-          { icon: Bookmark, label: "Save", active: saved, onClick: () => setSaved((value) => !value) },
-        ].map(({ icon: Icon, label, active, onClick }) => (
+      <div className="flex items-center justify-between px-3 pt-2">
+        <div className="flex items-center gap-1">
           <button
-            key={label}
-            onClick={onClick}
-            className={`flex h-11 items-center justify-center gap-2 rounded-xl text-xs font-black transition ${
-              active
-                ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
-            }`}
             type="button"
+            onClick={() => onToggleLike(post.id)}
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 transition active:scale-90"
+            aria-label="Like post"
           >
-            <Icon className="h-4 w-4" fill={active && label === "Like" ? "currentColor" : "none"} />
-            {label}
+            <Heart className={`h-6 w-6 transition ${post.liked ? "text-rose-500" : "text-white/70"}`} fill={post.liked ? "currentColor" : "none"} />
           </button>
-        ))}
+          <button type="button" onClick={() => onOpenComments(post.id)} className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90" aria-label="Comment">
+            <MessageCircle className="h-6 w-6" />
+          </button>
+          <button type="button" onClick={() => onOpenChat(author)} className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90" aria-label="Share via chat">
+            <Send className="h-6 w-6" />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggleSave(post.id)}
+          className="rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90"
+          aria-label="Save post"
+        >
+          <Bookmark className={`h-6 w-6 ${post.saved ? "text-amber-400" : ""}`} fill={post.saved ? "currentColor" : "none"} />
+        </button>
+      </div>
+
+      <div className="space-y-1 px-4 pb-4">
+        <p className="text-xs font-black text-white">{post.likes.toLocaleString()} reactions</p>
+        {post.comments.length > 0 && (
+          <button type="button" onClick={() => onOpenComments(post.id)} className="text-xs font-semibold text-white/40 hover:text-white/60">
+            View all {post.comments.length} comments
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenComments(post.id)}
+          className="flex w-full items-center gap-2 pt-1 text-left text-xs font-medium text-white/30"
+        >
+          <img src={viewer.avatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+          Add a comment...
+        </button>
       </div>
     </article>
   );
 }
 
-function PeopleSuggestions({ authToken, isSignedIn, currentUser, socialState, onSendRequest, onAcceptRequest, onDeclineRequest, onOpenChat, onViewProfile }) {
-  const [directoryUsers, setDirectoryUsers] = useState([]);
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sendingId, setSendingId] = useState("");
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
+/* ================================ Comments Sheet =============================== */
+function CommentsSheet({ post, viewer, onClose, onAddComment }) {
+  const [draft, setDraft] = useState("");
+  const author = byId(post.authorId);
 
-  const currentUserId = getCommunityUserId(currentUser);
-  const incomingRequests = socialState.incomingRequests || [];
-  const outgoingRequests = socialState.outgoingRequests || [];
-  const followingIds = new Set(socialState.followingIds || []);
-
-  useEffect(() => {
-    if (!isSignedIn || !authToken) {
-      setDirectoryUsers([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const params = new URLSearchParams();
-        if (query.trim()) params.set("query", query.trim());
-        params.set("limit", "8");
-
-        const response = await fetch(`${API_BASE_URL}/users/directory?${params.toString()}`, {
-          credentials: "include",
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-          signal: controller.signal,
-        });
-        const data = await response.json().catch(() => []);
-
-        if (!response.ok) {
-          throw new Error(data.message || "Unable to load people.");
-        }
-
-        setDirectoryUsers(Array.isArray(data) ? data.map(normalizeDirectoryUser) : []);
-      } catch (requestError) {
-        if (requestError.name !== "AbortError") {
-          setError(requestError.message || "Unable to load people.");
-        }
-      } finally {
-        setLoading(false);
-      }
-    }, 250);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [authToken, isSignedIn, query]);
-
-  const people = (isSignedIn && authToken ? directoryUsers : suggestions.map(normalizeDirectoryUser))
-    .filter(person => person.id !== currentUserId && person.email !== currentUser.email);
-
-  const sendFollowRequest = async (person) => {
-    setSendingId(person.id);
-    setError("");
-    setStatus("");
-
-    try {
-      await onSendRequest(person);
-      setStatus(`Follow request sent to ${person.name}. They need to accept it before you follow them.`);
-    } catch (requestError) {
-      setError(requestError.message || "Unable to send follow request.");
-    } finally {
-      setSendingId("");
-    }
+  const submit = () => {
+    const clean = draft.trim();
+    if (!clean) return;
+    onAddComment(post.id, clean);
+    setDraft("");
   };
 
-  const getRelationship = (person) => {
-    const outgoing = outgoingRequests.find(request => request.toId === person.id);
-    const incoming = incomingRequests.find(request => request.fromId === person.id);
-
-    if (followingIds.has(person.id)) return "following";
-    if (outgoing?.status === "pending") return "requested";
-    if (incoming) return "respond";
-    return "none";
-  };
-
-  const respondToRequest = async (requestId, action) => {
-    setError("");
-    setStatus("");
-    try {
-      if (action === "accept") {
-        await onAcceptRequest(requestId);
-        setStatus("Follow request accepted.");
-      } else {
-        await onDeclineRequest(requestId);
-        setStatus("Follow request declined.");
-      }
-    } catch (requestError) {
-      setError(requestError.message || "Unable to update follow request.");
-    }
-  };
-
-  const renderAction = (person) => {
-    const relationship = getRelationship(person);
-    const baseClass = "flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-black transition";
-
-    if (relationship === "following") {
-      return (
-        <button type="button" className={`${baseClass} bg-emerald-500 text-white`} disabled>
-          <CheckCircle2 className="h-4 w-4" />
-          <span className="hidden sm:inline">Following</span>
-        </button>
-      );
-    }
-
-    if (relationship === "requested") {
-      return (
-        <button type="button" className={`${baseClass} border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300`} disabled>
-          <Clock className="h-4 w-4" />
-          <span className="hidden sm:inline">Requested</span>
-        </button>
-      );
-    }
-
-    if (relationship === "respond") {
-      const request = incomingRequests.find(item => item.fromId === person.id);
-      return (
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => respondToRequest(request.id, "accept")}
-            className={`${baseClass} bg-indigo-600 text-white hover:bg-indigo-700`}
-          >
-            Accept
-          </button>
-          <button
-            type="button"
-            onClick={() => respondToRequest(request.id, "decline")}
-            className={`${baseClass} border border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-900`}
-          >
-            Decline
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <button
-        onClick={() => sendFollowRequest(person)}
-        disabled={sendingId === person.id}
-        className={`${baseClass} border border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10`}
-        type="button"
+  return (
+    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div
+        className="peer-sheet-in flex h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border backdrop-blur-2xl sm:h-[70vh] sm:rounded-3xl"
+        style={{ background: SURFACE, borderColor: HAIRLINE }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {sendingId === person.id ? <Send className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-        <span className="hidden sm:inline">{sendingId === person.id ? "Sending" : "Follow"}</span>
-      </button>
-    );
-  };
-
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-black text-slate-950 dark:text-white">Find People</h3>
-          <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
-            Search learners, send requests, and follow only after they accept.
-          </p>
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: HAIRLINE }}>
+          <p className="peer-display text-sm font-bold text-white">Comments</p>
+          <button type="button" onClick={onClose} className="rounded-full p-1.5 text-white/50 hover:bg-white/5 hover:text-white" aria-label="Close comments">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-          <Users className="h-4 w-4" />
-        </span>
-      </div>
 
-      {incomingRequests.length > 0 && (
-        <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 dark:border-indigo-500/20 dark:bg-indigo-500/10">
-          <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Follow Requests</p>
-          <div className="space-y-2">
-            {incomingRequests.map(request => (
-              <div key={request.id} className="flex items-center gap-2 rounded-xl bg-white p-2 dark:bg-slate-950/70">
-                <img src={request.fromAvatar || fallbackAvatar} alt="" className="h-9 w-9 rounded-xl object-cover" />
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 peer-scroll">
+          <div className="flex gap-3">
+            <img src={author.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+            <div>
+              <p className="text-xs">
+                <span className="font-bold text-white">{author.name}</span>{" "}
+                <span className="text-white/70">{post.content}</span>
+              </p>
+              <p className="mt-1 text-[10px] font-semibold text-white/30">{post.time}</p>
+            </div>
+          </div>
+          {post.comments.map((comment) => {
+            const commenter = byId(comment.authorId) || viewer;
+            return (
+              <div key={comment.id} className="flex gap-3">
+                <img src={commenter.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-black text-slate-900 dark:text-white">{request.fromName}</p>
-                  <p className="text-[10px] font-semibold text-slate-500">wants to follow you</p>
+                  <p className="text-xs">
+                    <span className="font-bold text-white">{commenter.name}</span>{" "}
+                    <span className="text-white/70">{comment.text}</span>
+                  </p>
+                  <p className="mt-1 text-[10px] font-semibold text-white/30">{comment.time}</p>
                 </div>
-                <button type="button" onClick={() => respondToRequest(request.id, "accept")} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white">Accept</button>
-                <button type="button" onClick={() => respondToRequest(request.id, "decline")} className="rounded-lg px-2.5 py-1.5 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900">Decline</button>
+                <Heart className="mt-1 h-3.5 w-3.5 shrink-0 text-white/25" />
               </div>
-            ))}
-          </div>
+            );
+          })}
+          {post.comments.length === 0 && <p className="py-8 text-center text-xs font-semibold text-white/30">Be the first to comment.</p>}
         </div>
-      )}
 
-      <div className="mb-4 space-y-3">
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
-          <Search className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-2 border-t px-4 py-3" style={{ borderColor: HAIRLINE }}>
+          <img src={viewer.avatar} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
           <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={isSignedIn ? "Search by name or email..." : "Sign in to search people"}
-            disabled={!isSignedIn}
-            className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-slate-200"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            placeholder="Add a comment..."
+            className="h-10 flex-1 rounded-full border bg-transparent px-4 text-xs font-medium text-white outline-none placeholder:text-white/30"
+            style={{ borderColor: HAIRLINE }}
           />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!draft.trim()}
+            className="text-xs font-black disabled:text-white/20"
+            style={draft.trim() ? { color: "#FF9F5A" } : undefined}
+          >
+            Post
+          </button>
         </div>
-        {!isSignedIn && (
-          <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-            Sign in to search people and manage follow requests.
-          </p>
-        )}
-        {loading && <p className="text-[11px] font-bold text-slate-400">Loading people...</p>}
-        {status && <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">{status}</p>}
-        {error && <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[11px] font-bold text-rose-700 dark:text-rose-300">{error}</p>}
       </div>
-
-      <div className="max-h-[24rem] space-y-3 overflow-y-auto pr-1 sm:max-h-[30rem]">
-        {people.length === 0 && !loading && (
-          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-bold text-slate-400 dark:border-slate-800">
-            No people found.
-          </p>
-        )}
-        {people.map((person) => (
-          <div key={person.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-indigo-200 hover:bg-white dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-indigo-500/30">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => onViewProfile?.(person.id)} className="relative shrink-0">
-                <img src={person.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
-                <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => onViewProfile?.(person.id)}
-                  className="block max-w-full truncate text-left text-sm font-black text-slate-900 transition hover:text-indigo-600 dark:text-white dark:hover:text-indigo-300"
-                >
-                  {person.name}
-                </button>
-                <p className="truncate text-xs font-semibold text-slate-500">{person.role}</p>
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => onOpenChat?.(person)}
-                  className="flex h-9 items-center justify-center rounded-xl border border-cyan-200 px-2.5 text-cyan-600 transition hover:bg-cyan-50 dark:border-cyan-500/30 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
-                  aria-label={`Message ${person.name}`}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                </button>
-                {renderAction(person)}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-/**
- * ChatPopup — the WhatsApp/Instagram-beating chat experience.
- * Renders as a centered, glassy modal with a backdrop, entrance animation,
- * presence indicators, quick replies, and a sticky composer.
- */
-function ProfileModal({ profile, loading, error, onClose, onOpenChat, onSendRequest, onAcceptRequest, onDeclineRequest }) {
-  const user = profile?.user;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-3 pt-16 backdrop-blur-sm sm:p-6 sm:pt-20" role="dialog" aria-modal="true">
-      <button className="absolute inset-0 cursor-default" type="button" onClick={onClose} aria-label="Close profile" />
-      <section className="relative mb-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl dark:bg-[#0b1220]">
-        <button type="button" onClick={onClose} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm transition hover:bg-white dark:bg-slate-950/80 dark:text-white" aria-label="Close profile">
-          <X className="h-5 w-5" />
-        </button>
-
-        {loading && <div className="p-8 text-sm font-bold text-slate-500 dark:text-slate-300">Loading profile...</div>}
-        {error && !loading && (
-          <div className="p-8">
-            <p className="rounded-2xl bg-rose-500/10 p-4 text-sm font-bold text-rose-700 dark:text-rose-300">{error}</p>
-          </div>
-        )}
-
-        {user && !loading && (
-          <>
-            <div className="h-36 bg-gradient-to-br from-indigo-600 via-slate-900 to-cyan-500" />
-            <div className="px-5 pb-6 sm:px-7">
-              <div className="-mt-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="flex min-w-0 items-end gap-4">
-                  <img src={user.avatar || fallbackAvatar} alt="" className="h-24 w-24 rounded-3xl border-4 border-white object-cover shadow-xl dark:border-[#0b1220]" />
-                  <div className="min-w-0 pb-2">
-                    <h2 className="truncate text-2xl font-black text-slate-950 dark:text-white">{user.name}</h2>
-                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300">{user.role}</p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      {[user.college, user.degree, user.year, user.location].filter(Boolean).join(" · ") || "Learning profile"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!profile.relationship?.isSelf && (
-                    <button type="button" onClick={() => onOpenChat?.(user)} className="flex h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white transition hover:bg-indigo-700 dark:bg-white dark:text-slate-950">
-                      <MessageSquare className="h-4 w-4" />
-                      Message
-                    </button>
-                  )}
-                  {!profile.relationship?.isSelf && !profile.relationship?.isFollowing && !profile.relationship?.outgoingRequestId && (
-                    <button type="button" onClick={() => onSendRequest?.(user)} className="flex h-11 items-center gap-2 rounded-xl border border-indigo-200 px-4 text-xs font-black text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-500/30 dark:text-indigo-300 dark:hover:bg-indigo-500/10">
-                      <UserPlus className="h-4 w-4" />
-                      Follow
-                    </button>
-                  )}
-                  {profile.relationship?.outgoingRequestId && (
-                    <span className="flex h-11 items-center gap-2 rounded-xl bg-amber-500/10 px-4 text-xs font-black text-amber-700 dark:text-amber-300">
-                      <Clock className="h-4 w-4" />
-                      Requested
-                    </span>
-                  )}
-                  {profile.relationship?.incomingRequestId && (
-                    <>
-                      <button type="button" onClick={() => onAcceptRequest?.(profile.relationship.incomingRequestId)} className="h-11 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white">Accept</button>
-                      <button type="button" onClick={() => onDeclineRequest?.(profile.relationship.incomingRequestId)} className="h-11 rounded-xl border border-slate-200 px-4 text-xs font-black text-slate-600 dark:border-slate-700 dark:text-slate-300">Decline</button>
-                    </>
-                  )}
-                  {profile.relationship?.isFollowing && (
-                    <span className="flex h-11 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-black text-white">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Following
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">{user.headline}</p>
-
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[["Followers", profile.stats?.followersCount], ["Following", profile.stats?.followingCount], ["Posts", profile.stats?.postsCount], ["Projects", profile.stats?.projectsCount]].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60">
-                    <p className="text-lg font-black text-slate-950 dark:text-white">{formatCount(value)}</p>
-                    <p className="text-[11px] font-bold text-slate-500">{label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_1.1fr]">
-                <section className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
-                  <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Achievements</h3>
-                  <div className="space-y-3">
-                    {(profile.achievements || []).map((item) => (
-                      <div key={item.title} className="flex gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/60">
-                        <Trophy className={`mt-0.5 h-4 w-4 ${item.unlocked ? "text-amber-500" : "text-slate-400"}`} />
-                        <div>
-                          <p className="text-xs font-black text-slate-900 dark:text-white">{item.title}</p>
-                          <p className="text-[11px] font-semibold text-slate-500">{item.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
-                  <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Projects</h3>
-                  <div className="space-y-3">
-                    {(profile.projects || []).length === 0 && <p className="text-xs font-bold text-slate-400">No projects shared yet.</p>}
-                    {(profile.projects || []).map((project) => (
-                      <article key={project.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/60">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h4 className="text-sm font-black text-slate-950 dark:text-white">{project.title}</h4>
-                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{project.desc}</p>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-indigo-500/10 px-2 py-1 text-[10px] font-black text-indigo-600 dark:text-indigo-300">{project.status}</span>
-                        </div>
-                        {project.tags?.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {project.tags.map((tag) => <span key={tag} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-900">#{tag}</span>)}
-                          </div>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              </div>
-
-              <section className="mt-6">
-                <h3 className="mb-3 text-sm font-black text-slate-950 dark:text-white">Posts</h3>
-                <div className="grid gap-3">
-                  {(profile.posts || []).length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 p-5 text-center text-xs font-bold text-slate-400 dark:border-slate-800">No posts yet.</p>}
-                  {(profile.posts || []).map((post) => <PostCard key={post.id} post={post} />)}
-                </div>
-              </section>
-            </div>
-          </>
-        )}
-      </section>
     </div>
   );
 }
 
-function ChatPopup({ thread, messages: threadMessages, viewer, onClose, onSend }) {
+/* ================================ Composer Modal =============================== */
+function ComposerModal({ viewer, onClose, onPublish }) {
+  const [text, setText] = useState("");
+  const [tag, setTag] = useState("Discussion");
+  const [sharing, setSharing] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    const clean = text.trim();
+    if (!clean || sharing) return;
+    setSharing(true);
+    setError("");
+    try {
+      await onPublish({ content: clean, tag });
+      onClose();
+    } catch (publishError) {
+      setError(publishError?.message || "Unable to share your post. Please try again.");
+      setSharing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div
+        className="peer-sheet-in w-full max-w-lg overflow-hidden rounded-t-3xl border backdrop-blur-2xl sm:rounded-3xl"
+        style={{ background: SURFACE, borderColor: HAIRLINE }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: HAIRLINE }}>
+          <button type="button" onClick={onClose} className="text-xs font-bold text-white/50 hover:text-white">
+            Cancel
+          </button>
+          <p className="peer-display text-sm font-bold text-white">New update</p>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!text.trim() || sharing}
+            className="rounded-full px-4 py-1.5 text-xs font-black text-white disabled:opacity-30"
+            style={{ background: GRADIENT }}
+          >
+            {sharing ? "Sharing..." : "Share"}
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="flex gap-3">
+            <img src={viewer.avatar} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
+            <textarea
+              autoFocus
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={4}
+              placeholder="Ship something? Stuck on a bug? Tell the community..."
+              className="min-h-24 flex-1 resize-none bg-transparent text-sm font-medium leading-6 text-white outline-none placeholder:text-white/30"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {Object.keys(tagTone).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setTag(option)}
+                className={`h-8 rounded-full px-3 text-[11px] font-bold transition ${
+                  tag === option ? "text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
+                }`}
+                style={tag === option ? { background: GRADIENT } : undefined}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+
+          {error && <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-500/20">{error}</p>}
+
+          <div className="flex gap-2 border-t pt-4" style={{ borderColor: HAIRLINE }}>
+            {[
+              { icon: ImageIcon, label: "Photo" },
+              { icon: Sparkles, label: "Highlight" },
+            ].map(({ icon: Icon, label }) => (
+              <button
+                key={label}
+                type="button"
+                className="flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-bold text-white/60 transition hover:border-white/20 hover:text-white"
+                style={{ borderColor: HAIRLINE }}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================ Chat Panel =============================== */
+function ChatPanel({ thread, messages, viewer, onClose, onSend }) {
   const [draft, setDraft] = useState("");
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
+  const [closing, setClosing] = useState(false);
   const bottomRef = useRef(null);
-  const panelRef = useRef(null);
-  const photoInputRef = useRef(null);
-  const docInputRef = useRef(null);
-  const quickReplies = ["Send portfolio link", "Let's pair tonight", "Can you share the repo?", "Ship it 🚀"];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [thread.id, threadMessages.length]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow || "";
-    };
-  }, []);
+  }, [messages.length]);
 
   const close = () => {
-    setIsClosing(true);
-    setTimeout(onClose, 160);
+    setClosing(true);
+    setTimeout(onClose, 150);
   };
 
-  useEffect(() => {
-    const handleKey = (event) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, []);
-
-  const submit = (text = draft) => {
-    const cleanText = text.trim();
-    if (!cleanText) return;
-    onSend(thread.id, { text: cleanText });
+  const submit = (value = draft) => {
+    const clean = value.trim();
+    if (!clean) return;
+    onSend(thread.id, clean);
     setDraft("");
-    setShowEmojiPicker(false);
   };
-
-  const sendCallEvent = (kind) => {
-    onSend(thread.id, {
-      type: "call",
-      text: kind === "video" ? "Started a video call" : "Started an audio call",
-    });
-  };
-
-  const sendVoiceNote = () => {
-    onSend(thread.id, {
-      type: "voice",
-      text: "Voice note",
-      duration: "0:12",
-    });
-  };
-
-  const readFileAsDataUrl = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-  const handlePhotoShare = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const src = await readFileAsDataUrl(file);
-    onSend(thread.id, {
-      type: "image",
-      text: file.name,
-      src,
-      fileName: file.name,
-      fileSize: file.size,
-    });
-  };
-
-  const handleDocumentShare = (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    onSend(thread.id, {
-      type: "file",
-      text: file.name,
-      fileName: file.name,
-      fileSize: file.size,
-    });
-  };
-
-  const statusLabel = thread.status === "typing" ? "typing…" : "Active now";
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-2 sm:p-6 ${isClosing ? "animate-[fadeOut_.16s_ease-in_forwards]" : "animate-[fadeIn_.18s_ease-out]"}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Chat with ${thread.name}`}
-    >
+    <div className="fixed inset-0 z-[65] flex items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={close} />
       <div
-        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-        onClick={close}
-      />
-
-      <div
-        ref={panelRef}
-        className={`relative flex w-[min(100%,34rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white shadow-2xl ring-1 ring-black/5 dark:bg-[#0b1220] sm:rounded-[28px] ${
-          isClosing ? "animate-[popOut_.16s_ease-in_forwards]" : "animate-[popIn_.22s_cubic-bezier(.21,1.02,.73,1)]"
+        className={`relative flex h-full w-full max-w-lg flex-col overflow-hidden border shadow-2xl backdrop-blur-2xl sm:h-[85vh] sm:rounded-[28px] ${
+          closing ? "peer-pop-out" : "peer-pop-in"
         }`}
-        style={{ height: "min(calc(100dvh - 1rem), 720px)" }}
-        onClick={(event) => event.stopPropagation()}
+        style={{ background: SURFACE, borderColor: HAIRLINE }}
       >
-        {/* Header */}
-        <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 px-5 pb-5 pt-4 text-white">
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-violet-400/20 blur-2xl" />
-          <div className="relative flex items-center gap-3">
-            <button
-              onClick={close}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-              aria-label="Close chat"
-              type="button"
-            >
-              <X className="h-4 w-4" />
+        <div className="relative shrink-0 px-4 pb-5 pt-4 text-white" style={{ background: GRADIENT }}>
+          <div className="flex items-center gap-3">
+            <button onClick={close} type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15" aria-label="Close chat">
+              <ArrowLeft className="h-4 w-4" />
             </button>
-            <span className="relative shrink-0">
-              <img src={thread.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover ring-2 ring-white/30" />
-              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-indigo-600 bg-emerald-400" />
+            <span className="relative">
+              <img src={thread.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover ring-2 ring-white/40" />
+              {thread.online && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />}
             </span>
             <div className="min-w-0 flex-1">
-              <h3 className="truncate text-sm font-black leading-tight">{thread.name}</h3>
-              <p className="flex items-center gap-1 text-[11px] font-bold text-indigo-100">
-                <span className={`h-1.5 w-1.5 rounded-full ${thread.status === "typing" ? "bg-amber-300" : "bg-emerald-300"}`} />
-                {statusLabel}
-              </p>
+              <p className="truncate text-sm font-black">{thread.name}</p>
+              <p className="text-[11px] font-bold text-white/80">{thread.online ? "Active now" : "Offline"}</p>
             </div>
-            <button onClick={() => sendCallEvent("audio")} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25" aria-label="Audio call" type="button">
+            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15" aria-label="Audio call">
               <Phone className="h-4 w-4" />
             </button>
-            <button onClick={() => sendCallEvent("video")} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25" aria-label="Video call" type="button">
+            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15" aria-label="Video call">
               <Video className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 dark:bg-slate-950/60">
-          <div className="mx-auto flex w-fit items-center gap-1 rounded-full bg-white px-3 py-1 text-[10px] font-black text-slate-400 shadow-sm dark:bg-slate-900">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" />
-            Student project chat · end-to-end vibes only
-          </div>
-          {threadMessages.map((message) => {
-            const isMine = message.from === "me";
-            const isProject = message.type === "project";
-            const isAttachment = ["image", "file", "voice", "call"].includes(message.type);
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 peer-scroll" style={{ background: INK }}>
+          {messages.map((message) => {
+            const mine = message.from === "me";
             return (
-              <div key={message.id} className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
-                {!isMine && <img src={thread.avatar} alt="" className="h-7 w-7 rounded-lg object-cover" />}
+              <div key={message.id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                {!mine && <img src={thread.avatar} alt="" className="h-6 w-6 rounded-lg object-cover" />}
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs font-semibold leading-5 shadow-sm ${
-                    isMine
-                      ? "rounded-br-md bg-indigo-600 text-white"
-                      : isProject
-                        ? "rounded-bl-md border border-emerald-100 bg-emerald-50 text-emerald-950 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100"
-                        : "rounded-bl-md bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  }`}
+                  className="max-w-[78%] rounded-2xl px-3.5 py-2.5 text-xs font-semibold leading-5"
+                  style={mine ? { background: GRADIENT, color: "white", borderBottomRightRadius: 6 } : { background: SURFACE_2, color: "#E5E5EF", borderBottomLeftRadius: 6 }}
                 >
-                  {isProject && (
-                    <p className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-300">
-                      <Star className="h-3 w-3" />
-                      {message.title}
-                    </p>
-                  )}
-                  {message.type === "image" && (
-                    <div className="space-y-2">
-                      <img src={message.src} alt={message.fileName || "Shared photo"} className="max-h-52 w-full rounded-xl object-cover" />
-                      <p className={isMine ? "text-indigo-100" : "text-slate-500"}>{message.fileName}</p>
-                    </div>
-                  )}
-                  {message.type === "file" && (
-                    <div className={`flex items-center gap-3 rounded-xl p-3 ${isMine ? "bg-white/10" : "bg-slate-100 dark:bg-slate-800"}`}>
-                      <FileText className="h-5 w-5 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="truncate">{message.fileName}</p>
-                        <p className={`text-[10px] ${isMine ? "text-indigo-100" : "text-slate-400"}`}>{Math.max(1, Math.round((message.fileSize || 0) / 1024))} KB</p>
-                      </div>
-                    </div>
-                  )}
-                  {message.type === "voice" && (
-                    <div className="flex items-center gap-2">
-                      <Mic className="h-4 w-4" />
-                      <div className={`h-1.5 w-28 rounded-full ${isMine ? "bg-white/30" : "bg-slate-200"}`}>
-                        <div className={`h-full w-2/3 rounded-full ${isMine ? "bg-white" : "bg-indigo-500"}`} />
-                      </div>
-                      <span>{message.duration}</span>
-                    </div>
-                  )}
-                  {message.type === "call" && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      <p>{message.text}</p>
-                    </div>
-                  )}
-                  {!isAttachment && <p>{message.text}</p>}
-                  <span className={`mt-1 flex items-center gap-1 text-[9px] font-black ${isMine ? "justify-end text-indigo-100" : "text-slate-400"}`}>
+                  <p>{message.text}</p>
+                  <span className={`mt-1 flex items-center gap-1 text-[9px] font-bold ${mine ? "justify-end text-white/70" : "text-white/30"}`}>
                     {message.time}
-                    {isMine && <CheckCheck className="h-3 w-3" />}
+                    {mine && <CheckCheck className="h-3 w-3" />}
                   </span>
                 </div>
-                {isMine && <img src={viewer.avatar} alt="" className="h-7 w-7 rounded-lg object-cover" />}
               </div>
             );
           })}
-          {thread.status === "typing" && (
-            <div className="flex items-center gap-2">
-              <img src={thread.avatar} alt="" className="h-7 w-7 rounded-lg object-cover" />
-              <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm dark:bg-slate-900">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:120ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:240ms]" />
-              </div>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
 
-        {/* Composer */}
-        <div className="shrink-0 space-y-3 border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-[#0b1220]">
-          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoShare} />
-          <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.ppt,.pptx,application/pdf,text/plain" className="hidden" onChange={handleDocumentShare} />
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {quickReplies.map((reply) => (
-              <button
-                key={reply}
-                onClick={() => submit(reply)}
-                className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-indigo-500/10"
-                type="button"
-              >
-                {reply}
-              </button>
-            ))}
-          </div>
-          {showEmojiPicker && (
-            <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-100 bg-slate-50 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              {chatEmojis.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => setDraft((value) => `${value}${emoji}`)}
-                  className="flex h-8 w-8 items-center justify-center rounded-xl text-base transition hover:bg-white dark:hover:bg-slate-800"
-                  type="button"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              submit();
-            }}
-            className="flex items-end gap-2"
-          >
-            <button onClick={() => setShowEmojiPicker((value) => !value)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:text-indigo-600 dark:bg-slate-900" aria-label="Add emoji" type="button">
-              <Smile className="h-5 w-5" />
-            </button>
-            <button onClick={() => docInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:text-indigo-600 dark:bg-slate-900" aria-label="Attach document" type="button">
-              <Paperclip className="h-5 w-5" />
+        <div className="shrink-0 border-t px-3 py-3" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+          <div className="flex items-end gap-2">
+            <button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/50" style={{ background: SURFACE_2 }} aria-label="Attach">
+              <Paperclip className="h-4.5 w-4.5" />
             </button>
             <textarea
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
                   submit();
                 }
               }}
               rows={1}
-              autoFocus
-              placeholder={`Message ${thread.name}...`}
-              className="max-h-28 min-h-11 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+              placeholder={`Message ${thread.name.split(" ")[0]}...`}
+              className="max-h-24 min-h-10 flex-1 resize-none rounded-xl border bg-transparent px-3.5 py-2.5 text-xs font-semibold text-white outline-none placeholder:text-white/30"
+              style={{ borderColor: HAIRLINE }}
             />
-            <button onClick={() => photoInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:text-indigo-600 dark:bg-slate-900" aria-label="Share photo" type="button">
-              <Camera className="h-5 w-5" />
+            <button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/50" style={{ background: SURFACE_2 }} aria-label="Emoji">
+              <Smile className="h-4.5 w-4.5" />
             </button>
             <button
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:bg-slate-300 disabled:shadow-none dark:disabled:bg-slate-800"
-              type={draft.trim() ? "submit" : "button"}
-              onClick={() => {
-                if (!draft.trim()) sendVoiceNote();
-              }}
+              type="button"
+              onClick={() => (draft.trim() ? submit() : null)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+              style={{ background: GRADIENT }}
+              aria-label={draft.trim() ? "Send" : "Record voice note"}
             >
               {draft.trim() ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </button>
-          </form>
+          </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-        @keyframes popIn {
-          from { opacity: 0; transform: scale(.92) translateY(12px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes popOut {
-          from { opacity: 1; transform: scale(1) translateY(0); }
-          to { opacity: 0; transform: scale(.95) translateY(8px); }
-        }
-      `}</style>
     </div>
   );
 }
 
-function RightRail({ authToken, isSignedIn, viewer, socialState, activeChat, onOpenChat, onCloseChat, onSendRequest, onAcceptRequest, onDeclineRequest, onViewProfile }) {
-  const [activeThreadId, setActiveThreadId] = useState("");
-  const [threadList, setThreadList] = useState([]);
-  const [chatMessages, setChatMessages] = useState({});
-  const [chatError, setChatError] = useState("");
-  const socketRef = useRef(null);
-  const activeThread = threadList.find((thread) => thread.id === activeThreadId);
+/* ================================ Profile Page/Modal =============================== */
+function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenChat, onClose, embedded = false }) {
+  const person = personId === "me" ? { ...viewer, id: "me" } : byId(personId);
+  if (!person) return null;
+  const isSelf = person.id === viewer.id;
+  const relationship = follows[person.id] || "none";
+  const personPosts = posts.filter((p) => p.authorId === person.id);
 
-  const openThread = async (thread) => {
-    if (!thread?.id) return;
-    onOpenChat?.(thread);
-    setActiveThreadId(thread.id);
-    setThreadList((items) => items.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
-  };
-
-  useEffect(() => {
-    if (!activeChat?.id) return;
-    const thread = {
-      id: activeChat.id,
-      name: activeChat.name || activeChat.fullName || "Learner",
-      role: formatCommunityRole(activeChat.role),
-      text: "Start a real conversation",
-      time: "now",
-      unread: 0,
-      status: "online",
-      avatar: activeChat.avatar || activeChat.avatarUrl || fallbackAvatar,
-    };
-    setThreadList((items) => [thread, ...items.filter((item) => item.id !== thread.id)]);
-    setActiveThreadId(thread.id);
-  }, [activeChat]);
-
-  useEffect(() => {
-    if (!isSignedIn || !authToken || !activeThreadId) return;
-    let ignore = false;
-    const loadMessages = async () => {
-      try {
-        setChatError("");
-        const history = await requestJson(`/chat/messages?receiverId=${encodeURIComponent(activeThreadId)}`, { authToken });
-        if (ignore) return;
-        setChatMessages((items) => ({
-          ...items,
-          [activeThreadId]: Array.isArray(history) ? history.map((message) => normalizeChatMessage(message, viewer.backendUserId)) : [],
-        }));
-      } catch (requestError) {
-        if (!ignore) setChatError(requestError.message || "Unable to load chat.");
-      }
-    };
-    loadMessages();
-    return () => {
-      ignore = true;
-    };
-  }, [activeThreadId, authToken, isSignedIn, viewer.backendUserId]);
-
-  useEffect(() => {
-    if (!isSignedIn || !authToken) return undefined;
-    const socket = new WebSocket(`${getWsBaseUrl()}/api/v1/chat/ws?token=${encodeURIComponent(authToken)}`);
-    socketRef.current = socket;
-
-    socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data || "{}");
-      if (payload.type !== "message" || !payload.message) return;
-      const message = payload.message;
-      const otherId = message.senderId === viewer.backendUserId ? message.receiverId : message.senderId;
-      if (!otherId) return;
-      const normalized = normalizeChatMessage(message, viewer.backendUserId);
-      setChatMessages((items) => ({
-        ...items,
-        [otherId]: [...(items[otherId] || []).filter((item) => item.id !== normalized.id), normalized],
-      }));
-      setThreadList((items) => items.map((item) => (
-        item.id === otherId ? { ...item, text: normalized.text, time: normalized.time, unread: activeThreadId === otherId ? 0 : (item.unread || 0) + 1 } : item
-      )));
-    };
-
-    socket.onerror = () => setChatError("Realtime chat is reconnecting. Messages may take a moment.");
-    return () => socket.close();
-  }, [activeThreadId, authToken, isSignedIn, viewer.backendUserId]);
-
-  const sendMessage = (threadId, payload) => {
-    const messagePayload = typeof payload === "string" ? { text: payload } : payload;
-    const cleanText = messagePayload.text?.trim();
-    if (!cleanText) return;
-    const previewText = messagePayload.type === "image"
-      ? `Photo: ${messagePayload.fileName || "image"}`
-      : messagePayload.type === "file"
-        ? `Document: ${messagePayload.fileName || "file"}`
-        : messagePayload.type === "voice"
-          ? "Voice note"
-          : messagePayload.text;
-    const socket = socketRef.current;
-    if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "message", receiverId: threadId, content: cleanText }));
-      setThreadList((items) => items.map((item) => (
-        item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
-      )));
-    } else {
-      const fallbackMessage = { id: `local-${Date.now()}`, from: "me", time: "now", text: cleanText };
-      setChatMessages((items) => ({
-        ...items,
-        [threadId]: [...(items[threadId] || []), fallbackMessage],
-      }));
-      setThreadList((items) => items.map((item) => (
-        item.id === threadId ? { ...item, text: previewText, time: "now", unread: 0 } : item
-      )));
-      setChatError("Realtime chat is reconnecting. Your message is shown locally for now.");
-    }
-  };
-
-  return (
-    <aside className="space-y-5 lg:sticky lg:top-24">
-      <PeopleSuggestions
-        authToken={authToken}
-        isSignedIn={isSignedIn}
-        currentUser={viewer}
-        socialState={socialState}
-        onSendRequest={onSendRequest}
-        onAcceptRequest={onAcceptRequest}
-        onDeclineRequest={onDeclineRequest}
-        onOpenChat={openThread}
-        onViewProfile={onViewProfile}
-      />
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-slate-950 dark:text-white">Messages</h3>
-            <p className="text-[11px] font-bold text-slate-400">Open chat from any learner profile</p>
+  const content = (
+    <>
+      <div className="h-28 w-full sm:h-36" style={{ background: GRADIENT }} />
+      <div className="px-5 pb-6 sm:px-7">
+        <div className="-mt-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-end gap-4">
+            <img src={person.avatar} alt="" className="h-24 w-24 rounded-3xl border-4 object-cover shadow-xl" style={{ borderColor: SURFACE }} />
+            <div className="pb-2">
+              <h2 className="peer-display flex items-center gap-1.5 text-xl font-bold text-white">
+                {person.name}
+                {person.verified && <BadgeCheck className="h-4 w-4 text-cyan-300" />}
+              </h2>
+              <p className="peer-mono text-xs font-medium text-white/50">{person.handle || "@" + person.name.toLowerCase().replace(/\s+/g, ".")}</p>
+              <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-orange-400">
+                <Flame className="h-3.5 w-3.5" /> {person.streak ?? 0}-day streak
+              </p>
+            </div>
           </div>
-          <MessageSquare className="h-4 w-4 text-cyan-500" />
-        </div>
-        {chatError && <p className="mb-3 rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">{chatError}</p>}
-        <div className="space-y-3">
-          {threadList.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-bold text-slate-400 dark:border-slate-800">
-              Search people above, then tap the message button.
-            </p>
+          {!isSelf && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenChat(person)}
+                className="flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black text-white"
+                style={{ background: SURFACE_2, border: `1px solid ${HAIRLINE}` }}
+              >
+                <MessageCircle className="h-4 w-4" /> Message
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleFollow(person)}
+                className="flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black text-white"
+                style={{ background: relationship === "following" ? SURFACE_2 : GRADIENT, border: relationship === "following" ? `1px solid ${HAIRLINE}` : "none" }}
+              >
+                {relationship === "following" ? (
+                  <>
+                    <Users className="h-4 w-4" /> Following
+                  </>
+                ) : relationship === "requested" ? (
+                  "Requested"
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" /> Follow
+                  </>
+                )}
+              </button>
+            </div>
           )}
-          {threadList.map((message) => (
-            <button
-              key={message.id}
-              onClick={() => openThread(message)}
-              className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition hover:bg-slate-50 focus:bg-indigo-50 focus:outline-none dark:hover:bg-slate-900 dark:focus:bg-indigo-500/10"
-              type="button"
-            >
-              <span className="relative">
-                <img src={message.avatar} alt="" className="h-10 w-10 rounded-xl object-cover" />
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400 dark:border-darknavy-card" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-xs font-black text-slate-900 dark:text-white">{message.name}</p>
-                  <span className="text-[10px] font-bold text-slate-400">{message.time}</span>
-                </div>
-                <p className="truncate text-[11px] font-bold text-indigo-500">{message.role}</p>
-                <p className="truncate text-xs font-semibold text-slate-500">{message.text}</p>
-              </div>
-              {message.unread > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-black text-white">
-                  {message.unread}
-                </span>
-              )}
-            </button>
+        </div>
+
+        <p className="mt-5 max-w-xl text-sm leading-6 text-white/70">
+          {person.role} building in public. {isSelf ? "This is how your profile looks to the community." : "Sharing daily progress, one build at a time."}
+        </p>
+
+        <div className="mt-5 grid grid-cols-3 gap-3 sm:max-w-sm">
+          {[
+            ["Posts", personPosts.length || 6],
+            ["Followers", isSelf ? "2.4k" : Math.floor(80 + (person.streak || 5) * 12)],
+            ["Following", isSelf ? "318" : Math.floor(40 + (person.streak || 5) * 3)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border px-3 py-3 text-center" style={{ borderColor: HAIRLINE, background: SURFACE_2 }}>
+              <p className="peer-display text-base font-bold text-white">{value}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-white/40">{label}</p>
+            </div>
           ))}
         </div>
-      </section>
 
-      {activeThread && (
-        <ChatPopup
-          thread={activeThread}
-          messages={chatMessages[activeThread.id] || []}
-          viewer={viewer}
-          onClose={() => {
-            setActiveThreadId("");
-            onCloseChat?.();
-          }}
-          onSend={sendMessage}
-        />
-      )}
-    </aside>
-  );
-}
+        <div className="mt-6 flex items-center gap-2 border-b pb-0" style={{ borderColor: HAIRLINE }}>
+          <span className="flex items-center gap-1.5 border-b-2 border-white px-3 pb-3 text-xs font-black text-white">
+            <Grid3x3 className="h-3.5 w-3.5" /> Builds
+          </span>
+        </div>
 
-function LeftRail({ user }) {
-  return (
-    <aside className="space-y-5 lg:sticky lg:top-24">
-      <ProfileCard user={user} />
-    </aside>
-  );
-}
-
-export default function Community({ authToken = "", userData = {}, isSignedIn = false, onSaveUserProfile, onSocialUpdate }) {
-  const [posts, setPosts] = useState(initialPosts);
-  const [activeFilter, setActiveFilter] = useState("For You");
-  const [activeChat, setActiveChat] = useState(null);
-  const [profileState, setProfileState] = useState({
-    open: false,
-    loading: false,
-    error: "",
-    data: null,
-  });
-  const [socialState, setSocialState] = useState({
-    incomingRequests: [],
-    outgoingRequests: [],
-    followersCount: 0,
-    followingCount: 0,
-    followerIds: [],
-    followingIds: [],
-  });
-  const [communityError, setCommunityError] = useState("");
-  const currentCommunityId = getCommunityUserId(userData);
-
-  useEffect(() => {
-    if (!isSignedIn || !authToken) {
-      setPosts(initialPosts);
-      setSocialState({
-        incomingRequests: [],
-        outgoingRequests: [],
-        followersCount: 0,
-        followingCount: 0,
-        followerIds: [],
-        followingIds: [],
-      });
-      return;
-    }
-
-    let ignore = false;
-    const loadCommunityData = async () => {
-      try {
-        setCommunityError("");
-        const [remotePosts, remoteSocial] = await Promise.all([
-          requestJson("/community/posts", { authToken }),
-          requestJson("/community/social", { authToken }),
-        ]);
-        if (ignore) return;
-        setPosts(Array.isArray(remotePosts) ? remotePosts : initialPosts);
-        setSocialState({
-          incomingRequests: remoteSocial?.incomingRequests || [],
-          outgoingRequests: remoteSocial?.outgoingRequests || [],
-          followersCount: remoteSocial?.followersCount || 0,
-          followingCount: remoteSocial?.followingCount || 0,
-          followerIds: remoteSocial?.followerIds || [],
-          followingIds: remoteSocial?.followingIds || [],
-        });
-        onSocialUpdate?.(remoteSocial);
-      } catch (requestError) {
-        if (!ignore) {
-          setCommunityError(requestError.message || "Unable to load live community data.");
-        }
-      }
-    };
-
-    loadCommunityData();
-    return () => {
-      ignore = true;
-    };
-  }, [authToken, isSignedIn]);
-
-  const refreshCommunitySocial = async () => {
-    const remoteSocial = await requestJson("/community/social", { authToken });
-    setSocialState({
-      incomingRequests: remoteSocial?.incomingRequests || [],
-      outgoingRequests: remoteSocial?.outgoingRequests || [],
-      followersCount: remoteSocial?.followersCount || 0,
-      followingCount: remoteSocial?.followingCount || 0,
-      followerIds: remoteSocial?.followerIds || [],
-      followingIds: remoteSocial?.followingIds || [],
-    });
-    onSocialUpdate?.(remoteSocial);
-    return remoteSocial;
-  };
-
-  const openProfile = async (profileId) => {
-    if (!profileId || !isSignedIn || !authToken) return;
-    setProfileState({ open: true, loading: true, error: "", data: null });
-    try {
-      const profile = await requestJson(`/community/profiles/${profileId}`, { authToken });
-      setProfileState({ open: true, loading: false, error: "", data: profile });
-    } catch (requestError) {
-      setProfileState({
-        open: true,
-        loading: false,
-        error: requestError.message || "Unable to load profile.",
-        data: null,
-      });
-    }
-  };
-
-  const refreshOpenProfile = async () => {
-    const profileId = profileState.data?.user?.id;
-    if (profileId) await openProfile(profileId);
-  };
-
-  const openChat = (person) => {
-    if (!person?.id) return;
-    setActiveChat({
-      id: person.id,
-      name: person.name || person.fullName || "Learner",
-      role: person.role,
-      avatar: person.avatar || person.avatarUrl || fallbackAvatar,
-    });
-  };
-
-  const viewer = {
-    ...currentUser,
-    name: userData.name || currentUser.name,
-    role: formatCommunityRole(userData.role || currentUser.role),
-    backendUserId: userData.backendUserId || userData.id || "",
-    email: userData.email || "",
-    avatar: userData.avatarUrl || currentUser.avatar,
-    cover: userData.backgroundImage || userData.coverUrl || currentUser.cover,
-    headline: userData.bio || currentUser.headline,
-    followers: isSignedIn ? formatCount(socialState.followersCount) : formatCount(toCountNumber(userData.followers)),
-    connections: isSignedIn ? formatCount(socialState.followingCount) : formatCount(toCountNumber(userData.following)),
-  };
-
-  const handleSendFollowRequest = async (person) => {
-    if (!isSignedIn || !authToken) throw new Error("Sign in before sending follow requests.");
-    if (person.id === currentCommunityId || person.email === userData.email) {
-      throw new Error("You cannot follow yourself.");
-    }
-
-    await requestJson("/community/follow-requests", {
-      authToken,
-      method: "POST",
-      body: { targetUserId: person.id },
-    });
-    await refreshCommunitySocial();
-    await refreshOpenProfile();
-  };
-
-  const handleAcceptFollowRequest = async (requestId) => {
-    await requestJson(`/community/follow-requests/${requestId}`, {
-      authToken,
-      method: "PATCH",
-      body: { action: "accept" },
-    });
-    await refreshCommunitySocial();
-    await refreshOpenProfile();
-  };
-
-  const handleDeclineFollowRequest = async (requestId) => {
-    await requestJson(`/community/follow-requests/${requestId}`, {
-      authToken,
-      method: "PATCH",
-      body: { action: "decline" },
-    });
-    await refreshCommunitySocial();
-    await refreshOpenProfile();
-  };
-
-  const filteredPosts = useMemo(() => {
-    if (activeFilter === "For You") return posts;
-    if (activeFilter === "Projects") return posts.filter((post) => post.tag !== "Need Advice");
-    if (activeFilter === "Doubts") return posts.filter((post) => post.tag === "Need Advice");
-    return posts;
-  }, [activeFilter, posts]);
-
-  const addPost = async (content) => {
-    setCommunityError("");
-    if (isSignedIn && authToken) {
-      try {
-        const savedPost = await requestJson("/community/posts", {
-          authToken,
-          method: "POST",
-          body: {
-            content,
-            tag: "Discussion",
-            skills: ["Community", "Learning"],
-          },
-        });
-        setPosts((items) => [savedPost, ...items.filter((item) => item.id !== savedPost.id)]);
-        return true;
-      } catch (requestError) {
-        setCommunityError(requestError.message || "Unable to publish post.");
-        return false;
-      }
-    }
-
-    const nextPost = {
-      id: Date.now(),
-      authorId: viewer.backendUserId,
-      author: viewer.name,
-      role: viewer.role,
-      avatar: viewer.avatar,
-      time: "now",
-      tag: "Discussion",
-      content,
-      image: null,
-      stats: { likes: 0, comments: 0, shares: 0 },
-      skills: ["Community", "Learning"],
-      featured: false,
-    };
-    setPosts((items) => [nextPost, ...items]);
-    return true;
-  };
-
-  return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-darknavy dark:text-slate-100 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)_330px]">
-          <div className="hidden lg:block">
-            <LeftRail user={viewer} />
-          </div>
-
-          <section className="min-w-0 space-y-5">
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-darknavy-card sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-950">
-                <Search className="h-4 w-4 text-slate-400" />
-                <input
-                  placeholder="Search people, projects, doubts..."
-                  className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
-                />
-              </div>
-              <div className="flex gap-2 overflow-x-auto">
-                {filters.map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`h-10 shrink-0 rounded-xl px-4 text-xs font-black transition ${
-                      activeFilter === filter
-                        ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                        : "bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-indigo-500/10"
-                    }`}
-                    type="button"
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Composer onPost={addPost} user={viewer} />
-            {communityError && (
-              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
-                {communityError}
-              </p>
-            )}
-
-            <div className="grid gap-5">
-              {filteredPosts.length === 0 && (
-                <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm font-bold text-slate-500 dark:border-slate-800 dark:bg-darknavy-card dark:text-slate-400">
-                  No community posts yet. Share the first update.
-                </p>
+        <div className="mt-4 grid grid-cols-3 gap-1.5">
+          {(personPosts.length ? personPosts : MOCK_POSTS.slice(0, 3)).map((p) => (
+            <div key={p.id} className="aspect-square overflow-hidden rounded-lg" style={{ background: SURFACE_2 }}>
+              {p.image ? (
+                <img src={p.image} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center p-2 text-center text-[9px] font-bold text-white/40">{p.content.slice(0, 40)}…</div>
               )}
-              {filteredPosts.map((post) => (
-                <PostCard key={post.id} post={post} onViewProfile={openProfile} />
-              ))}
             </div>
-          </section>
-
-          <div className="space-y-5">
-            <div className="grid gap-5 sm:grid-cols-2 lg:hidden">
-              <ProfileCard user={viewer} />
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darknavy-card">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-black text-slate-950 dark:text-white">Quick Signals</h3>
-                  <Bell className="h-4 w-4 text-indigo-500" />
-                </div>
-                <div className="space-y-3 text-xs font-bold text-slate-600 dark:text-slate-300">
-                  <p className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-emerald-500" /> 27 recruiters viewed student showcases</p>
-                  <p className="flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> Placement Sprint is trending now</p>
-                </div>
-              </section>
-            </div>
-            <RightRail
-              authToken={authToken}
-              isSignedIn={isSignedIn}
-              viewer={viewer}
-              socialState={socialState}
-              activeChat={activeChat}
-              onOpenChat={openChat}
-              onCloseChat={() => setActiveChat(null)}
-              onViewProfile={openProfile}
-              onSendRequest={handleSendFollowRequest}
-              onAcceptRequest={handleAcceptFollowRequest}
-              onDeclineRequest={handleDeclineFollowRequest}
-            />
-          </div>
+          ))}
         </div>
       </div>
-      {profileState.open && (
-        <ProfileModal
-          profile={profileState.data}
-          loading={profileState.loading}
-          error={profileState.error}
-          onClose={() => setProfileState({ open: false, loading: false, error: "", data: null })}
-          onOpenChat={openChat}
-          onSendRequest={handleSendFollowRequest}
-          onAcceptRequest={handleAcceptFollowRequest}
-          onDeclineRequest={handleDeclineFollowRequest}
-        />
-      )}
-    </main>
+    </>
+  );
+
+  if (embedded) return <div>{content}</div>;
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-black/70 p-0 pt-0 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
+      <div
+        className="peer-pop-in relative mb-10 w-full max-w-2xl overflow-hidden border shadow-2xl backdrop-blur-2xl sm:mb-0 sm:rounded-3xl"
+        style={{ background: SURFACE, borderColor: HAIRLINE }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button type="button" onClick={onClose} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur" aria-label="Close profile">
+          <X className="h-4 w-4" />
+        </button>
+        {content}
+      </div>
+    </div>
   );
 }
 
+/* ================================ Search / People Page =============================== */
+function SearchPage({ viewer, follows, onToggleFollow, onOpenChat, onOpenProfile }) {
+  const [query, setQuery] = useState("");
+  const results = MOCK_PEOPLE.filter((p) => p.id !== viewer.id && (p.name + p.role + p.handle).toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div className="space-y-4 px-4 pt-4 sm:px-0">
+      <div className="flex items-center gap-2 rounded-2xl border px-4 py-3" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+        <Search className="h-4 w-4 text-white/40" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search builders, roles, projects..."
+          className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/30"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {results.map((person) => {
+          const relationship = follows[person.id] || "none";
+          return (
+            <div key={person.id} className="rounded-2xl border p-3 text-center" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="mx-auto block">
+                <StreakRing user={person} size={64} onOpen={() => onOpenProfile(person.id)} />
+              </button>
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="mt-2 block w-full truncate text-xs font-black text-white">
+                {person.name}
+              </button>
+              <p className="truncate text-[10px] font-bold text-white/40">{person.role}</p>
+              <div className="mt-3 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenChat(person)}
+                  className="flex h-8 flex-1 items-center justify-center rounded-lg text-white/70"
+                  style={{ background: SURFACE_2 }}
+                  aria-label={`Message ${person.name}`}
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleFollow(person)}
+                  className="h-8 flex-1 rounded-lg text-[10px] font-black text-white"
+                  style={{ background: relationship === "none" ? GRADIENT : SURFACE_2 }}
+                >
+                  {relationship === "following" ? "Following" : relationship === "requested" ? "Requested" : "Follow"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {results.length === 0 && <p className="col-span-full py-10 text-center text-xs font-bold text-white/30">No builders match that search.</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ================================ Activity Page =============================== */
+function ActivityPage({ incoming, onAccept, onDecline }) {
+  const feed = [];
+
+  return (
+    <div className="space-y-6 px-4 pt-4 sm:px-0">
+      {incoming.length > 0 && (
+        <section>
+          <p className="mb-3 text-xs font-black uppercase tracking-wide text-white/40">Follow requests</p>
+          <div className="space-y-2">
+            {incoming.map((request) => {
+              const person = request.requester ? normalizeRegisteredUser(request.requester) : byId(request.id);
+              if (!person) return null;
+              return (
+                <div key={request.id} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+                  <img src={person.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-black text-white">{person.name}</p>
+                    <p className="text-[10px] font-semibold text-white/40">wants to follow you</p>
+                  </div>
+                  <button type="button" onClick={() => onAccept(person.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white" style={{ background: GRADIENT }}>
+                    Accept
+                  </button>
+                  <button type="button" onClick={() => onDecline(person.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white/50" style={{ background: SURFACE_2 }}>
+                    Decline
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <p className="mb-3 text-xs font-black uppercase tracking-wide text-white/40">This week</p>
+        <div className="space-y-1">
+          {feed.map((item) => {
+            const person = byId(item.personId);
+            if (!person) return null;
+            return (
+              <div key={item.id} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition hover:bg-white/5">
+                <img src={person.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+                <p className="flex-1 text-xs font-medium text-white/70">
+                  <span className="font-black text-white">{person.name}</span> {item.text}
+                </p>
+                <span className="text-[10px] font-semibold text-white/30">{item.time}</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ================================ Bottom Nav & Top Bar =============================== */
+function BottomNav({ viewer, active, onChange, onCompose, incomingCount }) {
+  const navItems = [
+    { id: "home", icon: Home },
+    { id: "search", icon: Compass },
+    { id: "compose", icon: PlusSquare },
+    { id: "activity", icon: Bell, badge: incomingCount },
+  ];
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"
+      style={{ background: "rgba(10,10,17,0.92)", borderColor: HAIRLINE }}
+    >
+      {navItems.map((item) => {
+        if (item.id === "compose") {
+          return (
+            <button key={item.id} type="button" onClick={onCompose} className="flex h-11 w-11 items-center justify-center rounded-2xl text-white" style={{ background: GRADIENT }} aria-label="Create post">
+              <item.icon className="h-5 w-5" />
+            </button>
+          );
+        }
+        const isActive = active === item.id;
+        return (
+          <button key={item.id} type="button" onClick={() => onChange(item.id)} className="relative flex h-11 w-11 items-center justify-center rounded-2xl transition" aria-label={item.id}>
+            <item.icon className={`h-5.5 w-5.5 transition ${isActive ? "text-white" : "text-white/40"}`} strokeWidth={isActive ? 2.4 : 2} />
+            {!!item.badge && <span className="absolute right-2 top-1.5 h-2 w-2 rounded-full bg-rose-500" />}
+          </button>
+        );
+      })}
+      <button type="button" onClick={() => onChange("profile")} className="relative flex h-11 w-11 items-center justify-center" aria-label="Your profile">
+        <span className={`h-7 w-7 overflow-hidden rounded-full ring-2 transition ${active === "profile" ? "ring-white" : "ring-transparent"}`}>
+          <img src={viewer.avatar} alt="" className="h-full w-full object-cover" />
+        </span>
+      </button>
+    </nav>
+  );
+}
+
+function TopBar({ viewer, onOpenActivity, onOpenChatList, incomingCount, unreadThreads }) {
+  return (
+    <header className="sticky top-0 z-30 border-b backdrop-blur-xl" style={{ background: "rgba(10,10,17,0.85)", borderColor: HAIRLINE }}>
+      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex flex-1 items-center gap-2 rounded-full border px-4 py-2.5" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+          <Search className="h-4 w-4 text-white/40" />
+          <input placeholder="Search builders, projects, tags..." className="w-full bg-transparent text-sm font-medium text-white outline-none placeholder:text-white/30" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={onOpenActivity} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/5 hover:text-white xl:hidden" aria-label="Activity">
+            <Bell className="h-5 w-5" />
+            {!!incomingCount && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
+          </button>
+          <button type="button" onClick={onOpenChatList} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/5 hover:text-white xl:hidden" aria-label="Messages">
+            <Send className="h-5 w-5" />
+            {!!unreadThreads && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
+          </button>
+          <img src={viewer.avatar} alt="" className="ml-1 h-9 w-9 rounded-full object-cover ring-2 ring-white/10 xl:hidden" />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ================================ Left / Right Rails (desktop) =============================== */
+function LeftRail({ viewer, active, onChange, onCompose }) {
+  const items = [
+    { id: "home", label: "Home", icon: Home },
+    { id: "search", label: "Explore", icon: Compass },
+    { id: "activity", label: "Activity", icon: Bell },
+    { id: "profile", label: "Profile", icon: null },
+  ];
+  return (
+    <aside
+      className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[264px] lg:flex-col lg:gap-1 lg:overflow-y-auto lg:border-r lg:px-5 lg:pb-6 lg:pt-24 peer-scroll"
+      style={{ borderColor: HAIRLINE, background: "rgba(11,10,22,0.55)", backdropFilter: "blur(20px)" }}
+    >
+      {items.map((item) => {
+        const isActive = active === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onChange(item.id)}
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition"
+            style={isActive ? { background: SURFACE, color: "white" } : { color: "rgba(255,255,255,0.55)" }}
+          >
+            {item.id === "profile" ? (
+              <img src={viewer.avatar} alt="" className={`h-6 w-6 rounded-full object-cover ring-2 ${isActive ? "ring-white" : "ring-transparent"}`} />
+            ) : (
+              <item.icon className="h-5 w-5" />
+            )}
+            {item.label}
+          </button>
+        );
+      })}
+      <button type="button" onClick={onCompose} className="mt-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-white" style={{ background: GRADIENT }}>
+        <PlusSquare className="h-5 w-5" /> Share update
+      </button>
+      <div className="mt-6 rounded-2xl border p-4" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+        <p className="flex items-center gap-2 text-xs font-black text-white">
+          <Flame className="h-4 w-4 text-orange-400" /> {viewer.streak ?? 0}-day streak
+        </p>
+        <p className="mt-1 text-[11px] font-medium text-white/40">Post today to keep it alive.</p>
+      </div>
+      <div className="mt-auto" />
+    </aside>
+  );
+}
+
+/* ================================ Right Rail (desktop) =============================== */
+function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActivity, onOpenChatList, incomingCount, unreadThreads }) {
+  const leaders = [viewer, ...MOCK_PEOPLE].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index).sort((a, b) => b.streak - a.streak).slice(0, 5);
+  const suggested = MOCK_PEOPLE;
+
+  return (
+    <aside
+      className="hidden xl:fixed xl:inset-y-0 xl:right-0 xl:z-30 xl:flex xl:w-[320px] xl:flex-col xl:gap-5 xl:overflow-y-auto xl:border-l xl:px-5 xl:pb-6 xl:pt-24 peer-scroll"
+      style={{ borderColor: HAIRLINE, background: "rgba(11,10,22,0.55)", backdropFilter: "blur(20px)" }}
+    >
+      <div className="sticky top-0 z-20 flex w-fit shrink-0 self-end items-center gap-1.5 rounded-2xl border p-2 backdrop-blur-2xl" style={{ background: "rgba(18,14,34,0.92)", borderColor: HAIRLINE }}>
+        <button type="button" onClick={onOpenActivity} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="Activity">
+          <Bell className="h-5 w-5" />
+          {!!incomingCount && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
+        </button>
+        <button type="button" onClick={onOpenChatList} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="Messages">
+          <Send className="h-5 w-5 -rotate-12" />
+          {!!unreadThreads && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
+        </button>
+        <button type="button" onClick={() => onOpenProfile(viewer.id)} className="ml-1 overflow-hidden rounded-full ring-2 ring-white/20" aria-label="Your profile">
+          <img src={viewer.avatar} alt="" className="h-10 w-10 object-cover" />
+        </button>
+      </div>
+      <div className="rounded-3xl border p-5" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+        <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-white/50">
+          <TrendingUp className="h-3.5 w-3.5" style={{ color: GOLD_GLOW }} /> Streak leaderboard
+        </p>
+        <div className="mt-4 space-y-3">
+          {leaders.map((person, i) => (
+            <div key={person.id} className="flex w-full items-center gap-3 rounded-xl px-1.5 py-1 transition hover:bg-white/5">
+              <span className="peer-mono w-4 text-[11px] font-bold text-white/30">{i + 1}</span>
+              <StreakRing user={person} size={38} onOpen={() => onOpenProfile(person.id)} ringOnly />
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="min-w-0 flex-1 text-left">
+                <span className="block truncate text-xs font-bold text-white">{person.name.split(" ")[0]}</span>
+                <span className="block truncate text-[10px] font-medium text-white/40">{person.role}</span>
+              </button>
+              <span className="flex shrink-0 items-center gap-1 text-[11px] font-black" style={{ color: GOLD_GLOW }}>
+                <Flame className="h-3 w-3" /> {person.streak}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border p-5" style={{ borderColor: HAIRLINE, background: SURFACE }}>
+        <p className="text-xs font-black uppercase tracking-wide text-white/50">Builders to follow</p>
+        <div className="mt-4 space-y-3">
+          {suggested.map((person) => (
+            <div key={person.id} className="flex items-center gap-3">
+              <StreakRing user={person} size={40} onOpen={() => onOpenProfile(person.id)} ringOnly />
+              <div className="min-w-0 flex-1">
+                <button type="button" onClick={() => onOpenProfile(person.id)} className="block truncate text-xs font-bold text-white text-left">
+                  {person.name}
+                </button>
+                <p className="truncate text-[10px] font-medium text-white/40">{person.role}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onToggleFollow(person)}
+                className="shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-black text-white"
+                style={{ background: (follows[person.id] || "none") === "none" ? GRADIENT : SURFACE_2 }}
+              >
+                {(follows[person.id] || "none") === "following" ? "Following" : (follows[person.id] || "none") === "requested" ? "Requested" : "Follow"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/* ================================ Root Component =============================== */
+const DEFAULT_VIEWER = {
+  id: "me",
+  name: "Aastik Srivastava",
+  handle: "@aastik.codes",
+  role: "Full Stack Learner",
+  avatar: img("photo-1535713875002-d1d0cf377fde", 256, 256),
+  streak: 0,
+};
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+
+const normalizeRegisteredUser = (user) => ({
+  id: user.id,
+  name: user.fullName || user.name || "Registered learner",
+  handle: `@${String(user.fullName || user.name || "learner").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "")}`,
+  role: String(user.role || "Learner").replace(/_/g, " "),
+  avatar: user.avatarUrl || user.avatar || DEFAULT_VIEWER.avatar,
+  streak: Number(user.metadata?.communityStreak || 0),
+  verified: Boolean(user.emailVerified),
+  private: false,
+  online: false,
+});
+
+const normalizeCommunityPost = (post) => ({
+  ...post,
+  likes: Number(post.likes ?? post.stats?.likes ?? 0),
+  comments: Array.isArray(post.comments) ? post.comments : [],
+  tags: Array.isArray(post.tags) ? post.tags : (Array.isArray(post.skills) ? post.skills : []),
+  liked: false,
+  saved: false,
+});
+
+export default function Community({ userData = {}, authToken = "", onRefreshAuth }) {
+  const [communityStreak, setCommunityStreak] = useState(Number(userData.communityStreak || 0));
+  const viewer = useMemo(
+    () => ({
+      ...DEFAULT_VIEWER,
+      id: userData.backendUserId || userData.id || "me",
+      name: userData.name || DEFAULT_VIEWER.name,
+      role: userData.role || DEFAULT_VIEWER.role,
+      avatar: userData.avatarUrl || DEFAULT_VIEWER.avatar,
+      streak: communityStreak,
+    }),
+    [communityStreak, userData]
+  );
+
+  const [people, setPeople] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [tab, setTab] = useState("home");
+  const [filter, setFilter] = useState("For You");
+  const [storyId, setStoryId] = useState(null);
+  const [commentsPostId, setCommentsPostId] = useState(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [profileId, setProfileId] = useState(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [chatListOpen, setChatListOpen] = useState(false);
+  const [activeChat, setActiveChat] = useState(null);
+  const [chatMessages, setChatMessages] = useState({});
+  const [follows, setFollows] = useState({});
+  const [incoming, setIncoming] = useState([]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    const headers = { Authorization: `Bearer ${authToken}` };
+    Promise.all([
+      fetch(`${API_BASE_URL}/users/directory?limit=100`, { credentials: "include", headers }),
+      fetch(`${API_BASE_URL}/community/posts`, { credentials: "include", headers }),
+      fetch(`${API_BASE_URL}/community/social`, { credentials: "include", headers }),
+      fetch(`${API_BASE_URL}/community/profiles/${viewer.id}`, { credentials: "include", headers }),
+    ]).then(async ([usersResponse, postsResponse, socialResponse, profileResponse]) => {
+      if (usersResponse.ok) setPeople((await usersResponse.json()).map(normalizeRegisteredUser));
+      if (postsResponse.ok) {
+        const registeredPosts = (await postsResponse.json()).map(normalizeCommunityPost);
+        setPosts(registeredPosts);
+        setPeople((current) => {
+          const authors = registeredPosts
+            .filter((post) => post.authorId && post.authorId !== viewer.id)
+            .map((post) => normalizeRegisteredUser({ id: post.authorId, fullName: post.author, role: post.role, avatarUrl: post.avatar }));
+          return [...current, ...authors].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
+        });
+      }
+      if (socialResponse.ok) {
+        const social = await socialResponse.json();
+        setFollows(Object.fromEntries([
+          ...(social.followingIds || []).map((id) => [id, "following"]),
+          ...(social.outgoingRequests || []).map((request) => [request.toId, "requested"]),
+        ]));
+        setIncoming((social.incomingRequests || []).map((request) => ({ ...request, id: request.fromId })));
+      }
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+        setCommunityStreak(Math.max(0, Number(profile.user?.communityStreak || 0)));
+      }
+    }).catch(() => {});
+  }, [authToken, viewer.id]);
+
+  MOCK_PEOPLE = people;
+  CURRENT_VIEWER = viewer;
+  MOCK_STORIES = posts.slice(0, 12).flatMap((post) => {
+    const person = people.find((candidate) => candidate.id === post.authorId);
+    if (!person) return [];
+    return [{ id: person.id, title: post.tag || "Build update", update: post.content, image: post.image || person.avatar }];
+  }).filter((story, index, stories) => stories.findIndex((item) => item.id === story.id) === index);
+
+  const filteredPosts = useMemo(() => {
+    if (filter === "For You") return posts;
+    if (filter === "Projects") return posts.filter((p) => p.tag === "Project Win" || p.tag === "Showcase");
+    if (filter === "Doubts") return posts.filter((p) => p.tag === "Need Advice");
+    if (filter === "Showcase") return posts.filter((p) => p.tag === "Showcase");
+    if (filter === "Jobs") return posts.filter((p) => p.tag === "Discussion");
+    return posts;
+  }, [filter, posts]);
+
+  const toggleLike = (postId) =>
+    setPosts((items) => items.map((p) => (p.id === postId ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p)));
+
+  const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
+
+  const addComment = (postId, text) =>
+    setPosts((items) =>
+      items.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { id: uid("c"), authorId: "me", text, time: "now" }] } : p))
+    );
+
+  const publishPost = async ({ content, tag }) => {
+    if (!authToken) throw new Error("Please sign in again before sharing a post.");
+    const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
+    const csrf = await csrfResponse.json().catch(() => ({}));
+    if (!csrfResponse.ok) throw new Error(csrf.message || "Unable to prepare the secure request.");
+    const sendPost = (accessToken) => fetch(`${API_BASE_URL}/community/posts`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf.csrfToken,
+          ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}),
+        },
+        body: JSON.stringify({ content, tag }),
+      });
+    let response = await sendPost(authToken);
+    let data = await response.json().catch(() => ({}));
+    if (response.status === 401 && onRefreshAuth) {
+      const refreshedToken = await onRefreshAuth();
+      if (!refreshedToken) throw new Error("Your session has expired. Please sign in again.");
+      response = await sendPost(refreshedToken);
+      data = await response.json().catch(() => ({}));
+    }
+    if (!response.ok) throw new Error(data.message || "Unable to share your post.");
+    const created = normalizeCommunityPost(data);
+    setPosts((items) => [created, ...items]);
+    if (Number.isFinite(Number(created.authorStreak))) setCommunityStreak(Number(created.authorStreak));
+  };
+
+  const toggleFollow = (person) => {
+    setFollows((state) => {
+      const current = state[person.id] || "none";
+      if (current === "following") return { ...state, [person.id]: "none" };
+      if (current === "requested") return state;
+      return { ...state, [person.id]: person.private ? "requested" : "following" };
+    });
+  };
+
+  const acceptRequest = (id) => {
+    setIncoming((items) => items.filter((r) => r.id !== id));
+  };
+  const declineRequest = (id) => setIncoming((items) => items.filter((r) => r.id !== id));
+
+  const openChat = (person) => {
+    setActiveChat(person);
+    setChatListOpen(false);
+  };
+
+  const sendMessage = (threadId, text) => {
+    setChatMessages((items) => ({
+      ...items,
+      [threadId]: [...(items[threadId] || []), { id: uid("m"), from: "me", text, time: "now" }],
+    }));
+  };
+
+  const threadList = Object.keys(chatMessages).map((id) => {
+    const person = byId(id);
+    const last = chatMessages[id][chatMessages[id].length - 1];
+    return { ...person, lastText: last?.text || "", lastTime: last?.time || "" };
+  });
+
+  return (
+    <div className="peer-root relative min-h-screen overflow-x-hidden pb-24 lg:pb-16" style={{ background: INK, color: "white" }}>
+      <GlobalStyle />
+      <AmbientBackground />
+
+      <LeftRail viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} />
+      <RightRail viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenProfile={setProfileId} onOpenActivity={() => setActivityOpen(true)} onOpenChatList={() => setChatListOpen(true)} incomingCount={incoming.length} unreadThreads={threadList.length} />
+
+      <div className="lg:pl-[264px] xl:pr-[320px]">
+        <TopBar viewer={viewer} onOpenActivity={() => setActivityOpen(true)} onOpenChatList={() => setChatListOpen(true)} incomingCount={incoming.length} unreadThreads={threadList.length} />
+
+        <main className="mx-auto w-full max-w-3xl px-0 pt-2 sm:px-6 lg:px-10 lg:pt-8">
+          {tab === "home" && (
+            <div className="space-y-5">
+              <StoryRail viewer={viewer} onOpenStory={setStoryId} onOpenComposer={() => setComposerOpen(true)} />
+              <FilterChips active={filter} onChange={setFilter} />
+              <div className="space-y-6 px-4 pb-4 sm:px-0">
+                {filteredPosts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    viewer={viewer}
+                    onToggleLike={toggleLike}
+                    onToggleSave={toggleSave}
+                    onOpenComments={setCommentsPostId}
+                    onOpenProfile={setProfileId}
+                    onOpenChat={openChat}
+                  />
+                ))}
+                {filteredPosts.length === 0 && <p className="py-16 text-center text-xs font-bold text-white/30">Nothing here yet — be the first to post.</p>}
+              </div>
+            </div>
+          )}
+
+          {tab === "search" && <SearchPage viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} onOpenProfile={setProfileId} />}
+          {tab === "activity" && <ActivityPage incoming={incoming} onAccept={acceptRequest} onDecline={declineRequest} />}
+          {tab === "profile" && (
+            <div className="mx-4 overflow-hidden rounded-3xl border backdrop-blur-xl sm:mx-0" style={{ background: SURFACE, borderColor: HAIRLINE }}>
+              <ProfileView personId="me" viewer={viewer} posts={posts} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} embedded />
+            </div>
+          )}
+        </main>
+      </div>
+
+      <BottomNav viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} incomingCount={incoming.length} />
+
+      {storyId && <StoryViewer startId={storyId} onClose={() => setStoryId(null)} />}
+      {commentsPostId && (
+        <CommentsSheet post={posts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
+      )}
+      {composerOpen && <ComposerModal viewer={viewer} onClose={() => setComposerOpen(false)} onPublish={publishPost} />}
+      {profileId && (
+        <ProfileView
+          personId={profileId}
+          viewer={viewer}
+          posts={posts}
+          follows={follows}
+          onToggleFollow={toggleFollow}
+          onOpenChat={openChat}
+          onClose={() => setProfileId(null)}
+        />
+      )}
+      {activityOpen && (
+        <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={() => setActivityOpen(false)}>
+          <div
+            className="peer-sheet-in max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border py-5 backdrop-blur-2xl sm:rounded-3xl"
+            style={{ background: SURFACE, borderColor: HAIRLINE }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between px-5">
+              <p className="peer-display text-sm font-bold text-white">Activity</p>
+              <button type="button" onClick={() => setActivityOpen(false)} className="rounded-full p-1.5 text-white/50 hover:bg-white/5 hover:text-white" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ActivityPage incoming={incoming} onAccept={acceptRequest} onDecline={declineRequest} />
+          </div>
+        </div>
+      )}
+      {chatListOpen && (
+        <div className="fixed inset-0 z-[55] flex justify-end bg-black/70 backdrop-blur-sm" onClick={() => setChatListOpen(false)}>
+          <div
+            className="peer-sheet-in flex h-full w-full max-w-sm flex-col overflow-hidden border-l py-5 backdrop-blur-2xl"
+            style={{ background: SURFACE, borderColor: HAIRLINE }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between px-5">
+              <p className="peer-display text-sm font-bold text-white">Messages</p>
+              <button type="button" onClick={() => setChatListOpen(false)} className="rounded-full p-1.5 text-white/50 hover:bg-white/5 hover:text-white" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 space-y-1 overflow-y-auto px-3 peer-scroll">
+              {threadList.map((thread) => (
+                <button
+                  key={thread.id}
+                  type="button"
+                  onClick={() => openChat(thread)}
+                  className="flex w-full items-center gap-3 rounded-2xl p-2.5 text-left transition hover:bg-white/5"
+                >
+                  <img src={thread.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-black text-white">{thread.name}</p>
+                    <p className="truncate text-[11px] font-semibold text-white/40">{thread.lastText}</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-white/30">{thread.lastTime}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {activeChat && (
+        <ChatPanel thread={activeChat} messages={chatMessages[activeChat.id] || []} viewer={viewer} onClose={() => setActiveChat(null)} onSend={sendMessage} />
+      )}
+    </div>
+  );
+}

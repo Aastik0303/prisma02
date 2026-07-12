@@ -634,6 +634,20 @@ export default function App() {
     }
   }, [authToken, mergeCommunitySocialIntoProfile]);
 
+  const refreshCommunityAuth = useCallback(async () => {
+    const refreshed = await authRequest('/auth/refresh', { refreshToken });
+    const nextAccessToken = refreshed.accessToken || '';
+    const nextRefreshToken = refreshed.refreshToken || refreshToken;
+    setAuthToken(nextAccessToken);
+    setRefreshToken(nextRefreshToken);
+    persistRegisteredSession({
+      email: userData.email,
+      accessToken: nextAccessToken,
+      refreshTokenValue: nextRefreshToken
+    });
+    return nextAccessToken;
+  }, [refreshToken, userData.email]);
+
   useEffect(() => {
     if (isSignedIn && authToken) {
       void syncCommunitySocial(authToken);
@@ -1471,6 +1485,7 @@ export default function App() {
           <Community
             leaderboard={LEADERBOARD}
             authToken={authToken}
+            onRefreshAuth={refreshCommunityAuth}
             userData={userData}
             isSignedIn={isSignedIn}
             onSaveUserProfile={handleSaveUserProfile}
