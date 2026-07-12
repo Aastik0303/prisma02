@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Code2, Layers, Cpu, Globe, Smartphone, Database, ShieldCheck,
   Sparkles, Eye, Download, Flame, ChevronRight, X, CheckCircle2, Search
@@ -150,25 +150,33 @@ const TIER_COLOR = {
   Advanced: TOKENS.violet,
 };
 
-function formatPrice(price) {
-  if (price === 0) return 'Free';
-  return `₹${price}`;
-}
-
 /* ---------------------------------------------------------------------
    PROJECT CARD — terminal-card signature: colored left stripe keyed to
    tier, monospace metadata row, See / Get actions.
 --------------------------------------------------------------------- */
 function ProjectCard({ project, onSee, enrolled = false }) {
   const stripe = TIER_COLOR[project.tier];
+  const cardRef = useRef(null);
+  const handlePointerMove = (event) => {
+    const card = cardRef.current;
+    if (!card || !window.matchMedia('(pointer: fine)').matches) return;
+    const rect = card.getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top;
+    card.style.setProperty('--pointer-x', `${x}px`); card.style.setProperty('--pointer-y', `${y}px`);
+    card.style.transform = `perspective(900px) rotateX(${((rect.height / 2 - y) / rect.height) * 3.5}deg) rotateY(${((x - rect.width / 2) / rect.width) * 3.5}deg) translateY(-4px)`;
+  };
   return (
     <div
-      className="relative flex flex-col justify-between rounded-2xl overflow-hidden border transition-all hover:-translate-y-0.5"
+      ref={cardRef}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={() => { if (cardRef.current) cardRef.current.style.transform = ''; }}
+      className="group relative flex flex-col justify-between rounded-2xl overflow-hidden border transition-all duration-300"
       style={{
         background: TOKENS.inkSoft,
         borderColor: TOKENS.line,
       }}
     >
+      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: 'radial-gradient(260px circle at var(--pointer-x, 50%) var(--pointer-y, 50%), rgba(232,163,61,.14), rgba(139,124,240,.07) 38%, transparent 72%)' }} />
       <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: stripe }} />
 
       <div className="p-5 pl-6">
@@ -186,14 +194,6 @@ function ProjectCard({ project, onSee, enrolled = false }) {
                 style={{ color: TOKENS.violet, background: `${TOKENS.violet}1A` }}
               >
                 <Flame className="w-3 h-3" /> Popular
-              </span>
-            )}
-            {project.free && (
-              <span
-                className="text-[9px] font-mono tracking-wider uppercase px-2 py-1 rounded-md"
-                style={{ color: TOKENS.teal, background: `${TOKENS.teal}1A` }}
-              >
-                Free
               </span>
             )}
           </div>
@@ -214,10 +214,7 @@ function ProjectCard({ project, onSee, enrolled = false }) {
         className="flex items-center justify-between gap-3 px-6 py-3.5 border-t"
         style={{ borderColor: TOKENS.line }}
       >
-        <span className="text-[11px] font-mono font-semibold" style={{ color: project.free ? TOKENS.teal : TOKENS.textDim }}>
-          {formatPrice(project.price)}
-        </span>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => onSee(project)}
             className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
@@ -296,14 +293,6 @@ function DetailModal({ project, onClose }) {
                 >
                   {project.tier}
                 </span>
-                {project.free && (
-                  <span
-                    className="text-[9px] font-mono tracking-wider uppercase px-2 py-1 rounded-md"
-                    style={{ color: TOKENS.teal, background: `${TOKENS.teal}1A` }}
-                  >
-                    Free
-                  </span>
-                )}
               </div>
               <button onClick={onClose} style={{ color: TOKENS.textDim }}>
                 <X className="w-5 h-5" />
@@ -411,7 +400,9 @@ export default function ProjectHub() {
   const projectMatchCount = searchedProjects.length;
 
   return (
-    <div className="relative z-10 min-h-screen w-full overflow-hidden bg-transparent text-slate-100">
+    <div className="theme-always-dark relative z-10 min-h-screen w-full overflow-hidden bg-transparent text-slate-100">
+      <div className="pointer-events-none fixed -left-40 top-1/4 h-96 w-96 rounded-full bg-violet-500/10 blur-[110px]" />
+      <div className="pointer-events-none fixed -right-40 bottom-0 h-[28rem] w-[28rem] rounded-full bg-amber-400/10 blur-[120px]" />
       <link
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"
@@ -429,8 +420,8 @@ export default function ProjectHub() {
           Buildable projects,<br />sorted by what they'll teach you.
         </h1>
         <p className="text-sm sm:text-base max-w-xl leading-relaxed" style={{ color: TOKENS.textDim }}>
-          Pick a technology, then a difficulty. Every category opens with two free starter builds —
-          see the brief before you commit, get the full blueprint when you're ready.
+          Pick a technology, then a difficulty. Explore each brief, understand what you will learn,
+          and start building when the challenge feels right.
         </p>
       </div>
 
@@ -516,7 +507,7 @@ export default function ProjectHub() {
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className="text-left p-5 rounded-2xl border transition-all hover:-translate-y-0.5"
+                    className="group text-left p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_55px_rgba(139,124,240,0.16)]"
                     style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}
                   >
                     <Icon className="w-5 h-5 mb-3" style={{ color: TOKENS.amber }} />

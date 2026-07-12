@@ -1496,27 +1496,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-indigo-300/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-purple-300/10 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* TOP BAR */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <motion.div whileHover={{ rotate: 180, scale: 1.1 }} transition={{ duration: 0.5 }} className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </motion.div>
-            <div>
-              <h1 className="text-lg font-black text-slate-900 tracking-tight">Resume and ATS</h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-semibold text-slate-400">Make your Resume the Guarantee Card of your career</span>
-              </div>
+      {/* IN-PAGE INTRO + TAB DOCK */}
+      <div className="relative z-20 mx-auto max-w-7xl px-6 pt-10">
+        <div className="mb-6 flex items-center gap-3">
+          <motion.div whileHover={{ rotate: 180, scale: 1.1 }} transition={{ duration: 0.5 }} className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/25">
+            <ShieldCheck className="h-5 w-5 text-white" />
+          </motion.div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-slate-900">Resume and ATS</h1>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-semibold text-slate-400">Make your Resume the Guarantee Card of your career</span>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* TAB DOCK */}
-      <div className="relative z-20 flex justify-center -mb-5">
-        <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200/60 p-1.5 flex gap-1">
+        <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-xl">
           {tabs.map(tab => {
             const Icon = tab.icon; const isActive = activeTab === tab.id;
             return (
@@ -1534,7 +1528,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-6 pb-8">
         <AnimatePresence mode="wait">
 
           {/* ══════════════════════ BUILDER TAB ══════════════════════ */}

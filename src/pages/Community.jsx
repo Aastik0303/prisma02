@@ -1411,7 +1411,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   });
 
   return (
-    <div className="peer-root relative z-10 min-h-screen overflow-x-hidden bg-transparent pb-24 text-slate-100 lg:pb-16">
+    <div className="peer-root theme-always-dark relative z-10 min-h-screen overflow-x-hidden bg-transparent pb-24 text-slate-100 lg:pb-16">
       <GlobalStyle />
 
       <LeftRail viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} />

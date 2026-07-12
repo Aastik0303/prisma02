@@ -222,6 +222,162 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   Cross-theme contrast guardrails
+   Keeps legacy light-only cards readable after the global theme changes.
+   The printable resume is intentionally excluded so exported PDFs stay white.
+---------------------------------------------------------------------------- */
+:root {
+  --ui-text-strong: #0f172a;
+  --ui-text-body: #334155;
+  --ui-text-muted: #64748b;
+  --ui-surface: #ffffff;
+  --ui-surface-soft: #f8fafc;
+  --ui-border: #cbd5e1;
+}
+
+html.dark {
+  --ui-text-strong: #f8fafc;
+  --ui-text-body: #dbe4f0;
+  --ui-text-muted: #a8b6c8;
+  --ui-surface: #0b0f19;
+  --ui-surface-soft: #111827;
+  --ui-border: #334155;
+}
+
+/* Muted copy on pale cards was the most common light-theme failure. */
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100) :is(.text-slate-300, .text-slate-400) {
+  color: var(--ui-text-muted) !important;
+}
+
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100) :is(.text-slate-500, .text-slate-600) {
+  color: var(--ui-text-body) !important;
+}
+
+/* Convert older light-only surfaces and their neutral text as one unit. */
+html.dark .bg-white:not(.resume-preview-sheet):not(.resume-preview-sheet *),
+html.dark .bg-slate-50:not(.resume-preview-sheet *),
+html.dark .bg-slate-100:not(.resume-preview-sheet *) {
+  background-color: var(--ui-surface) !important;
+}
+
+html.dark [class*="bg-white/"]:not(.resume-preview-sheet *),
+html.dark [class*="bg-slate-50/"]:not(.resume-preview-sheet *),
+html.dark [class*="bg-slate-100/"]:not(.resume-preview-sheet *) {
+  background-color: rgba(11, 15, 25, 0.9) !important;
+}
+
+html.dark :is(.text-slate-950, .text-slate-900, .text-slate-800):not(.resume-preview-sheet *) {
+  color: var(--ui-text-strong) !important;
+}
+
+html.dark :is(.text-slate-700, .text-slate-600, .text-slate-500):not(.resume-preview-sheet *) {
+  color: var(--ui-text-body) !important;
+}
+
+html.dark :is(.text-slate-400, .text-slate-300):not(.resume-preview-sheet *) {
+  color: var(--ui-text-muted) !important;
+}
+
+html.dark :is(input, textarea, select):not(.resume-preview-sheet *) {
+  color: var(--ui-text-strong);
+  border-color: var(--ui-border) !important;
+}
+
+html.dark :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+html.dark :is(.border-slate-100, .border-slate-200, .border-slate-300):not(.resume-preview-sheet *) {
+  border-color: var(--ui-border) !important;
+}
+
+html.dark [class*="border-slate-100/"]:not(.resume-preview-sheet *),
+html.dark [class*="border-slate-200/"]:not(.resume-preview-sheet *),
+html.dark [class*="border-slate-300/"]:not(.resume-preview-sheet *) {
+  border-color: var(--ui-border) !important;
+}
+
+/* Resume/PDF canvas must remain paper-white in every application theme. */
+html.dark .resume-preview-sheet,
+html.dark .resume-preview-sheet .bg-white,
+html.dark .resume-preview-sheet .bg-slate-50,
+html.dark .resume-preview-sheet .bg-slate-100 {
+  background-color: #ffffff !important;
+}
+
+html.dark .resume-preview-sheet :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700) {
+  color: #0f172a !important;
+}
+
+html.dark .resume-preview-sheet :is(.text-slate-600, .text-slate-500, .text-slate-400, .text-slate-300) {
+  color: #475569 !important;
+}
+
+/* Direct theme-aware neutral text mapping across every application section.
+   Semantic accent colors and white button labels are intentionally untouched. */
+html:not(.dark) :is(
+  .text-slate-950, .text-slate-900, .text-slate-850, .text-slate-800,
+  .text-slate-750, .text-slate-700
+):not(.text-white) {
+  color: #111827 !important;
+}
+
+html:not(.dark) :is(
+  .text-slate-655, .text-slate-600, .text-slate-550, .text-slate-500,
+  .text-slate-455, .text-slate-450, .text-slate-400, .text-slate-350,
+  .text-slate-300
+):not(.text-white) {
+  color: #475569 !important;
+}
+
+html.dark :is(
+  .text-slate-950, .text-slate-900, .text-slate-850, .text-slate-800,
+  .text-slate-750, .text-slate-700
+):not(.resume-preview-sheet *) {
+  color: #f8fafc !important;
+}
+
+html.dark :is(
+  .text-slate-655, .text-slate-600, .text-slate-550, .text-slate-500,
+  .text-slate-455, .text-slate-450, .text-slate-400, .text-slate-350,
+  .text-slate-300
+):not(.resume-preview-sheet *) {
+  color: #b8c5d6 !important;
+}
+
+/* Unclassed copy inherits a dependable foreground from the theme. */
+html:not(.dark) :is(main, section, article, aside, nav, form) {
+  --adaptive-heading: #111827;
+  --adaptive-body: #334155;
+  --adaptive-muted: #64748b;
+}
+
+html.dark :is(main, section, article, aside, nav, form) {
+  --adaptive-heading: #f8fafc;
+  --adaptive-body: #dbe5f1;
+  --adaptive-muted: #a9b8cb;
+}
+
+html:not(.dark) :is(input, textarea, select) {
+  color: #172033;
+}
+
+html:not(.dark) :is(input, textarea)::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+/* Keyboard focus stays visible against either palette. */
+html:not(.dark) :focus-visible {
+  outline-color: #4f46e5;
+}
+
+html.dark :focus-visible {
+  outline-color: #67e8f9;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -4876,4 +5032,160 @@ body,
   .learning-sim-stage .stone-label {
     top: 78px !important;
   }
+}
+
+/* ========================================================================== */
+/* FINAL THEME CONTRAST LAYER — keep this at the end of the cascade.          */
+/* ========================================================================== */
+html:not(.dark) body {
+  color: #172033;
+}
+
+html.dark body {
+  color: #e7edf6;
+}
+
+/* Light surfaces: clear ink, readable secondary copy, visible controls. */
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100),
+html:not(.dark) [class*="bg-white/"],
+html:not(.dark) [class*="bg-slate-50/"],
+html:not(.dark) [class*="bg-slate-100/"] {
+  --theme-heading: #0f172a;
+  --theme-body: #334155;
+  --theme-muted: #64748b;
+  --theme-border: #cbd5e1;
+}
+
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100, [class*="bg-white/"], [class*="bg-slate-50/"], [class*="bg-slate-100/"])
+  :is(.text-slate-950, .text-slate-900, .text-slate-800),
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100):is(.text-slate-950, .text-slate-900, .text-slate-800) {
+  color: var(--theme-heading) !important;
+}
+
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100, [class*="bg-white/"], [class*="bg-slate-50/"], [class*="bg-slate-100/"])
+  :is(.text-slate-700, .text-slate-600, .text-slate-500),
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100):is(.text-slate-700, .text-slate-600, .text-slate-500) {
+  color: var(--theme-body) !important;
+}
+
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100, [class*="bg-white/"], [class*="bg-slate-50/"], [class*="bg-slate-100/"])
+  :is(.text-slate-400, .text-slate-300),
+html:not(.dark) :is(.bg-white, .bg-slate-50, .bg-slate-100):is(.text-slate-400, .text-slate-300) {
+  color: var(--theme-muted) !important;
+}
+
+/* Dark theme: turn legacy white cards into polished dark surfaces together
+   with their text, borders and form controls. */
+html.dark :is(.bg-white, .bg-slate-50, .bg-slate-100, [class*="bg-white/"], [class*="bg-slate-50/"], [class*="bg-slate-100/"]):not(.resume-preview-sheet):not(.resume-preview-sheet *) {
+  background-color: #0c1220 !important;
+}
+
+html.dark :is(.text-slate-950, .text-slate-900, .text-slate-800):not(.resume-preview-sheet *) {
+  color: #f8fafc !important;
+}
+
+html.dark :is(.text-slate-700, .text-slate-600, .text-slate-500):not(.resume-preview-sheet *) {
+  color: #d5deea !important;
+}
+
+html.dark :is(.text-slate-400, .text-slate-300):not(.resume-preview-sheet *) {
+  color: #aebdd0 !important;
+}
+
+html.dark :is(.border-slate-100, .border-slate-200, .border-slate-300, [class*="border-slate-100/"], [class*="border-slate-200/"], [class*="border-slate-300/"]):not(.resume-preview-sheet *) {
+  border-color: #334155 !important;
+}
+
+html.dark :is(input, textarea, select):not(.resume-preview-sheet *) {
+  color: #f8fafc !important;
+  border-color: #3b4a60 !important;
+}
+
+html.dark :is(input, textarea, select):not([class*="bg-transparent"]):not(.resume-preview-sheet *) {
+  background-color: #101827 !important;
+}
+
+html.dark :is(input, textarea)::placeholder {
+  color: #9aaac0 !important;
+  opacity: 1 !important;
+}
+
+/* Navigation and overlays need stronger separation in both themes. */
+html:not(.dark) header,
+html:not(.dark) [role="dialog"] {
+  --theme-overlay-text: #172033;
+}
+
+html.dark header,
+html.dark [role="dialog"] {
+  --theme-overlay-text: #eef3fa;
+}
+
+/* Never theme the printable document canvas. */
+html.dark .resume-preview-sheet,
+html.dark .resume-preview-sheet :is(.bg-white, .bg-slate-50, .bg-slate-100) {
+  background-color: #ffffff !important;
+}
+
+html.dark .resume-preview-sheet :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700) {
+  color: #0f172a !important;
+}
+
+html.dark .resume-preview-sheet :is(.text-slate-600, .text-slate-500, .text-slate-400, .text-slate-300) {
+  color: #475569 !important;
+}
+
+/* Final neutral foreground mapping. This deliberately follows every page rule. */
+html:not(.dark) :is(.text-slate-950, .text-slate-900, .text-slate-850, .text-slate-800, .text-slate-750, .text-slate-700) {
+  color: #111827 !important;
+}
+
+html:not(.dark) :is(.text-slate-655, .text-slate-600, .text-slate-550, .text-slate-500, .text-slate-455, .text-slate-450, .text-slate-400, .text-slate-350, .text-slate-300) {
+  color: #475569 !important;
+}
+
+html.dark :is(.text-slate-950, .text-slate-900, .text-slate-850, .text-slate-800, .text-slate-750, .text-slate-700):not(.resume-preview-sheet *) {
+  color: #f8fafc !important;
+}
+
+html.dark :is(.text-slate-655, .text-slate-600, .text-slate-550, .text-slate-500, .text-slate-455, .text-slate-450, .text-slate-400, .text-slate-350, .text-slate-300):not(.resume-preview-sheet *) {
+  color: #b8c5d6 !important;
+}
+
+html:not(.dark) :is(input, textarea, select) {
+  color: #172033;
+}
+
+html:not(.dark) :is(input, textarea)::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+html:not(.dark) :focus-visible { outline-color: #4f46e5; }
+html.dark :focus-visible { outline-color: #67e8f9; }
+
+/* Theme-aware colors for the words users actually read. Art-directed dark
+   pages and the printable resume keep their intentional palettes. */
+html:not(.dark) body :where(h1, h2, h3, h4, h5, h6, p, label, small, li, dt, dd, figcaption, caption, legend):not([class*="text-"]):not(.theme-always-dark *):not(.resume-preview-sheet *) {
+  color: #27364a;
+}
+
+html:not(.dark) body :where(h1, h2, h3, h4, h5, h6):not([class*="text-"]):not(.theme-always-dark *):not(.resume-preview-sheet *) {
+  color: #0b1220;
+}
+
+html.dark body :where(h1, h2, h3, h4, h5, h6, p, label, small, li, dt, dd, figcaption, caption, legend):not([class*="text-"]):not(.theme-always-dark *):not(.resume-preview-sheet *) {
+  color: #dbe5f1;
+}
+
+html.dark body :where(h1, h2, h3, h4, h5, h6):not([class*="text-"]):not(.theme-always-dark *):not(.resume-preview-sheet *) {
+  color: #f8fafc;
+}
+
+html:not(.dark) body span:not(button *):not(a *):not(.theme-always-dark *):not(.resume-preview-sheet *):not([class*="text-indigo-"]):not([class*="text-purple-"]):not([class*="text-violet-"]):not([class*="text-cyan-"]):not([class*="text-blue-"]):not([class*="text-emerald-"]):not([class*="text-green-"]):not([class*="text-amber-"]):not([class*="text-orange-"]):not([class*="text-red-"]):not([class*="text-rose-"]):not([class*="text-pink-"]) {
+  color: #475569;
+}
+
+html.dark body span:not(button *):not(a *):not(.theme-always-dark *):not(.resume-preview-sheet *):not([class*="text-indigo-"]):not([class*="text-purple-"]):not([class*="text-violet-"]):not([class*="text-cyan-"]):not([class*="text-blue-"]):not([class*="text-emerald-"]):not([class*="text-green-"]):not([class*="text-amber-"]):not([class*="text-orange-"]):not([class*="text-red-"]):not([class*="text-rose-"]):not([class*="text-pink-"]) {
+  color: #b8c5d6;
 }
