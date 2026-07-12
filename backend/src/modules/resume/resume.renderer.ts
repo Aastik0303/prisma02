@@ -47,6 +47,7 @@ export function resumeJsonToLines(data: ParsedResumeJson) {
 export function renderResumeHtml(input: {
   data: ParsedResumeJson;
   template: TemplateConfig;
+  sourceText?: string;
 }) {
   if (input.template.uploadedPdf?.blocks?.length) {
     return renderUploadedPdfHtml(input);
@@ -116,14 +117,17 @@ export function renderResumeHtml(input: {
 function renderUploadedPdfHtml(input: {
   data: ParsedResumeJson;
   template: TemplateConfig;
+  sourceText?: string;
 }) {
-  const { template } = input;
+  const { template, sourceText } = input;
   const layout = template.uploadedPdf!;
   const colors = {
     text: template.colors.text || '#0f172a',
     background: template.colors.background || '#ffffff'
   };
-  const lines = resumeJsonToLines(input.data);
+  const lines = sourceText
+    ? sourceText.replace(/\r\n/g, '\n').split('\n').map(line => line.trimEnd())
+    : resumeJsonToLines(input.data);
   const blocks = [...layout.blocks].sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
   const pages = layout.pages.length
     ? layout.pages
@@ -201,6 +205,7 @@ const getBrowser = async () => {
 export async function renderResumePdf(input: {
   data: ParsedResumeJson;
   template: TemplateConfig;
+  sourceText?: string;
 }) {
   const browser = await getBrowser();
   const page = await browser.newPage();

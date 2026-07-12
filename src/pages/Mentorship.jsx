@@ -2,7 +2,7 @@ import { BellRing, Sparkles } from "lucide-react";
 
 export default function Mentorship() {
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900 dark:bg-darknavy dark:text-slate-100 sm:px-6 lg:px-8">
+    <main className="relative z-10 min-h-screen bg-transparent px-4 py-10 text-slate-900 transition-colors duration-300 dark:text-slate-100 sm:px-6 lg:px-8">
       <section className="mx-auto flex min-h-[70vh] max-w-5xl items-center justify-center">
         <div className="relative w-full overflow-hidden rounded-3xl border border-indigo-100 bg-white p-8 text-center shadow-2xl shadow-indigo-500/10 dark:border-indigo-500/20 dark:bg-darknavy-card sm:p-12">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-emerald-400" />

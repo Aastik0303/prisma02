@@ -411,7 +411,7 @@ export default function ProjectHub() {
   const projectMatchCount = searchedProjects.length;
 
   return (
-    <div className="min-h-screen w-full" style={{ background: TOKENS.ink }}>
+    <div className="relative z-10 min-h-screen w-full overflow-hidden bg-transparent text-slate-100">
       <link
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"

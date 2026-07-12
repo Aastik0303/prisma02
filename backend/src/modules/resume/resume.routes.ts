@@ -4,7 +4,7 @@ import { AppError } from '../../app.js';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { resumeAiRateLimit, resumeUploadRateLimit } from '../../plugins/rateLimit.js';
 import { extractResumeDocument, MAX_RESUME_BYTES, type ExtractedPdfLayout } from './resume.extractor.js';
-import { parseResumeTextToJson, improveParsedResumeJson } from './resume.ai.js';
+import { parseResumeTextToJson } from './resume.ai.js';
 import { renderResumeHtml, renderResumePdf, resumeJsonToLines } from './resume.renderer.js';
 import {
   analyzeResumeBodySchema,
@@ -303,7 +303,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
 
     return reply
       .type('text/html; charset=utf-8')
-      .send(renderResumeHtml({ data, template }));
+      .send(renderResumeHtml({ data, template, sourceText: resume.rawExtractedText }));
   });
 
   fastify.get('/resumes/:id/download', {
@@ -312,7 +312,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     const resume = await getOwnedResume(request);
     const data = parsedResumeJsonSchema.parse(resume.parsedJsonData);
     const template = templateConfigSchema.parse(resume.templateConfig);
-    const pdf = await renderResumePdf({ data, template });
+    const pdf = await renderResumePdf({ data, template, sourceText: resume.rawExtractedText });
     const safeTitle = resume.title.replace(/[^a-z0-9-]+/gi, '-').replace(/(^-|-$)/g, '') || 'resume';
 
     return reply
@@ -327,16 +327,22 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const resume = await getOwnedResume(request);
     const body = improveStoredResumeBodySchema.parse(request.body);
-    const currentJson = parsedResumeJsonSchema.parse(resume.parsedJsonData);
-    const improvedJson = await improveParsedResumeJson({
-      parsedJsonData: currentJson,
+    const instruction = [
+      body.instruction || 'Improve ATS quality while preserving facts.',
+      'Keep the same section order, headings, bullets, line breaks, spacing, and plain-text structure. Do not change the template or layout. Only improve the wording and ATS-related content inside the existing resume text.'
+    ].join(' ');
+    const improvedResume = await runResumeWorkflow({
+      operation: 'fix',
+      resumeText: resume.rawExtractedText || '',
       targetRole: body.targetRole,
-      instruction: body.instruction
+      instruction
     });
+    const improvedJson = await parseResumeTextToJson(improvedResume.resumeText);
 
     const updated = await resumeStore(fastify).update({
       where: { id: resume.id },
       data: {
+        rawExtractedText: improvedResume.resumeText,
         parsedJsonData: improvedJson
       }
     });

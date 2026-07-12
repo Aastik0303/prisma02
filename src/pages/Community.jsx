@@ -1411,9 +1411,8 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   });
 
   return (
-    <div className="peer-root relative min-h-screen overflow-x-hidden pb-24 lg:pb-16" style={{ background: INK, color: "white" }}>
+    <div className="peer-root relative z-10 min-h-screen overflow-x-hidden bg-transparent pb-24 text-slate-100 lg:pb-16">
       <GlobalStyle />
-      <AmbientBackground />
 
       <LeftRail viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} />
       <RightRail viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenProfile={setProfileId} onOpenActivity={() => setActivityOpen(true)} onOpenChatList={() => setChatListOpen(true)} incomingCount={incoming.length} unreadThreads={threadList.length} />

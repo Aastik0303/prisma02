@@ -899,7 +899,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         authRequired: true,
         body: JSON.stringify({
           targetRole: contactInfo.title || targetRole,
-          instruction: 'Improve resume content for ATS while preserving facts and keeping template_config unchanged.'
+          instruction: 'Improve resume content for ATS while preserving facts, existing layout, headings, and plain-text formatting.'
         })
       });
       applyParsedJsonToBuilder(updated.parsedJsonData || {});
@@ -1490,7 +1490,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F7FC] relative overflow-hidden">
+    <div className="relative z-10 min-h-screen overflow-hidden bg-transparent text-slate-900 transition-colors duration-300 dark:text-slate-100">
       <ParticleField />
       <Confetti active={confetti} />
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-indigo-300/10 rounded-full blur-[120px] pointer-events-none" />
