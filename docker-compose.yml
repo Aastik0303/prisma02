@@ -77,6 +77,7 @@ services:
       LOCKOUT_THRESHOLD: ${LOCKOUT_THRESHOLD:-5}
       LOCKOUT_DURATION_MINUTES: ${LOCKOUT_DURATION_MINUTES:-30}
       PRISMA_DB_PUSH: ${PRISMA_DB_PUSH:-true}
+      PRISMA_DB_PUSH_ACCEPT_DATA_LOSS: ${PRISMA_DB_PUSH_ACCEPT_DATA_LOSS:-false}
     depends_on:
       redis:
         condition: service_healthy

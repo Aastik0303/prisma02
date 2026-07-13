@@ -250,6 +250,7 @@ Important variables:
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email delivery configuration. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Optional AI features. Keep these backend-only. |
 | `PRISMA_DB_PUSH` | Applies `schema.prisma` at startup. This is useful because this repo currently has no committed Prisma migrations. |
+| `PRISMA_DB_PUSH_ACCEPT_DATA_LOSS` | Adds `--accept-data-loss` to startup `prisma db push`. Set to `true` only when intentionally applying destructive schema changes. |
 
 ### Run With Docker
 

@@ -59,5 +59,6 @@ passwords will not work.
 ## Deployment notes
 
 - The Docker image runs `npx prisma db push --skip-generate` on startup when `PRISMA_DB_PUSH` is unset or `true`.
+- Set `PRISMA_DB_PUSH_ACCEPT_DATA_LOSS=true` only when intentionally applying destructive schema changes, such as dropping a disabled table.
 - Set `PRISMA_DB_PUSH=false` after the first successful production deployment if you want schema changes to be applied manually.
 - Railway injects `PORT`; the Fastify server already listens on `0.0.0.0`.
