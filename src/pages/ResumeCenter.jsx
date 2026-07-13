@@ -528,6 +528,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [uploadedPdfLayout, setUploadedPdfLayout] = useState(null);
   const [layoutBlockTexts, setLayoutBlockTexts] = useState([]);
+  const [uploadedPdfUrl, setUploadedPdfUrl] = useState('');
   const [fixingIssueId, setFixingIssueId] = useState('');
   const [comparison, setComparison] = useState(null);
   const [rechecking, setRechecking] = useState(false);
@@ -552,6 +553,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const printFrameRef = useRef(null);
   const lastAnalyzedTextRef = useRef('');
   const recheckRequestRef = useRef(0);
+  const uploadedPdfUrlRef = useRef('');
+
+  useEffect(() => () => {
+    if (uploadedPdfUrlRef.current) URL.revokeObjectURL(uploadedPdfUrlRef.current);
+  }, []);
 
   // Contact
   const [contactInfo, setContactInfo] = useState({
@@ -787,6 +793,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setScanProgress(15);
     setResumeError('');
     setUploadedFileName(file.name);
+    if (uploadedPdfUrlRef.current) {
+      URL.revokeObjectURL(uploadedPdfUrlRef.current);
+      uploadedPdfUrlRef.current = '';
+    }
+    const nextPdfUrl = extension === 'pdf' ? URL.createObjectURL(file) : '';
+    uploadedPdfUrlRef.current = nextPdfUrl;
+    setUploadedPdfUrl(nextPdfUrl);
     const progressTimer = window.setInterval(() => {
       setScanProgress(current => {
         if (current >= 88) return current;
@@ -819,6 +832,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setUploadedFileName('');
       setUploadedPdfLayout(null);
       setLayoutBlockTexts([]);
+      if (uploadedPdfUrlRef.current) {
+        URL.revokeObjectURL(uploadedPdfUrlRef.current);
+        uploadedPdfUrlRef.current = '';
+      }
+      setUploadedPdfUrl('');
       setScanProgress(0);
       setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
         ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
@@ -931,25 +949,31 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     });
   };
 
-  const scannerLayoutHtml = (layout, texts, title = 'Resume') => {
+  const scannerLayoutHtml = (layout, texts, title = 'Resume', options = {}) => {
     const pages = layout.pages?.length
       ? layout.pages
       : [{ page: 1, width: 595, height: 842 }];
     const blocks = sortPdfBlocks(layout);
     const firstPage = pages[0];
+    const backgroundPdfUrl = options.backgroundPdfUrl || '';
+    const forceEdited = Boolean(options.forceEdited);
 
     const pageHtml = pages.map(page => {
+      const backgroundHtml = backgroundPdfUrl
+        ? `<object class="pdf-bg" data="${backgroundPdfUrl}#toolbar=0&navpanes=0&scrollbar=0&page=${page.page}&view=Fit" type="application/pdf"></object>`
+        : '';
       const blocksHtml = blocks
         .map((block, index) => ({ block, index }))
         .filter(item => item.block.page === page.page)
         .map(({ block, index }) => {
           const text = texts[index] ?? block.text ?? '';
           const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(text.trim());
-          return `<div class="pdf-text ${isHeading ? 'heading' : ''}" style="left:${block.x}px;top:${block.y}px;width:${Math.max(block.width, 60)}px;min-height:${Math.max(block.height, block.fontSize * 1.2)}px;font-size:${block.fontSize}px;font-family:${escapeHtml(block.fontFamily || 'Arial, sans-serif')};">${escapeHtml(text)}</div>`;
+          const edited = forceEdited || text !== (block.text ?? '');
+          return `<div class="pdf-text ${isHeading ? 'heading' : ''} ${edited ? 'edited' : ''}" style="left:${block.x}px;top:${block.y}px;width:${Math.max(block.width, 60)}px;min-height:${Math.max(block.height, block.fontSize * 1.2)}px;font-size:${block.fontSize}px;font-family:${escapeHtml(block.fontFamily || 'Arial, sans-serif')};">${escapeHtml(text)}</div>`;
         })
         .join('');
 
-      return `<section class="pdf-page" style="width:${page.width}px;height:${page.height}px;">${blocksHtml}</section>`;
+      return `<section class="pdf-page" style="width:${page.width}px;height:${page.height}px;">${backgroundHtml}${blocksHtml}</section>`;
     }).join('');
 
     return `<!DOCTYPE html>
@@ -965,7 +989,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .pdf-page { position: relative; overflow: hidden; page-break-after: always; background: #ffffff; }
     .pdf-page:last-child { page-break-after: auto; }
-    .pdf-text { position: absolute; white-space: pre-wrap; line-height: 1.16; overflow: hidden; }
+    .pdf-bg { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; z-index: 0; }
+    .pdf-text { position: absolute; z-index: 1; white-space: pre-wrap; line-height: 1.16; overflow: hidden; color: ${backgroundPdfUrl ? 'transparent' : '#0f172a'}; }
+    .pdf-text.edited { color: #0f172a; background: rgba(255, 255, 255, .95); }
     .pdf-text.heading { font-weight: 700; letter-spacing: .02em; }
   </style>
 </head>
@@ -1108,7 +1134,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '') || 'resume';
     const html = uploadedPdfLayout?.blocks?.length
-      ? scannerLayoutHtml(uploadedPdfLayout, getLayoutTexts(comparison?.improvedText), label)
+      ? scannerLayoutHtml(uploadedPdfLayout, getLayoutTexts(comparison?.improvedText), label, {
+        backgroundPdfUrl: uploadedPdfUrl,
+        forceEdited: Boolean(comparison?.improvedText)
+      })
       : scannerWordHtml(text, label);
     const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
     downloadBlob(blob, `${label}-edited.doc`);
@@ -1122,7 +1151,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setIsExporting(true);
     const title = contactInfo.name || uploadedFileName?.replace(/\.[^.]+$/, '') || 'Resume';
     const printHtml = uploadedPdfLayout?.blocks?.length
-      ? scannerLayoutHtml(uploadedPdfLayout, getLayoutTexts(comparison?.improvedText), `${title} - Resume`)
+      ? scannerLayoutHtml(uploadedPdfLayout, getLayoutTexts(comparison?.improvedText), `${title} - Resume`, {
+        backgroundPdfUrl: uploadedPdfUrl,
+        forceEdited: Boolean(comparison?.improvedText)
+      })
       : scannerWordHtml(text, `${title} - Resume`);
     let printFrame = printFrameRef.current;
     if (!printFrame) {
@@ -1940,6 +1972,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           setScanText(e.target.value);
                           setUploadedPdfLayout(null);
                           setLayoutBlockTexts([]);
+                          if (uploadedPdfUrlRef.current) {
+                            URL.revokeObjectURL(uploadedPdfUrlRef.current);
+                            uploadedPdfUrlRef.current = '';
+                          }
+                          setUploadedPdfUrl('');
                           if (comparison) setComparison(null);
                         }}
                         placeholder="Or paste resume text here..."
@@ -1998,101 +2035,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="xl:col-span-3 space-y-4">
-                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-black text-slate-900 text-sm">Editable resume document</h3>
-                          <p className="text-xs text-slate-400">{uploadedFileName || 'No file selected'}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={downloadScannerResumeDoc}
-                          disabled={!scanText.trim()}
-                          className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-emerald-50"
-                        >
-                          <Download className="w-4 h-4" /> DOC
-                        </button>
-                        <button
-                          type="button"
-                          onClick={downloadScannerResumePdf}
-                          disabled={!scanText.trim()}
-                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-slate-100"
-                        >
-                          <Download className="w-4 h-4" /> PDF
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-5 overflow-auto max-h-[78vh]">
-                      {uploadedPdfLayout?.blocks?.length ? (
-                        <div className="space-y-5">
-                          {(uploadedPdfLayout.pages?.length ? uploadedPdfLayout.pages : [{ page: 1, width: 595, height: 842 }]).map(page => (
-                            <div
-                              key={page.page}
-                              className="relative mx-auto bg-white shadow-sm border border-slate-200"
-                              style={{ width: `${page.width}px`, height: `${page.height}px` }}
-                            >
-                              {sortPdfBlocks()
-                                .map((block, index) => ({ block, index }))
-                                .filter(item => item.block.page === page.page)
-                                .map(({ block, index }) => {
-                                  const value = layoutBlockTexts[index] ?? block.text ?? '';
-                                  const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(value.trim());
-                                  return (
-                                    <textarea
-                                      key={`${block.page}-${index}-${block.x}-${block.y}`}
-                                      aria-label={`Resume line ${index + 1}`}
-                                      value={value}
-                                      onChange={event => updateLayoutBlockText(index, event.target.value)}
-                                      spellCheck
-                                      className={`absolute resize-none overflow-hidden border border-transparent bg-transparent p-0 text-slate-900 outline-none focus:border-indigo-300 focus:bg-indigo-50/40 focus:ring-2 focus:ring-indigo-500/20 ${isHeading ? 'font-black uppercase' : ''}`}
-                                      style={{
-                                        left: `${block.x}px`,
-                                        top: `${block.y}px`,
-                                        width: `${Math.max(block.width, 60)}px`,
-                                        minHeight: `${Math.max(block.height, block.fontSize * 1.25)}px`,
-                                        fontSize: `${block.fontSize}px`,
-                                        fontFamily: block.fontFamily || 'Arial, sans-serif',
-                                        lineHeight: 1.16
-                                      }}
-                                    />
-                                  );
-                                })}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mx-auto w-full max-w-[794px] min-h-[1040px] bg-white shadow-sm border border-slate-200">
-                          {scanText.trim() ? (
-                            <textarea
-                              aria-label="Editable resume document"
-                              value={scanText}
-                              maxLength={50000}
-                              onChange={e => {
-                                setScanText(e.target.value);
-                                if (comparison) setComparison(null);
-                              }}
-                              spellCheck
-                              className="block w-full min-h-[1040px] resize-none border-0 bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                          ) : (
-                            <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
-                              Upload or paste a resume to preview it here.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <h3 className="font-black text-slate-900 text-sm mb-4 flex items-center gap-2"><ScanLine className="w-4 h-4 text-indigo-500" /> ATS Score</h3>
@@ -2137,6 +2079,110 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       )}
                     </div>
                   )}
+                </div>
+
+                <div className="xl:col-span-3 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-slate-900 text-sm">Editable resume document</h3>
+                          <p className="text-xs text-slate-400">{uploadedFileName || 'No file selected'}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={downloadScannerResumeDoc}
+                          disabled={!scanText.trim()}
+                          className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-emerald-50"
+                        >
+                          <Download className="w-4 h-4" /> DOC
+                        </button>
+                        <button
+                          type="button"
+                          onClick={downloadScannerResumePdf}
+                          disabled={!scanText.trim()}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-slate-100"
+                        >
+                          <Download className="w-4 h-4" /> PDF
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-5 overflow-auto max-h-[78vh]">
+                      {uploadedPdfLayout?.blocks?.length ? (
+                        <div className="space-y-5">
+                          {(uploadedPdfLayout.pages?.length ? uploadedPdfLayout.pages : [{ page: 1, width: 595, height: 842 }]).map(page => (
+                            <div
+                              key={page.page}
+                              className="relative mx-auto bg-white shadow-sm border border-slate-200"
+                              style={{ width: `${page.width}px`, height: `${page.height}px` }}
+                            >
+                              {uploadedPdfUrl && (
+                                <object
+                                  aria-label={`Original uploaded PDF page ${page.page}`}
+                                  data={`${uploadedPdfUrl}#toolbar=0&navpanes=0&scrollbar=0&page=${page.page}&view=Fit`}
+                                  type="application/pdf"
+                                  className="absolute inset-0 h-full w-full pointer-events-none"
+                                />
+                              )}
+                              {sortPdfBlocks()
+                                .map((block, index) => ({ block, index }))
+                                .filter(item => item.block.page === page.page)
+                                .map(({ block, index }) => {
+                                  const value = layoutBlockTexts[index] ?? block.text ?? '';
+                                  const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(value.trim());
+                                  const isEdited = value !== (block.text ?? '');
+                                  return (
+                                    <textarea
+                                      key={`${block.page}-${index}-${block.x}-${block.y}`}
+                                      aria-label={`Resume line ${index + 1}`}
+                                      value={value}
+                                      onChange={event => updateLayoutBlockText(index, event.target.value)}
+                                      spellCheck
+                                      className={`absolute resize-none overflow-hidden border border-transparent p-0 caret-indigo-600 outline-none hover:border-indigo-200 focus:border-indigo-300 focus:bg-white/95 focus:text-slate-900 focus:ring-2 focus:ring-indigo-500/20 ${isEdited ? 'bg-white/95 text-slate-900' : 'bg-transparent text-transparent'} ${isHeading ? 'font-black uppercase' : ''}`}
+                                      style={{
+                                        left: `${block.x}px`,
+                                        top: `${block.y}px`,
+                                        width: `${Math.max(block.width, 60)}px`,
+                                        minHeight: `${Math.max(block.height, block.fontSize * 1.25)}px`,
+                                        fontSize: `${block.fontSize}px`,
+                                        fontFamily: block.fontFamily || 'Arial, sans-serif',
+                                        lineHeight: 1.16
+                                      }}
+                                    />
+                                  );
+                                })}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mx-auto w-full max-w-[794px] min-h-[1040px] bg-white shadow-sm border border-slate-200">
+                          {scanText.trim() ? (
+                            <textarea
+                              aria-label="Editable resume document"
+                              value={scanText}
+                              maxLength={50000}
+                              onChange={e => {
+                                setScanText(e.target.value);
+                                if (comparison) setComparison(null);
+                              }}
+                              spellCheck
+                              className="block w-full min-h-[1040px] resize-none border-0 bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                            />
+                          ) : (
+                            <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
+                              Upload or paste a resume to preview it here.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
