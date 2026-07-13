@@ -2183,58 +2183,78 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       )}
                     </div>
                   </div>
+
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <div>
+                          <h3 className="font-black text-slate-900 text-sm">Problems and fixes</h3>
+                          <p className="text-xs text-slate-400">{resumeReview ? `${resumeReview.problems.length} actionable findings` : `${scanText.length.toLocaleString()} characters loaded`}</p>
+                        </div>
+                        {resumeReview && (
+                          <button onClick={() => handleAiFix()} disabled={!!fixingIssueId} className="px-3 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-[10px] font-black flex items-center gap-1.5 disabled:opacity-50">
+                            {fixingIssueId === 'all' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI Fix all
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {resumeReview ? resumeReview.problems.slice(0, 4).map(problem => (
+                          <div key={problem.id} className="rounded-xl border border-slate-200 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${problem.severity === 'critical' ? 'bg-red-500' : problem.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                  <h4 className="text-xs font-black text-slate-800">{problem.title}</h4>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1.5 leading-4">{problem.suggestedFix}</p>
+                              </div>
+                              <button onClick={() => handleAiFix(problem)} disabled={!!fixingIssueId} className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black flex items-center gap-1 disabled:opacity-50">
+                                {fixingIssueId === problem.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />} Fix
+                              </button>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              ['File', uploadedFileName || 'No upload'],
+                              ['Score', resumeReview ? `${atsScore}/100` : 'Pending'],
+                              ['Edits', uploadedPdfLayout?.blocks?.length ? layoutBlockTexts.filter((text, index) => text !== (sortPdfBlocks()[index]?.text ?? '')).length : 0],
+                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template' : 'Text']
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+                                <p className="mt-1 truncate text-xs font-black text-slate-800">{value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                      <h3 className="font-black text-slate-900 text-sm mb-4">Strengths</h3>
+                      <div className="space-y-2">
+                        {resumeReview ? resumeReview.strengths.slice(0, 5).map(strength => (
+                          <div key={strength} className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+                            <CheckCircle2 className="w-4 h-4 shrink-0" /><span>{strength}</span>
+                          </div>
+                        )) : (
+                          <>
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current document</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700 truncate">{uploadedFileName || 'Waiting for resume'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Template blocks</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length || 0} editable lines</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {resumeReview && (
-                <div className="grid lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <div className="flex items-center justify-between gap-3 mb-4">
-                      <div>
-                        <h3 className="font-black text-slate-900">Problems and fixes</h3>
-                        <p className="text-xs text-slate-400">{resumeReview.problems.length} actionable findings</p>
-                      </div>
-                      <button onClick={() => handleAiFix()} disabled={!!fixingIssueId} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-black flex items-center gap-2 disabled:opacity-50">
-                        {fixingIssueId === 'all' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} AI Fix all
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {resumeReview.problems.map(problem => (
-                        <div key={problem.id} className="rounded-xl border border-slate-200 p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${problem.severity === 'critical' ? 'bg-red-500' : problem.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                <h4 className="text-sm font-black text-slate-800">{problem.title}</h4>
-                              </div>
-                              <p className="text-xs text-slate-500 mt-2 leading-5">{problem.why}</p>
-                            </div>
-                            <button onClick={() => handleAiFix(problem)} disabled={!!fixingIssueId} className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black flex items-center gap-1.5 disabled:opacity-50">
-                              {fixingIssueId === problem.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} AI Fix
-                            </button>
-                          </div>
-                          <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
-                            <div className="rounded-lg bg-red-50 p-3 text-red-800"><span className="font-black block mb-1">Current</span>{problem.originalContent || 'Section or content is missing.'}</div>
-                            <div className="rounded-lg bg-emerald-50 p-3 text-emerald-800"><span className="font-black block mb-1">Suggested</span>{problem.improvedContent}</div>
-                          </div>
-                          <p className="mt-3 text-xs text-slate-600"><span className="font-black">Fix:</span> {problem.suggestedFix}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm h-fit">
-                    <h3 className="font-black text-slate-900 mb-3">Strengths</h3>
-                    <div className="space-y-2">
-                      {resumeReview.strengths.map(strength => (
-                        <div key={strength} className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
-                          <CheckCircle2 className="w-4 h-4 shrink-0" /><span>{strength}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {comparison && (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
