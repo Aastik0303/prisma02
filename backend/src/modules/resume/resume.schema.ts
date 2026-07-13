@@ -134,6 +134,13 @@ export const resumeFixSchema = z.object({
   changes: z.array(nonEmptyText).min(1).max(12)
 });
 
+export const resumeOptimizationOutputSchema = z.object({
+  ats_score: z.string().regex(/^\d{1,3}%$/),
+  summary: nonEmptyText,
+  experience: z.array(nonEmptyText).max(40),
+  skills: z.array(nonEmptyText).max(80)
+});
+
 export const analyzeResumeBodySchema = z.object({
   resumeText: z.string().min(50).max(50_000),
   targetRole: z.string().trim().max(120).default('')
@@ -144,8 +151,13 @@ export const fixResumeBodySchema = analyzeResumeBodySchema.extend({
   instruction: z.string().trim().max(2000).optional()
 });
 
+export const optimizeResumeBodySchema = analyzeResumeBodySchema.extend({
+  jobDescription: z.string().trim().max(12_000).default('')
+});
+
 export type ResumeAnalysis = z.infer<typeof resumeAnalysisSchema>;
 export type ResumeProblem = z.infer<typeof resumeProblemSchema>;
 export type ResumeFix = z.infer<typeof resumeFixSchema>;
+export type ResumeOptimizationOutput = z.infer<typeof resumeOptimizationOutputSchema>;
 export type ParsedResumeJson = z.infer<typeof parsedResumeJsonSchema>;
 export type TemplateConfig = z.infer<typeof templateConfigSchema>;

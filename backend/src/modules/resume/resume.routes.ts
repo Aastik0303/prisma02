@@ -9,8 +9,10 @@ import { MAX_RESUME_BYTES } from './resume.extractor.js';
 import { extractResumeDocument } from './resume.extractor.js';
 import {
   analyzeResumeBodySchema,
-  fixResumeBodySchema
+  fixResumeBodySchema,
+  optimizeResumeBodySchema
 } from './resume.schema.js';
+import { optimizeResumeTextForAts } from './resume.ai.js';
 import { runResumeWorkflow } from './resume.workflow.js';
 
 const AGENT_RESUME_DOCX_PATH =
@@ -198,6 +200,18 @@ export async function resumeRoutes(fastify: FastifyInstance) {
       changes: result.fix?.changes || [],
       analysis: result.analysis
     });
+  });
+
+  fastify.post('/optimize-text', {
+    config: { rateLimit: resumeAiRateLimit }
+  }, async (request, reply) => {
+    const body = optimizeResumeBodySchema.parse(request.body);
+    const result = await optimizeResumeTextForAts({
+      resumeText: body.resumeText,
+      targetRole: body.targetRole,
+      jobDescription: body.jobDescription
+    });
+    return reply.send(result);
   });
 
   fastify.post('/recheck', {
