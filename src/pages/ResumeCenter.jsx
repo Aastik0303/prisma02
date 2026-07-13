@@ -5,7 +5,7 @@ import {
   Check, Flame, Diamond, BrainCircuit, ScanLine, Activity, BookOpen, Trophy,
   Star, GitBranch, Code2, Cpu, FolderGit2, TrendingUp, Fingerprint, Crown, Globe, Terminal,
   Minus, Plus, Trash2, PlusCircle, ExternalLink, Calendar, Clock, Link2,
-  Layers, Briefcase, Code, FileText, GraduationCap, Pencil
+  Layers, Briefcase, Code, FileText, GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -472,16 +472,6 @@ let idCounter = 0;
 const genId = () => `item_${++idCounter}_${Date.now()}`;
 const RESUME_API_BASE_URL = import.meta.env.VITE_RESUME_API_BASE_URL || '/api/resume';
 const AUTH_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-const AUTH_SESSION_KEY = 'pec_auth_session';
-
-const getStoredAccessToken = () => {
-  try {
-    const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || '{}');
-    return typeof session.accessToken === 'string' ? session.accessToken : '';
-  } catch {
-    return '';
-  }
-};
 
 const getCsrfToken = async () => {
   const response = await fetch(`${AUTH_API_BASE_URL}/auth/csrf-token`, {
@@ -501,21 +491,14 @@ const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
 });
 
 const resumeApiRequest = async (path, options = {}) => {
-  const { authRequired = false, accessToken: providedAccessToken, ...fetchOptions } = options;
+  const { ...fetchOptions } = options;
   const csrf = await getCsrfToken();
-  const accessToken = providedAccessToken ?? getStoredAccessToken();
-  if (authRequired && !accessToken) {
-    const error = new Error('Please sign in to save and manage resumes.');
-    error.code = 'AUTH_REQUIRED';
-    throw error;
-  }
   const response = await fetch(`${RESUME_API_BASE_URL}${path}`, {
     ...fetchOptions,
     credentials: 'include',
     headers: {
       ...buildCsrfHeaders(csrf),
       ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...fetchOptions.headers
     }
   });
@@ -527,46 +510,6 @@ const resumeApiRequest = async (path, options = {}) => {
     throw error;
   }
   return payload;
-};
-
-const makeEditableScannerPreview = (html) => {
-  const editorStyles = `
-    html, body { overflow: hidden !important; }
-    [contenteditable="true"] { cursor: text; border-radius: 2px; outline: 1px dashed transparent; transition: outline-color .15s, background .15s; }
-    [contenteditable="true"]:hover { outline-color: rgba(79,70,229,.35); background: rgba(238,242,255,.35); }
-    [contenteditable="true"]:focus { outline: 2px solid rgba(79,70,229,.65); background: rgba(238,242,255,.65); }
-  `;
-  const editorScript = `<script>(() => {
-    const indexed = Array.from(document.querySelectorAll('[data-line-index]'));
-    const editable = indexed.length ? indexed : Array.from(document.querySelectorAll('h1,h2,p,li'));
-    editable.forEach(node => { node.contentEditable = 'true'; node.spellcheck = true; });
-    document.addEventListener('keydown', event => {
-      if (indexed.length && event.key === 'Enter') event.preventDefault();
-    });
-    const fitDocument = () => {
-      const body = document.body;
-      body.style.transform = 'none';
-      body.style.marginLeft = '0px';
-      const pages = Array.from(document.querySelectorAll('.pdf-page, .page'));
-      const contentWidth = Math.max(1, ...pages.map(page => page.offsetWidth), body.scrollWidth);
-      const contentHeight = Math.max(1, body.scrollHeight);
-      const scale = Math.min(1, (window.innerWidth - 16) / contentWidth, (window.innerHeight - 16) / contentHeight);
-      body.style.transformOrigin = 'top left';
-      body.style.transform = 'scale(' + scale + ')';
-      body.style.marginLeft = Math.max(0, (window.innerWidth - contentWidth * scale) / 2) + 'px';
-    };
-    const send = () => parent.postMessage({
-      type: 'scanner-resume-edit',
-      updates: indexed.map(node => ({ index: Number(node.dataset.lineIndex), text: node.innerText.replace(/\\r?\\n/g, ' ') })),
-      fullText: indexed.length ? '' : document.body.innerText.replace(/\\r/g, '')
-    }, '*');
-    document.addEventListener('input', () => { send(); fitDocument(); });
-    window.addEventListener('resize', fitDocument);
-    requestAnimationFrame(() => requestAnimationFrame(fitDocument));
-  })();<\/script>`;
-  return html
-    .replace('</style>', `${editorStyles}</style>`)
-    .replace('</body>', `${editorScript}</body>`);
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -583,18 +526,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [targetRole, setTargetRole] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
-  const [savedResumes, setSavedResumes] = useState([]);
-  const [selectedResumeId, setSelectedResumeId] = useState('');
-  const [deletingResumeId, setDeletingResumeId] = useState('');
-  const [resumeLibraryLoading, setResumeLibraryLoading] = useState(false);
-  const [resumeSaving, setResumeSaving] = useState(false);
-  const [scannerPreviewHtml, setScannerPreviewHtml] = useState('');
-  const [scannerDraftText, setScannerDraftText] = useState('');
-  const [scannerPreviewLoading, setScannerPreviewLoading] = useState(false);
-  const [scannerPreviewSaving, setScannerPreviewSaving] = useState(false);
-  const [originalUploadFile, setOriginalUploadFile] = useState(null);
-  const [originalPreviewUrl, setOriginalPreviewUrl] = useState('');
-  const [manualEditMode, setManualEditMode] = useState(false);
+  const [fixingIssueId, setFixingIssueId] = useState('');
+  const [comparison, setComparison] = useState(null);
   const [rechecking, setRechecking] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState('modern');
@@ -615,8 +548,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const previewRef = useRef(null);
   const fileInputRef = useRef(null);
   const printFrameRef = useRef(null);
-  const scannerPreviewFrameRef = useRef(null);
-  const originalPreviewUrlRef = useRef('');
   const lastAnalyzedTextRef = useRef('');
   const recheckRequestRef = useRef(0);
 
@@ -653,6 +584,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [newProjectDate, setNewProjectDate] = useState('');
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [builderPolishing, setBuilderPolishing] = useState(false);
+  const [builderPolishMessage, setBuilderPolishMessage] = useState('');
 
   // Experience — now with startDate, endDate, duration
   const [experience, setExperience] = useState([
@@ -692,370 +625,95 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
   };
 
-  const reviewText = scanText;
+  const reviewText = comparison?.improvedText || scanText;
 
-  const builderRawText = () => [
-    contactInfo.name,
-    [contactInfo.email, contactInfo.phone, contactInfo.location].filter(Boolean).join(' | '),
-    links.map(link => link.url).filter(Boolean).join(' | '),
-    '',
-    'SKILLS',
-    selectedSkillLayout === 'grouped-rows' || selectedSkillLayout === 'category-columns'
-      ? skillGroups.map(group => `${group.label}: ${group.value}`).join('\n')
-      : skills.map(skill => skill.name).join(' | '),
-    '',
+  const serializeBuilderSections = () => [
     'PROJECTS',
     ...projects.flatMap(project => [
-      [project.title, project.date, project.url].filter(Boolean).join(' | '),
-      project.description ? `- ${project.description}` : ''
+      `[[PROJECT:${project.id}]]`,
+      `Title: ${project.title || ''}`,
+      `Date: ${project.date || ''}`,
+      `URL: ${project.url || ''}`,
+      `Description: ${project.description || ''}`,
+      ''
     ]),
-    '',
     'EXPERIENCE',
     ...experience.flatMap(exp => [
-      [exp.title, [exp.startDate, exp.endDate].filter(Boolean).join(' - '), exp.duration].filter(Boolean).join(' | '),
-      exp.description ? `- ${exp.description}` : ''
-    ]),
-    '',
-    'EDUCATION',
-    ...education.flatMap(edu => [
-      [edu.degree, edu.institution, [edu.startDate, edu.endDate].filter(Boolean).join(' - ')].filter(Boolean).join(' | '),
-      edu.details ? `- ${edu.details}` : ''
-    ]),
-    '',
-    ...customFields.map(field => `${field.label}: ${field.value}`)
-  ].filter(line => line !== undefined && line !== null).join('\n').trim();
+      `[[EXPERIENCE:${exp.id}]]`,
+      `Title: ${exp.title || ''}`,
+      `Start: ${exp.startDate || ''}`,
+      `End: ${exp.endDate || ''}`,
+      `Duration: ${exp.duration || ''}`,
+      `Description: ${exp.description || ''}`,
+      ''
+    ])
+  ].join('\n');
 
-  const builderToParsedJson = () => ({
-    personal_info: {
-      name: contactInfo.name || '',
-      email: contactInfo.email || '',
-      phone: contactInfo.phone || '',
-      location: contactInfo.location || '',
-      links: [
-        ...(contactInfo.portfolio ? [{ label: 'Portfolio', url: contactInfo.portfolio }] : []),
-        ...links
-          .filter(link => link.label?.trim() || link.url?.trim())
-          .map(link => ({ label: link.label || 'Link', url: link.url || '' }))
-      ]
-    },
-    summary: contactInfo.title || '',
-    skills: selectedSkillLayout === 'grouped-rows' || selectedSkillLayout === 'category-columns'
-      ? skillGroups.flatMap(group => group.value.split(',').map(skill => skill.trim()).filter(Boolean))
-      : skills.map(skill => skill.name).filter(Boolean),
-    experience: experience.map(exp => ({
-      company: exp.title?.includes(',') ? exp.title.split(',').slice(1).join(',').trim() : '',
-      title: exp.title || '',
-      startDate: exp.startDate || '',
-      endDate: exp.endDate || '',
-      location: '',
-      bullets: exp.description ? [exp.description] : []
-    })),
-    education: education.map(edu => ({
-      institution: edu.institution || '',
-      degree: edu.degree || '',
-      startDate: edu.startDate || '',
-      endDate: edu.endDate || '',
-      details: edu.details ? [edu.details] : []
-    })),
-    projects: projects.map(project => ({
-      title: project.title || 'Project',
-      url: project.url || '',
-      bullets: project.description ? [project.description] : []
-    }))
-  });
-
-  const currentTemplateConfig = () => ({
-    templateId: selectedTemplate,
-    page: { width: 612, height: 792, margin: 48 },
-    fonts: {
-      name: { family: 'Helvetica', size: 24, weight: 700 },
-      heading: { family: 'Helvetica', size: 11, weight: 700 },
-      body: { family: 'Helvetica', size: 10 }
-    },
-    colors: {
-      text: '#0f172a',
-      muted: '#475569',
-      accent: '#4f46e5',
-      background: '#ffffff'
-    },
-    sections: [
-      { key: 'personal_info', x: 48, y: 48, width: 516 },
-      { key: 'skills', x: 48, y: 206, width: 516 },
-      { key: 'experience', x: 48, y: 280, width: 516 },
-      { key: 'projects', x: 48, y: 450, width: 516 },
-      { key: 'education', x: 48, y: 590, width: 516 }
-    ]
-  });
-
-  const applyParsedJsonToBuilder = (data = {}) => {
-    const personal = data.personal_info || {};
-    setContactInfo(current => ({
-      ...current,
-      name: personal.name || current.name,
-      title: data.summary || current.title,
-      email: personal.email || current.email,
-      phone: personal.phone || current.phone,
-      location: personal.location || current.location,
-      portfolio: personal.links?.find(link => /portfolio|website|site/i.test(link.label))?.url || current.portfolio
-    }));
-    setLinks((personal.links || []).map(link => ({ id: genId(), label: link.label || 'Link', url: link.url || '' })));
-    setSkillGroups([{ id: genId(), label: 'Core Skills', value: (data.skills || []).join(', ') }]);
-    setSkills((data.skills || []).map(skill => ({ id: genId(), name: skill, level: 80 })));
-    setProjects((data.projects || []).map(project => ({
-      id: genId(),
-      title: project.title || 'Project',
-      date: '',
-      url: project.url || '',
-      description: (project.bullets || []).join(' ')
-    })));
-    setExperience((data.experience || []).map(exp => ({
-      id: genId(),
-      title: [exp.title, exp.company].filter(Boolean).join(', ') || 'Experience',
-      startDate: exp.startDate || '',
-      endDate: exp.endDate || '',
-      duration: '',
-      description: (exp.bullets || []).join(' ')
-    })));
-    setEducation((data.education || []).map(edu => ({
-      id: genId(),
-      degree: edu.degree || '',
-      institution: edu.institution || '',
-      startDate: edu.startDate || '',
-      endDate: edu.endDate || '',
-      details: (edu.details || []).join(' ')
-    })));
+  const readMarkedField = (block, label) => {
+    const match = block.match(new RegExp(`^${label}:\\s*([\\s\\S]*?)(?=\\n(?:Title|Date|URL|Start|End|Duration|Description):|$)`, 'im'));
+    return match ? match[1].trim() : undefined;
   };
 
-  const downloadBlob = (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
+  const applyBuilderPolish = (improvedText) => {
+    const projectMatches = [...improvedText.matchAll(/\[\[PROJECT:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
+    const experienceMatches = [...improvedText.matchAll(/\[\[EXPERIENCE:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
 
-  const loadSavedResumes = async ({ showLoading = true } = {}) => {
-    if (!getStoredAccessToken()) {
-      setSavedResumes([]);
-      return;
+    if (!projectMatches.length && !experienceMatches.length) {
+      throw new Error('AI polish finished, but the response could not be mapped back into the builder fields.');
     }
-    if (showLoading) setResumeLibraryLoading(true);
-    try {
-      const resumes = await resumeApiRequest('/resumes', { method: 'GET', authRequired: true });
-      setSavedResumes(Array.isArray(resumes) ? resumes : []);
-      if (selectedResumeId && Array.isArray(resumes) && !resumes.some(resume => resume.id === selectedResumeId)) {
-        setSelectedResumeId('');
-      }
-    } catch (error) {
-      setResumeError(error.message);
-    } finally {
-      if (showLoading) setResumeLibraryLoading(false);
-    }
-  };
 
-  const saveBuilderResume = async () => {
-    setResumeSaving(true);
-    setResumeError('');
-    try {
-      const rawExtractedText = builderRawText();
-      const body = {
-        title: contactInfo.name ? `${contactInfo.name} Resume` : 'Untitled Resume',
-        rawExtractedText,
-        parsedJsonData: builderToParsedJson(),
-        templateConfig: currentTemplateConfig()
+    setProjects(current => current.map(project => {
+      const match = projectMatches.find(item => item[1] === project.id);
+      if (!match) return project;
+      const block = match[2];
+      return {
+        ...project,
+        title: readMarkedField(block, 'Title') ?? project.title,
+        date: readMarkedField(block, 'Date') ?? project.date,
+        url: readMarkedField(block, 'URL') ?? project.url,
+        description: readMarkedField(block, 'Description') ?? project.description
       };
-      const saved = selectedResumeId
-        ? await resumeApiRequest(`/resumes/${selectedResumeId}`, { method: 'PUT', body: JSON.stringify(body), authRequired: true })
-        : await resumeApiRequest('/resumes', { method: 'POST', body: JSON.stringify(body), authRequired: true });
-      setSelectedResumeId(saved.id);
-      if (saved.scannerSession?.analysis) {
-        const scannedText = saved.scannerSession.resumeText || saved.rawExtractedText || rawExtractedText;
-        setScanText(scannedText);
-        applyAnalysis(saved.scannerSession.analysis, scannedText);
-      }
-      await loadSavedResumes();
+    }));
+
+    setExperience(current => current.map(exp => {
+      const match = experienceMatches.find(item => item[1] === exp.id);
+      if (!match) return exp;
+      const block = match[2];
+      return {
+        ...exp,
+        title: readMarkedField(block, 'Title') ?? exp.title,
+        startDate: readMarkedField(block, 'Start') ?? exp.startDate,
+        endDate: readMarkedField(block, 'End') ?? exp.endDate,
+        duration: readMarkedField(block, 'Duration') ?? exp.duration,
+        description: readMarkedField(block, 'Description') ?? exp.description
+      };
+    }));
+  };
+
+  const handleBuilderAiPolish = async () => {
+    if (builderPolishing || (!projects.length && !experience.length)) return;
+    setBuilderPolishing(true);
+    setBuilderPolishMessage('');
+    setResumeError('');
+
+    try {
+      const result = await resumeApiRequest('/fix', {
+        method: 'POST',
+        body: JSON.stringify({
+          resumeText: serializeBuilderSections(),
+          targetRole: contactInfo.title || targetRole,
+          instruction: 'Polish only project and experience wording. Fix grammar, spelling, capitalization, tense, and resume formatting. Keep every [[PROJECT:id]] and [[EXPERIENCE:id]] marker exactly unchanged. Keep every field label exactly unchanged. Preserve titles, dates, URLs, duration values, employers, technologies, and facts. Do not add new items.'
+        })
+      });
+      applyBuilderPolish(result.improvedText || '');
+      setBuilderPolishMessage('Projects and experience polished with AI.');
       triggerConfetti();
     } catch (error) {
-      setResumeError(error.message);
+      setBuilderPolishMessage(error.message);
     } finally {
-      setResumeSaving(false);
+      setBuilderPolishing(false);
     }
   };
-
-  const loadStoredResume = async (id) => {
-    if (!id) {
-      setSelectedResumeId('');
-      return;
-    }
-    setResumeLibraryLoading(true);
-    setResumeError('');
-    try {
-      const resume = await resumeApiRequest(`/resumes/${id}`, { method: 'GET', authRequired: true });
-      setSelectedResumeId(resume.id);
-      setScanText(resume.rawExtractedText || '');
-      applyParsedJsonToBuilder(resume.parsedJsonData || {});
-      setActiveTab('builder');
-    } catch (error) {
-      setResumeError(error.message);
-    } finally {
-      setResumeLibraryLoading(false);
-    }
-  };
-
-  const deleteStoredResume = async (id = selectedResumeId) => {
-    if (!id) return;
-    setDeletingResumeId(id);
-    setResumeError('');
-    const previousResumes = savedResumes;
-    const previousSelectedResumeId = selectedResumeId;
-    setSavedResumes(current => current.filter(resume => resume.id !== id));
-    if (selectedResumeId === id) setSelectedResumeId('');
-    try {
-      await resumeApiRequest(`/resumes/${id}/delete`, { method: 'POST', body: JSON.stringify({}), authRequired: true });
-      await loadSavedResumes({ showLoading: false });
-    } catch (error) {
-      if (error.code === 'RESUME_NOT_FOUND') {
-        setSavedResumes(current => current.filter(resume => resume.id !== id));
-      } else {
-        setSavedResumes(previousResumes);
-        setSelectedResumeId(previousSelectedResumeId);
-        setResumeError(error.message);
-      }
-    } finally {
-      setDeletingResumeId('');
-    }
-  };
-
-  const downloadStoredResumePdf = async (id = selectedResumeId) => {
-    if (!id) {
-      handleExport();
-      return;
-    }
-    try {
-      const csrf = await getCsrfToken();
-      const accessToken = getStoredAccessToken();
-      if (!accessToken) throw new Error('Please sign in to download saved resume PDFs.');
-      const response = await fetch(`${RESUME_API_BASE_URL}/resumes/${id}/download`, {
-        credentials: 'include',
-        headers: {
-          ...buildCsrfHeaders(csrf),
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.message || 'Resume PDF download failed.');
-      }
-      const blob = await response.blob();
-      const resume = savedResumes.find(item => item.id === id);
-      const safeLabel = (resume?.title || contactInfo.name || 'resume').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'resume';
-      downloadBlob(blob, `${safeLabel}.pdf`);
-    } catch (error) {
-      setResumeError(error.message);
-    }
-  };
-
-  const loadScannerPreview = async (resumeId) => {
-    if (!resumeId) {
-      setScannerPreviewHtml('');
-      return;
-    }
-    setScannerPreviewLoading(true);
-    try {
-      const accessToken = getStoredAccessToken();
-      if (!accessToken) throw new Error('Please sign in to open the editable resume preview.');
-      const response = await fetch(`${RESUME_API_BASE_URL}/resumes/${resumeId}/html`, {
-        credentials: 'include',
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.message || 'Unable to load the resume preview.');
-      }
-      setScannerPreviewHtml(makeEditableScannerPreview(await response.text()));
-    } catch (error) {
-      setScannerPreviewHtml('');
-      setResumeError(error.message);
-    } finally {
-      setScannerPreviewLoading(false);
-    }
-  };
-
-  const saveScannerPreview = async () => {
-    if (!selectedResumeId) {
-      setResumeError('Sign in and upload the resume again to save edits with its preserved layout.');
-      return false;
-    }
-    if (scannerDraftText.trim().length < 50) {
-      setResumeError('The edited resume needs at least 50 characters before it can be saved.');
-      return false;
-    }
-
-    setScannerPreviewSaving(true);
-    setResumeError('');
-    try {
-      const updated = await resumeApiRequest(`/resumes/${selectedResumeId}`, {
-        method: 'PUT',
-        authRequired: true,
-        body: JSON.stringify({ rawExtractedText: scannerDraftText })
-      });
-      setScanText(updated.rawExtractedText || scannerDraftText);
-      setScannerDraftText(updated.rawExtractedText || scannerDraftText);
-      if (updated.scannerSession?.analysis) {
-        applyAnalysis(updated.scannerSession.analysis, updated.rawExtractedText || scannerDraftText);
-      }
-      await loadScannerPreview(selectedResumeId);
-      return true;
-    } catch (error) {
-      setResumeError(error.message);
-      return false;
-    } finally {
-      setScannerPreviewSaving(false);
-    }
-  };
-
-  const exportScannerPreview = async () => {
-    if (!manualEditMode && originalUploadFile) {
-      downloadBlob(originalUploadFile, originalUploadFile.name);
-      return;
-    }
-    const saved = await saveScannerPreview();
-    if (saved) await downloadStoredResumePdf(selectedResumeId);
-  };
-
-  useEffect(() => {
-    loadSavedResumes();
-    return () => {
-      if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const handlePreviewEdit = (event) => {
-      if (event.source !== scannerPreviewFrameRef.current?.contentWindow || event.data?.type !== 'scanner-resume-edit') return;
-      if (event.data.fullText) {
-        setScannerDraftText(String(event.data.fullText).slice(0, 50000));
-        return;
-      }
-      if (!Array.isArray(event.data.updates)) return;
-      setScannerDraftText(current => {
-        const lines = current.replace(/\r\n/g, '\n').split('\n');
-        event.data.updates.forEach(update => {
-          if (Number.isInteger(update.index) && update.index >= 0) {
-            while (lines.length <= update.index) lines.push('');
-            lines[update.index] = String(update.text || '');
-          }
-        });
-        return lines.join('\n').slice(0, 50000);
-      });
-    };
-    window.addEventListener('message', handlePreviewEdit);
-    return () => window.removeEventListener('message', handlePreviewEdit);
-  }, []);
 
   const handleScan = async () => {
     if (scanText.trim().length < 50) return;
@@ -1075,6 +733,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         body: JSON.stringify({ resumeText: scanText, targetRole })
       });
       setScanProgress(100);
+      setComparison(null);
       applyAnalysis(result.analysis, result.resumeText);
     } catch (error) {
       setScanProgress(0);
@@ -1122,13 +781,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
-    const nextPreviewUrl = extension === 'pdf' ? URL.createObjectURL(file) : '';
-    originalPreviewUrlRef.current = nextPreviewUrl;
-    setOriginalPreviewUrl(nextPreviewUrl);
-    setOriginalUploadFile(file);
-    setManualEditMode(false);
-
     setScanning(true);
     setScanProgress(15);
     setResumeError('');
@@ -1148,57 +800,17 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         return formData;
       };
       setScanProgress(45);
-      const hasAccessToken = Boolean(getStoredAccessToken());
-      let result;
-      try {
-        result = await resumeApiRequest(hasAccessToken ? '/resumes/upload' : '/upload', {
-          method: 'POST',
-          body: createUploadFormData(),
-          authRequired: hasAccessToken
-        });
-      } catch (error) {
-        const canRetryAsPublicScan = hasAccessToken && [
-          'UNAUTHORIZED',
-          'TOKEN_EXPIRED',
-          'AUTH_REQUIRED',
-          'MAXIMUM_RESUME_LIMIT_REACHED',
-          'INTERNAL_SERVER_ERROR'
-        ].includes(error.code);
-        if (!canRetryAsPublicScan) throw error;
-        result = await resumeApiRequest('/upload', {
-          method: 'POST',
-          body: createUploadFormData()
-        });
-        if (error.code === 'MAXIMUM_RESUME_LIMIT_REACHED') {
-          setResumeError('Resume scanned, but it was not saved because the 4-resume limit is reached. Delete one saved resume before saving this upload.');
-        }
-      }
-      const storedResume = result.resume;
-      const extractedResumeText = storedResume?.rawExtractedText || result.resumeText || '';
+      const result = await resumeApiRequest('/upload', {
+        method: 'POST',
+        body: createUploadFormData()
+      });
       setScanProgress(100);
-      setSelectedResumeId(storedResume?.id || '');
-      setScanText(extractedResumeText);
-      setScannerDraftText(extractedResumeText);
-      if (storedResume?.parsedJsonData) {
-        applyParsedJsonToBuilder(storedResume.parsedJsonData);
-        await loadSavedResumes();
-      }
-      if (storedResume?.id) {
-        await loadScannerPreview(storedResume.id);
-      } else {
-        setScannerPreviewHtml('');
-      }
-      applyAnalysis(result.analysis, extractedResumeText);
+      setScanText(result.resumeText || '');
+      setComparison(null);
+      applyAnalysis(result.analysis, result.resumeText || '');
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
-      if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
-      originalPreviewUrlRef.current = '';
-      setOriginalPreviewUrl('');
-      setOriginalUploadFile(null);
-      setManualEditMode(false);
-      setScannerPreviewHtml('');
-      setScannerDraftText('');
       setScanProgress(0);
       setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
         ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
@@ -1206,6 +818,42 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     } finally {
       window.clearInterval(progressTimer);
       setScanning(false);
+    }
+  };
+
+  const handleAiFix = async (problem) => {
+    if (!reviewText.trim()) return;
+    setFixingIssueId(problem?.id || 'all');
+    setResumeError('');
+    const scoreBeforeFix = Number(resumeReview?.atsScore ?? atsScore) || 0;
+    try {
+      const jdInstruction = jobDescription.trim()
+        ? ` Tailor the language to this job description without inventing facts: ${jobDescription.trim().slice(0, 1200)}`
+        : '';
+      const instruction = problem
+        ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
+        : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
+      const formatInstruction = ' Return the updated resume in the same extracted text format as the uploaded PDF. Preserve section order, heading names/casing, blank lines, indentation, line breaks, bullet symbols, separators, date alignment cues, and plain-text layout. Do not convert it into a different template. Do not collapse separate lines into paragraphs.';
+      const result = await resumeApiRequest('/fix', {
+        method: 'POST',
+        body: JSON.stringify({
+          resumeText: reviewText,
+          targetRole,
+          issueId: problem?.id,
+          instruction: `${instruction}${formatInstruction}`
+        })
+      });
+      setComparison({
+        originalText: result.originalText,
+        improvedText: result.improvedText,
+        changes: result.changes,
+        scoreBeforeFix
+      });
+      applyAnalysis(result.analysis, result.improvedText, { scoreFloor: scoreBeforeFix });
+    } catch (error) {
+      setResumeError(error.message);
+    } finally {
+      setFixingIssueId('');
     }
   };
 
@@ -1228,6 +876,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   useEffect(() => {
+    if (comparison) return undefined;
     if (!resumeReview || reviewText.trim().length < 50 || `${targetRole}\u0000${reviewText}` === lastAnalyzedTextRef.current) return undefined;
     const timeout = setTimeout(() => recheckResume(reviewText, true), 1200);
     return () => clearTimeout(timeout);
@@ -1337,6 +986,50 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setTimeout(runPrint, 150);
     } else {
       printFrame.onload = () => setTimeout(runPrint, 150);
+    }
+  };
+
+  const downloadScannerResumePdf = () => {
+    const text = (comparison?.improvedText || scanText).trim();
+    if (!text) return;
+
+    setIsExporting(true);
+    const title = contactInfo.name || uploadedFileName?.replace(/\.[^.]+$/, '') || 'Resume';
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - Resume</title><style>@page{size:A4;margin:14mm}html,body{margin:0;background:#fff;color:#0f172a;font-family:Arial,Helvetica,sans-serif}main{max-width:180mm;margin:0 auto;padding:8mm 0}pre{white-space:pre-wrap;word-break:break-word;font-size:10.5pt;line-height:1.45;margin:0}</style></head><body><main><pre>${escapeHtml(text)}</pre></main></body></html>`;
+    let printFrame = printFrameRef.current;
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      Object.assign(printFrame.style, {
+        position: 'fixed',
+        top: '0',
+        left: '-100vw',
+        width: '210mm',
+        height: '297mm',
+        border: '0',
+        opacity: '0',
+        pointerEvents: 'none'
+      });
+      document.body.appendChild(printFrame);
+      printFrameRef.current = printFrame;
+    }
+
+    try {
+      printResumeHtml(printHtml, printFrame);
+    } catch {
+      const pw = window.open('', '_blank');
+      if (pw) {
+        pw.document.write(printHtml);
+        pw.document.close();
+        setTimeout(() => {
+          pw.focus();
+          pw.print();
+          setIsExporting(false);
+          triggerConfetti();
+        }, 250);
+      } else {
+        alert('Popup blocked. Use Ctrl+P / Cmd+P to print.');
+        setIsExporting(false);
+      }
     }
   };
 
@@ -1482,21 +1175,27 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-indigo-300/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-purple-300/10 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* IN-PAGE INTRO + TAB DOCK */}
-      <div className="relative z-20 mx-auto max-w-7xl px-6 pt-10">
-        <div className="mb-6 flex items-center gap-3">
-          <motion.div whileHover={{ rotate: 180, scale: 1.1 }} transition={{ duration: 0.5 }} className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/25">
-            <ShieldCheck className="h-5 w-5 text-white" />
-          </motion.div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900">Resume and ATS</h1>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-semibold text-slate-400">Make your Resume the Guarantee Card of your career</span>
+      {/* TOP BAR */}
+      <div className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-3">
+            <motion.div whileHover={{ rotate: 180, scale: 1.1 }} transition={{ duration: 0.5 }} className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <ShieldCheck className="w-5 h-5 text-white" />
+            </motion.div>
+            <div>
+              <h1 className="text-lg font-black text-slate-900 tracking-tight">Resume and ATS</h1>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-semibold text-slate-400">Make your Resume the Guarantee Card of your career</span>
+              </div>
             </div>
           </div>
         </div>
-        <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mx-auto flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-xl">
+      </div>
+
+      {/* TAB DOCK */}
+      <div className="relative z-20 flex justify-center -mb-5">
+        <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200/60 p-1.5 flex gap-1">
           {tabs.map(tab => {
             const Icon = tab.icon; const isActive = activeTab === tab.id;
             return (
@@ -1514,7 +1213,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 mx-auto max-w-[1500px] px-4 pb-6 pt-5 sm:px-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-8">
         <AnimatePresence mode="wait">
 
           {/* ══════════════════════ BUILDER TAB ══════════════════════ */}
@@ -1860,15 +1559,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                 {/* Actions */}
                 <div className="space-y-2">
                   <div className="flex gap-3">
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveBuilderResume} disabled={resumeSaving} className="flex-1 px-5 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-100 flex items-center gap-2 min-w-[120px] justify-center disabled:opacity-50">
-                      {resumeSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      Save
+                    <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleBuilderAiPolish} disabled={builderPolishing || (!projects.length && !experience.length)} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                      {builderPolishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
+                      {builderPolishing ? 'Polishing...' : 'AI Grammar & Format Fix'}
                     </motion.button>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="flex-1 px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
                       {isExporting ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> : <Download className="w-4 h-4" />}
                       {isExporting ? 'Exporting...' : 'Export PDF'}
                     </motion.button>
                   </div>
+                  {builderPolishMessage && (
+                    <div className={`rounded-xl px-3 py-2 text-xs font-bold ${builderPolishMessage.includes('polished') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      {builderPolishMessage}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2032,14 +1737,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
           {/* ══════════════════════ SCANNER TAB ══════════════════════ */}
           {activeTab === 'scanner' && (
-            <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-12 xl:items-start">
-                <div className="space-y-4 xl:col-span-5">
-                  <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+              <div className="grid xl:grid-cols-5 gap-6">
+                <div className="xl:col-span-3 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-                          <BrainCircuit className="h-5 w-5 text-white" />
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                          <BrainCircuit className="w-6 h-6 text-white" />
                         </div>
                         <div>
                           <h2 className="font-black text-slate-900 text-lg">AI Resume Review</h2>
@@ -2051,37 +1756,37 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </div>
                     </div>
 
-                    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Target job role</label>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Target job role</label>
                     <input
                       value={targetRole}
                       onChange={e => setTargetRole(e.target.value)}
                       maxLength={120}
                       placeholder="e.g. Frontend Engineer, Embedded Systems Intern"
-                      className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                     />
 
-                    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Job description for keyword comparison</label>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Job description for tailored fixes</label>
                     <textarea
-                      rows={2}
+                      rows={4}
                       value={jobDescription}
                       onChange={e => setJobDescription(e.target.value)}
                       maxLength={3000}
-                      placeholder="Paste the job description to compare keywords and recruiter requirements..."
-                      className="mb-3 w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      placeholder="Paste the job description here to make AI Fix target the right keywords and recruiter expectations..."
+                      className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y"
                     />
 
-                    <div className="mb-3 grid grid-cols-3 gap-1.5">
+                    <div className="grid sm:grid-cols-3 gap-2 mb-4">
                       {[
                         { icon: ShieldCheck, label: 'Private scan', text: 'Processed securely' },
-                        { icon: Target, label: 'JD keywords', text: 'Keyword comparison' },
-                        { icon: Eye, label: 'Original preview', text: 'No automatic changes' }
+                        { icon: Target, label: 'JD keywords', text: 'Tailored fixes' },
+                        { icon: Zap, label: 'Smart rewrite', text: 'Score protected' }
                       ].map(item => (
-                        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-2 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <item.icon className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
-                            <span className="text-[10px] font-black text-slate-800">{item.label}</span>
+                        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <item.icon className="w-4 h-4 text-indigo-500" />
+                            <span className="text-[11px] font-black text-slate-800">{item.label}</span>
                           </div>
-                          <p className="mt-0.5 text-[9px] font-semibold text-slate-400">{item.text}</p>
+                          <p className="mt-1 text-[10px] font-semibold text-slate-400">{item.text}</p>
                         </div>
                       ))}
                     </div>
@@ -2091,20 +1796,24 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={scanning}
-                      className="mb-3 flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 p-4 transition-colors hover:border-indigo-400 disabled:opacity-60"
+                      className="w-full mb-4 border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-2xl p-7 flex flex-col items-center justify-center transition-colors disabled:opacity-60"
                     >
-                      <UploadCloud className="h-7 w-7 shrink-0 text-indigo-500" />
-                      <span className="min-w-0 text-left"><span className="block truncate text-sm font-black text-slate-800">{uploadedFileName || 'Upload PDF or DOCX resume'}</span><span className="mt-0.5 block text-[10px] text-slate-400">Maximum 5 MB · server-side extraction</span></span>
+                      <UploadCloud className="w-9 h-9 text-indigo-500 mb-2" />
+                      <span className="text-sm font-black text-slate-800">{uploadedFileName || 'Upload PDF or DOCX resume'}</span>
+                      <span className="text-xs text-slate-400 mt-1">Maximum 5 MB · text is extracted on the server</span>
                     </button>
 
                     <div className="relative">
                       <textarea
-                        rows={7}
+                        rows={12}
                         value={scanText}
                         maxLength={50000}
-                        onChange={e => setScanText(e.target.value)}
+                        onChange={e => {
+                          setScanText(e.target.value);
+                          if (comparison) setComparison(null);
+                        }}
                         placeholder="Or paste your resume text here..."
-                        className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-800 placeholder:text-slate-300 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all resize-y"
                       />
                       <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">{scanText.length.toLocaleString()} / 50,000</div>
                     </div>
@@ -2129,6 +1838,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     )}
 
                     <div className="flex flex-wrap justify-end gap-2 mt-4">
+                      {(comparison?.improvedText || scanText.trim()) && (
+                        <button
+                          type="button"
+                          onClick={downloadScannerResumePdf}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" /> Download PDF
+                        </button>
+                      )}
                       {resumeReview && (
                         <button
                           type="button"
@@ -2150,35 +1868,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </button>
                     </div>
                   </div>
-
-                  {resumeReview && (
-                    <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                      <h3 className="mb-2 text-sm font-black text-slate-900">Resume insights</h3>
-                      <p className="mb-3 text-xs leading-5 text-slate-500">{resumeReview.summary}</p>
-                      <div className="space-y-2">
-                        {Object.entries(resumeReview.categoryScores).map(([key, value]) => (
-                          <div key={key} className="flex items-center gap-2">
-                            <span className="w-24 truncate text-[9px] font-bold capitalize text-slate-500">{key.replace(/([A-Z])/g, ' $1')}</span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${value}%` }} /></div>
-                            <span className="w-7 text-right text-[9px] font-black text-slate-500">{value}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {resumeReview.missingKeywords.length > 0 && (
-                        <div className="mt-3">
-                          <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">Missing target keywords</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {resumeReview.missingKeywords.map(keyword => <span key={keyword} className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">{keyword}</span>)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                <div className="space-y-4 xl:col-span-7">
-                  <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900"><ScanLine className="h-4 w-4 text-indigo-500" /> ATS Score</h3>
+                <div className="xl:col-span-2 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                    <h3 className="font-black text-slate-900 text-sm mb-4 flex items-center gap-2"><ScanLine className="w-4 h-4 text-indigo-500" /> ATS Score</h3>
                     <div className="flex items-center gap-5">
                       <div className="relative h-28 w-28 shrink-0">
                         <svg className="h-full w-full -rotate-90">
@@ -2197,103 +1891,48 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     </div>
                   </div>
 
-                  {uploadedFileName && scannerDraftText && (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-                        <div>
-                          <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Eye className="h-4 w-4 text-indigo-500" /> {manualEditMode ? 'Manual editing mode' : 'Original uploaded resume'}</h3>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-400">{manualEditMode ? 'Only changes you type in the preview will be applied.' : originalPreviewUrl ? 'Displayed directly from your uploaded file. No content or formatting has been changed.' : 'The original DOCX is retained unchanged. Select manual editing only when you want to alter its extracted content.'}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {originalUploadFile && scannerPreviewHtml && (
-                            <button
-                              type="button"
-                              onClick={() => setManualEditMode(current => !current)}
-                              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200"
-                            >
-                              {manualEditMode ? <Eye className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />} {manualEditMode ? 'View original' : 'Edit manually'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={saveScannerPreview}
-                            disabled={scannerPreviewSaving || !selectedResumeId || !manualEditMode}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
-                          >
-                            {scannerPreviewSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={exportScannerPreview}
-                            disabled={scannerPreviewSaving || (!originalUploadFile && !selectedResumeId)}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
-                          >
-                            <Download className="h-3.5 w-3.5" /> {manualEditMode ? 'Export PDF' : 'Download original'}
-                          </button>
-                        </div>
+                  {resumeReview && (
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                      <h3 className="font-black text-slate-900 text-sm mb-3">Resume insights</h3>
+                      <p className="text-xs text-slate-500 leading-5 mb-4">{resumeReview.summary}</p>
+                      <div className="space-y-2">
+                        {Object.entries(resumeReview.categoryScores).map(([key, value]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="w-28 truncate text-[10px] font-bold text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${value}%` }} /></div>
+                            <span className="w-7 text-right text-[10px] font-black text-slate-500">{value}</span>
+                          </div>
+                        ))}
                       </div>
-                      {originalPreviewUrl && !manualEditMode ? (
-                        <div className="overflow-hidden bg-slate-100 p-2">
-                          <iframe
-                            title="Original uploaded resume preview"
-                            src={`${originalPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
-                            scrolling="no"
-                            className="h-[72vh] min-h-[560px] max-h-[760px] w-full rounded-lg border-0 bg-white shadow-lg"
-                          />
-                        </div>
-                      ) : originalUploadFile && !manualEditMode ? (
-                        <div className="flex min-h-[360px] flex-col items-center justify-center bg-slate-50 px-8 text-center">
-                          <FileText className="mb-3 h-10 w-10 text-indigo-400" />
-                          <p className="text-sm font-black text-slate-800">Original DOCX retained unchanged</p>
-                          <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">Browsers cannot display a local DOCX exactly. Downloading now returns the original file; choose Edit manually only if you want to work with its extracted preview.</p>
-                        </div>
-                      ) : scannerPreviewLoading ? (
-                        <div className="flex h-72 items-center justify-center gap-2 text-xs font-bold text-slate-400"><RefreshCw className="h-4 w-4 animate-spin text-indigo-500" /> Loading preserved layout…</div>
-                      ) : scannerPreviewHtml ? (
-                        <div className="overflow-hidden bg-slate-100 p-2">
-                          <iframe
-                            ref={scannerPreviewFrameRef}
-                            title="Editable uploaded resume preview"
-                            srcDoc={scannerPreviewHtml}
-                            sandbox="allow-scripts allow-same-origin"
-                            scrolling="no"
-                            className="h-[72vh] min-h-[560px] max-h-[760px] w-full rounded-lg border-0 bg-white shadow-lg"
-                          />
-                        </div>
-                      ) : (
-                        <div className="bg-slate-100 p-3">
-                          <div
-                            key={uploadedFileName}
-                            contentEditable
-                            suppressContentEditableWarning
-                            spellCheck
-                            onInput={(event) => setScannerDraftText(event.currentTarget.innerText.slice(0, 50000))}
-                            className="min-h-[560px] whitespace-pre-wrap rounded-lg bg-white p-6 font-mono text-[9px] leading-4 text-slate-800 shadow-lg outline-none focus:ring-2 focus:ring-indigo-500/30"
-                          >
-                            {scannerDraftText}
+                      {resumeReview.missingKeywords.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Missing target keywords</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {resumeReview.missingKeywords.map(keyword => <span key={keyword} className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold">{keyword}</span>)}
                           </div>
                         </div>
                       )}
-                      {!selectedResumeId && <p className="border-t border-amber-100 bg-amber-50 px-4 py-2.5 text-[10px] font-bold text-amber-700">Sign in and upload again to enable manual editing and saving. The original file can still be downloaded unchanged.</p>}
                     </div>
                   )}
-
                 </div>
               </div>
 
               {resumeReview && (
                 <div className="grid lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <div className="mb-4">
+                    <div className="flex items-center justify-between gap-3 mb-4">
                       <div>
-                        <h3 className="font-black text-slate-900">Review findings</h3>
-                        <p className="text-xs text-slate-400">{resumeReview.problems.length} suggestions for you to review and apply manually</p>
+                        <h3 className="font-black text-slate-900">Problems and fixes</h3>
+                        <p className="text-xs text-slate-400">{resumeReview.problems.length} actionable findings</p>
                       </div>
+                      <button onClick={() => handleAiFix()} disabled={!!fixingIssueId} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-black flex items-center gap-2 disabled:opacity-50">
+                        {fixingIssueId === 'all' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} AI Fix all
+                      </button>
                     </div>
                     <div className="space-y-3">
                       {resumeReview.problems.map(problem => (
                         <div key={problem.id} className="rounded-xl border border-slate-200 p-4">
-                          <div>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${problem.severity === 'critical' ? 'bg-red-500' : problem.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
@@ -2301,6 +1940,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               </div>
                               <p className="text-xs text-slate-500 mt-2 leading-5">{problem.why}</p>
                             </div>
+                            <button onClick={() => handleAiFix(problem)} disabled={!!fixingIssueId} className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black flex items-center gap-1.5 disabled:opacity-50">
+                              {fixingIssueId === problem.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} AI Fix
+                            </button>
                           </div>
                           <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
                             <div className="rounded-lg bg-red-50 p-3 text-red-800"><span className="font-black block mb-1">Current</span>{problem.originalContent || 'Section or content is missing.'}</div>
@@ -2325,6 +1967,41 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                 </div>
               )}
 
+              {comparison && (
+                <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h3 className="font-black text-slate-900">Original vs improved</h3>
+                      <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={downloadScannerResumePdf} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
+                        <Download className="w-4 h-4" /> Download updated PDF
+                      </button>
+                      <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
+                        <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck
+                      </button>
+                      <button onClick={() => { setScanText(comparison.improvedText); setComparison(null); }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
+                    </div>
+                  </div>
+                  {Number.isFinite(comparison.scoreBeforeFix) && (
+                    <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                      <span className="font-black">Score protected:</span> AI Fix will not lower the displayed ATS score below your previous {comparison.scoreBeforeFix}. Use Recheck only when you want a fresh score.
+                    </div>
+                  )}
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Original</label>
+                      <textarea readOnly rows={18} value={comparison.originalText} className="mt-2 w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs leading-5 text-slate-600 resize-y" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Improved and editable</label>
+                      <textarea rows={18} value={comparison.improvedText} onChange={e => setComparison(current => ({ ...current, improvedText: e.target.value }))} className="mt-2 w-full p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 text-xs leading-5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-y" />
+                    </div>
+                  </div>
+                  {comparison.changes?.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{comparison.changes.map(change => <span key={change} className="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold">{change}</span>)}</div>}
+                </div>
+              )}
             </motion.div>
           )}
 

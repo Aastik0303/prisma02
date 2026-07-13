@@ -1,94 +1,27 @@
 import multipart from '@fastify/multipart';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { AppError } from '../../app.js';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { resumeAiRateLimit, resumeUploadRateLimit } from '../../plugins/rateLimit.js';
-import { extractResumeDocument, MAX_RESUME_BYTES, type ExtractedPdfLayout } from './resume.extractor.js';
-import { parseResumeTextToJson } from './resume.ai.js';
-import { renderResumeHtml, renderResumePdf, resumeJsonToLines } from './resume.renderer.js';
+import { MAX_RESUME_BYTES } from './resume.extractor.js';
 import {
   analyzeResumeBodySchema,
-  createResumeBodySchema,
-  fixResumeBodySchema,
-  improveStoredResumeBodySchema,
-  parsedResumeJsonSchema,
-  resumeIdParamsSchema,
-  templateConfigSchema,
-  updateResumeBodySchema
+  fixResumeBodySchema
 } from './resume.schema.js';
 import { runResumeWorkflow } from './resume.workflow.js';
 
-const MAX_RESUMES_PER_USER = 4;
+const AGENT_RESUME_DOCX_PATH =
+  process.env.AGENT_RESUME_DOCX_PATH ||
+  'D:\\prisma_embedded_codes2\\prisma_embedded_codes2\\uploads\\resume.docx';
 
-const resumeStore = (fastify: FastifyInstance) => (fastify.prisma as any).resume;
-
-const defaultTemplateConfig = () => templateConfigSchema.parse({
-  templateId: 'ats-clean',
-  page: { width: 612, height: 792, margin: 48 },
-  fonts: {
-    name: { family: 'Helvetica', size: 24, weight: 700 },
-    heading: { family: 'Helvetica', size: 11, weight: 700 },
-    body: { family: 'Helvetica', size: 10 }
-  },
-  colors: {
-    text: '#0f172a',
-    muted: '#475569',
-    accent: '#4f46e5',
-    background: '#ffffff'
-  },
-  sections: [
-    { key: 'personal_info', x: 48, y: 48, width: 516 },
-    { key: 'summary', x: 48, y: 132, width: 516 },
-    { key: 'skills', x: 48, y: 206, width: 516 },
-    { key: 'experience', x: 48, y: 280, width: 516 },
-    { key: 'projects', x: 48, y: 450, width: 516 },
-    { key: 'education', x: 48, y: 590, width: 516 }
-  ]
-});
-
-const uploadedPdfTemplateConfig = (layout?: ExtractedPdfLayout) => {
-  if (!layout?.blocks.length) return defaultTemplateConfig();
-
-  return templateConfigSchema.parse({
-    ...defaultTemplateConfig(),
-    templateId: 'uploaded-pdf-layout',
-    page: {
-      width: layout.pages[0]?.width || 595,
-      height: layout.pages[0]?.height || 842,
-      margin: 0
-    },
-    uploadedPdf: layout
-  });
-};
-
-async function enforceResumeLimit(request: FastifyRequest, _reply: FastifyReply) {
-  const count = await resumeStore(request.server).count({
-    where: { userId: request.user!.id }
-  });
-
-  if (count >= MAX_RESUMES_PER_USER) {
-    throw new AppError(
-      400,
-      'MAXIMUM_RESUME_LIMIT_REACHED',
-      'Maximum resume limit reached. Please delete an existing resume to proceed.'
-    );
-  }
-}
-
-async function getOwnedResume(request: FastifyRequest) {
-  const params = resumeIdParamsSchema.parse(request.params);
-  const resume = await resumeStore(request.server).findFirst({
-    where: {
-      id: params.id,
-      userId: request.user!.id
-    }
-  });
-
-  if (!resume) {
-    throw new AppError(404, 'RESUME_NOT_FOUND', 'Resume not found.');
-  }
-
-  return resume;
+function resumeSavingDisabled() {
+  throw new AppError(
+    410,
+    'RESUME_SAVE_DISABLED',
+    'Resume saving has been disabled. You can still scan, fix, and export resumes without storing them.'
+  );
 }
 
 function extractMultipartField(part: { fields: Record<string, any> }, name: string, maxLength: number) {
@@ -99,85 +32,69 @@ function extractMultipartField(part: { fields: Record<string, any> }, name: stri
     : '';
 }
 
-function serializeResumeRecord(resume: any) {
-  return {
-    id: resume.id,
-    userId: resume.userId,
-    title: resume.title,
-    rawExtractedText: resume.rawExtractedText,
-    parsedJsonData: resume.parsedJsonData,
-    templateConfig: resume.templateConfig,
-    createdAt: resume.createdAt,
-    updatedAt: resume.updatedAt
-  };
+async function persistDocxForAgent(input: { buffer: Buffer; filename: string; mimetype: string }) {
+  const extension = input.filename.toLowerCase().split('.').pop();
+  const isDocx = extension === 'docx'
+    && (
+      input.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || input.mimetype === 'application/octet-stream'
+    );
+
+  if (!isDocx) return undefined;
+
+  await mkdir(dirname(AGENT_RESUME_DOCX_PATH), { recursive: true });
+  await writeFile(AGENT_RESUME_DOCX_PATH, input.buffer);
+  return AGENT_RESUME_DOCX_PATH;
 }
 
-function serializeResumeListItem(resume: any) {
-  return {
-    id: resume.id,
-    userId: resume.userId,
-    title: resume.title,
-    createdAt: resume.createdAt,
-    updatedAt: resume.updatedAt
-  };
-}
-
-function buildResumeTextForScan(parsedJsonData: unknown, fallbackText = '') {
-  const parsed = parsedResumeJsonSchema.safeParse(parsedJsonData);
-  const structuredText = parsed.success ? resumeJsonToLines(parsed.data).join('\n') : '';
-  const scanText = structuredText.trim().length >= 50 ? structuredText : fallbackText;
-  return scanText.trim();
-}
-
-async function runSavedResumeScan(input: {
-  parsedJsonData: unknown;
-  rawExtractedText: string;
-  targetRole?: string;
-}) {
-  const resumeText = buildResumeTextForScan(input.parsedJsonData, input.rawExtractedText);
-  if (resumeText.length < 50) return undefined;
-
+async function scanUploadedResume(request: FastifyRequest, reply: FastifyReply) {
+  let part;
   try {
-    const result = await runResumeWorkflow({
+    part = await request.file({
+      limits: { files: 1, fileSize: MAX_RESUME_BYTES }
+    });
+  } catch {
+    throw new AppError(400, 'INVALID_UPLOAD', 'The resume upload is invalid or exceeds 5 MB.');
+  }
+
+  if (!part) {
+    throw new AppError(400, 'RESUME_REQUIRED', 'A PDF or DOCX resume file is required.');
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = await part.toBuffer();
+  } catch {
+    throw new AppError(400, 'RESUME_TOO_LARGE', 'Resume files are limited to 5 MB.');
+  }
+
+  const targetRole = extractMultipartField(part, 'targetRole', 120);
+
+  let result;
+  let savedDocxPath: string | undefined;
+  try {
+    result = await runResumeWorkflow({
       operation: 'analyze',
-      resumeText,
-      targetRole: input.targetRole
+      fileBuffer: buffer,
+      filename: part.filename,
+      mimetype: part.mimetype,
+      targetRole
     });
-
-    return {
-      resumeText: result.resumeText,
-      analysis: result.analysis,
-      suggestions: result.suggestions
-    };
-  } catch (error) {
-    console.warn('Saved resume ATS scan failed after persistence', {
-      name: (error as { name?: string })?.name,
-      message: (error as { message?: string })?.message?.slice(0, 300)
+    savedDocxPath = await persistDocxForAgent({
+      buffer,
+      filename: part.filename,
+      mimetype: part.mimetype
     });
-    return undefined;
+  } finally {
+    buffer.fill(0);
   }
-}
 
-function serializeResumeWithScannerSession(resume: any, scannerSession?: Awaited<ReturnType<typeof runSavedResumeScan>>) {
-  return {
-    ...serializeResumeRecord(resume),
-    ...(scannerSession ? { scannerSession } : {})
-  };
-}
-
-async function deleteOwnedResumeById(fastify: FastifyInstance, userId: string, resumeId: string) {
-  const result = await resumeStore(fastify).deleteMany({
-    where: {
-      id: resumeId,
-      userId
-    }
+  return reply.code(200).send({
+    filename: part.filename,
+    ...(savedDocxPath ? { savedDocxPath } : {}),
+    resumeText: result.resumeText,
+    analysis: result.analysis
   });
-
-  if (result.count === 0) {
-    throw new AppError(404, 'RESUME_NOT_FOUND', 'Resume not found or already deleted.');
-  }
-
-  return { deleted: true, id: resumeId };
 }
 
 export async function resumeRoutes(fastify: FastifyInstance) {
@@ -192,270 +109,50 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/resumes', {
-    preHandler: [requireAuth, enforceResumeLimit]
-  }, async (request, reply) => {
-    const body = createResumeBodySchema.parse(request.body);
-    const resume = await resumeStore(fastify).create({
-      data: {
-        userId: request.user!.id,
-        title: body.title,
-        rawExtractedText: body.rawExtractedText,
-        parsedJsonData: body.parsedJsonData,
-        templateConfig: body.templateConfig
-      }
-    });
-    const scannerSession = await runSavedResumeScan({
-      parsedJsonData: resume.parsedJsonData,
-      rawExtractedText: resume.rawExtractedText
-    });
-
-    return reply.code(201).send(serializeResumeWithScannerSession(resume, scannerSession));
-  });
+    preHandler: [requireAuth]
+  }, async () => resumeSavingDisabled());
 
   fastify.get('/resumes', {
     preHandler: [requireAuth]
-  }, async (request) => {
-    const resumes = await resumeStore(fastify).findMany({
-      where: { userId: request.user!.id },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        userId: true,
-        title: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-    return resumes.map(serializeResumeListItem);
-  });
+  }, async () => []);
 
   fastify.post('/resumes/upload', {
-    preHandler: [requireAuth, enforceResumeLimit],
+    preHandler: [requireAuth],
     config: { rateLimit: resumeUploadRateLimit }
-  }, async (request, reply) => {
-    let part;
-    try {
-      part = await request.file({
-        limits: { files: 1, fileSize: MAX_RESUME_BYTES }
-      });
-    } catch {
-      throw new AppError(400, 'INVALID_UPLOAD', 'The resume upload is invalid or exceeds 5 MB.');
-    }
-
-    if (!part) {
-      throw new AppError(400, 'RESUME_REQUIRED', 'A PDF or DOCX resume file is required.');
-    }
-
-    let buffer: Buffer;
-    try {
-      buffer = await part.toBuffer();
-    } catch {
-      throw new AppError(400, 'RESUME_TOO_LARGE', 'Resume files are limited to 5 MB.');
-    }
-
-    const title = extractMultipartField(part, 'title', 160)
-      || part.filename.replace(/\.[^.]+$/, '').slice(0, 160)
-      || 'Untitled resume';
-    const targetRole = extractMultipartField(part, 'targetRole', 120);
-
-    let extracted;
-    let result;
-    try {
-      extracted = await extractResumeDocument({
-        buffer,
-        filename: part.filename,
-        mimetype: part.mimetype,
-        includePdfLayout: true
-      });
-      result = await runResumeWorkflow({
-        operation: 'analyze',
-        resumeText: extracted.text,
-        targetRole
-      });
-    } finally {
-      buffer.fill(0);
-    }
-
-    const parsedJsonData = await parseResumeTextToJson(extracted.text);
-    const templateConfig = uploadedPdfTemplateConfig(extracted?.uploadedPdfLayout);
-    const resume = await resumeStore(fastify).create({
-      data: {
-        userId: request.user!.id,
-        title,
-        rawExtractedText: extracted.text,
-        parsedJsonData,
-        templateConfig
-      }
-    });
-
-    return reply.code(201).send({
-      resume: serializeResumeRecord(resume),
-      analysis: result.analysis
-    });
-  });
+  }, scanUploadedResume);
 
   fastify.get('/resumes/:id/html', {
     preHandler: [requireAuth]
-  }, async (request, reply) => {
-    const resume = await getOwnedResume(request);
-    const data = parsedResumeJsonSchema.parse(resume.parsedJsonData);
-    const template = templateConfigSchema.parse(resume.templateConfig);
-
-    return reply
-      .type('text/html; charset=utf-8')
-      .send(renderResumeHtml({ data, template, sourceText: resume.rawExtractedText }));
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.get('/resumes/:id/download', {
     preHandler: [requireAuth]
-  }, async (request, reply) => {
-    const resume = await getOwnedResume(request);
-    const data = parsedResumeJsonSchema.parse(resume.parsedJsonData);
-    const template = templateConfigSchema.parse(resume.templateConfig);
-    const pdf = await renderResumePdf({ data, template, sourceText: resume.rawExtractedText });
-    const safeTitle = resume.title.replace(/[^a-z0-9-]+/gi, '-').replace(/(^-|-$)/g, '') || 'resume';
-
-    return reply
-      .header('Content-Type', 'application/pdf')
-      .header('Content-Disposition', `attachment; filename="${safeTitle}.pdf"`)
-      .send(pdf);
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.post('/resumes/:id/improve', {
     preHandler: [requireAuth],
     config: { rateLimit: resumeAiRateLimit }
-  }, async (request) => {
-    const resume = await getOwnedResume(request);
-    const body = improveStoredResumeBodySchema.parse(request.body);
-    const instruction = [
-      body.instruction || 'Improve ATS quality while preserving facts.',
-      'Keep the same section order, headings, bullets, line breaks, spacing, and plain-text structure. Do not change the template or layout. Only improve the wording and ATS-related content inside the existing resume text.'
-    ].join(' ');
-    const improvedResume = await runResumeWorkflow({
-      operation: 'fix',
-      resumeText: resume.rawExtractedText || '',
-      targetRole: body.targetRole,
-      instruction
-    });
-    const improvedJson = await parseResumeTextToJson(improvedResume.resumeText);
-
-    const updated = await resumeStore(fastify).update({
-      where: { id: resume.id },
-      data: {
-        rawExtractedText: improvedResume.resumeText,
-        parsedJsonData: improvedJson
-      }
-    });
-    const scannerSession = await runSavedResumeScan({
-      parsedJsonData: updated.parsedJsonData,
-      rawExtractedText: updated.rawExtractedText,
-      targetRole: body.targetRole
-    });
-
-    return serializeResumeWithScannerSession(updated, scannerSession);
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.get('/resumes/:id', {
     preHandler: [requireAuth]
-  }, async (request) => {
-    return serializeResumeRecord(await getOwnedResume(request));
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.put('/resumes/:id', {
     preHandler: [requireAuth]
-  }, async (request) => {
-    const resume = await getOwnedResume(request);
-    const body = updateResumeBodySchema.parse(request.body);
-    const parsedJsonData = body.parsedJsonData !== undefined
-      ? body.parsedJsonData
-      : body.rawExtractedText !== undefined
-        ? await parseResumeTextToJson(body.rawExtractedText)
-        : undefined;
-    const updated = await resumeStore(fastify).update({
-      where: { id: resume.id },
-      data: {
-        ...(body.title !== undefined ? { title: body.title } : {}),
-        ...(body.rawExtractedText !== undefined ? { rawExtractedText: body.rawExtractedText } : {}),
-        ...(parsedJsonData !== undefined ? { parsedJsonData } : {}),
-        ...(body.templateConfig !== undefined ? { templateConfig: body.templateConfig } : {})
-      }
-    });
-    const scannerSession = await runSavedResumeScan({
-      parsedJsonData: updated.parsedJsonData,
-      rawExtractedText: updated.rawExtractedText
-    });
-
-    return serializeResumeWithScannerSession(updated, scannerSession);
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.delete('/resumes/:id', {
     preHandler: [requireAuth]
-  }, async (request, reply) => {
-    const params = resumeIdParamsSchema.parse(request.params);
-    return reply.code(200).send(await deleteOwnedResumeById(fastify, request.user!.id, params.id));
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.post('/resumes/:id/delete', {
     preHandler: [requireAuth]
-  }, async (request, reply) => {
-    const params = resumeIdParamsSchema.parse(request.params);
-    return reply.code(200).send(await deleteOwnedResumeById(fastify, request.user!.id, params.id));
-  });
+  }, async () => resumeSavingDisabled());
 
   fastify.post('/upload', {
     config: { rateLimit: resumeUploadRateLimit }
-  }, async (request, reply) => {
-    let part;
-    try {
-      part = await request.file({
-        limits: { files: 1, fileSize: MAX_RESUME_BYTES }
-      });
-    } catch {
-      throw new AppError(400, 'INVALID_UPLOAD', 'The resume upload is invalid or exceeds 5 MB.');
-    }
-
-    if (!part) {
-      throw new AppError(400, 'RESUME_REQUIRED', 'A PDF or DOCX resume file is required.');
-    }
-
-    let buffer: Buffer;
-    try {
-      buffer = await part.toBuffer();
-    } catch {
-      throw new AppError(400, 'RESUME_TOO_LARGE', 'Resume files are limited to 5 MB.');
-    }
-
-    const rawTargetRoleField = part.fields.targetRole;
-    const targetRoleField = Array.isArray(rawTargetRoleField)
-      ? rawTargetRoleField[0]
-      : rawTargetRoleField;
-    const targetRole = targetRoleField && targetRoleField.type === 'field'
-      ? String(targetRoleField.value).trim().slice(0, 120)
-      : '';
-
-    let extracted;
-    let result;
-    try {
-      extracted = await extractResumeDocument({
-        buffer,
-        filename: part.filename,
-        mimetype: part.mimetype
-      });
-      result = await runResumeWorkflow({
-        operation: 'analyze',
-        resumeText: extracted.text,
-        targetRole
-      });
-    } finally {
-      buffer.fill(0);
-    }
-
-    return reply.code(200).send({
-      filename: part.filename,
-      resumeText: extracted.text,
-      analysis: result.analysis
-    });
-  });
+  }, scanUploadedResume);
 
   fastify.post('/analyze', {
     config: { rateLimit: resumeAiRateLimit }

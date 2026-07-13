@@ -6,7 +6,7 @@ React 19 frontend with a Fastify, Prisma, PostgreSQL, Redis, and Resend backend.
 
 The Resume Center includes a secure AI review flow for PDF and DOCX resumes:
 
-- Files are validated, capped at 5 MB, processed in memory, and never written to disk.
+- Files are validated, capped at 5 MB, processed in memory, and never written to disk or saved to the database.
 - PDF and DOCX text extraction runs only in the Fastify backend.
 - LangGraph coordinates extraction, analysis, scoring, problem detection, fixes, and rescoring.
 - LangChain uses Groq structured output validated with Zod.

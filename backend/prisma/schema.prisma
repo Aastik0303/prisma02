@@ -67,25 +67,8 @@ model User {
   following          Follow[]        @relation("UserFollowing")
   followers          Follow[]        @relation("UserFollowers")
   communityPosts     CommunityPost[] @relation("CommunityPosts")
-  resumes            Resume[]
 
   @@map("users")
-}
-
-model Resume {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @db.Uuid @map("user_id")
-  title            String   @db.VarChar(160)
-  rawExtractedText String   @map("raw_extracted_text")
-  parsedJsonData   Json     @map("parsed_json_data")
-  templateConfig   Json     @map("template_config")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, updatedAt])
-  @@map("resumes")
 }
 
 model CatalogCourse {

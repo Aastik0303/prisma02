@@ -144,27 +144,6 @@ export const fixResumeBodySchema = analyzeResumeBodySchema.extend({
   instruction: z.string().trim().max(2000).optional()
 });
 
-export const resumeIdParamsSchema = z.object({
-  id: z.string().uuid()
-});
-
-export const createResumeBodySchema = z.object({
-  title: nonEmptyText.max(160),
-  rawExtractedText: z.string().trim().min(50).max(50_000),
-  parsedJsonData: parsedResumeJsonSchema,
-  templateConfig: templateConfigSchema
-});
-
-export const updateResumeBodySchema = createResumeBodySchema.partial().refine(
-  value => Object.keys(value).length > 0,
-  'At least one resume field is required.'
-);
-
-export const improveStoredResumeBodySchema = z.object({
-  targetRole: z.string().trim().max(120).default(''),
-  instruction: z.string().trim().max(2000).default('Improve ATS quality while preserving facts.')
-});
-
 export type ResumeAnalysis = z.infer<typeof resumeAnalysisSchema>;
 export type ResumeProblem = z.infer<typeof resumeProblemSchema>;
 export type ResumeFix = z.infer<typeof resumeFixSchema>;
