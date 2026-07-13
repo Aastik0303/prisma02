@@ -12,6 +12,13 @@ const DOCX_MIMES = new Set([
   'application/octet-stream'
 ]);
 
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
 export type ExtractedPdfLayout = {
   pages: Array<{
     page: number;
@@ -164,6 +171,39 @@ function mergePdfLineBlocks(blocks: ExtractedPdfLayout['blocks']) {
   return merged;
 }
 
+function resumeTextToHtml(text: string) {
+  const blocks = sanitizeResumeText(text)
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map(block => block.trim())
+    .filter(Boolean);
+
+  return blocks.map(block => {
+    const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+    if (!lines.length) return '';
+    if (lines.length === 1 && /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(lines[0])) {
+      return `<h2>${escapeHtml(lines[0])}</h2>`;
+    }
+    if (lines.every(line => /^[-*•]\s+/.test(line))) {
+      return `<ul>${lines.map(line => `<li>${escapeHtml(line.replace(/^[-*•]\s+/, ''))}</li>`).join('')}</ul>`;
+    }
+    return lines.map(line => {
+      if (/^[A-Z][A-Z0-9 &/+-]{2,}$/.test(line)) return `<h2>${escapeHtml(line)}</h2>`;
+      if (/^[-*•]\s+/.test(line)) return `<ul><li>${escapeHtml(line.replace(/^[-*•]\s+/, ''))}</li></ul>`;
+      return `<p>${escapeHtml(line)}</p>`;
+    }).join('');
+  }).join('\n');
+}
+
+function sanitizeMammothHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
+}
+
 async function extractPdfLayout(buffer: Buffer): Promise<ExtractedPdfLayout | undefined> {
   const loadingTask = getDocument({
     data: new Uint8Array(buffer),
@@ -257,6 +297,7 @@ export async function extractResumeDocument(input: {
 
   let rawText = '';
   let uploadedPdfLayout: ExtractedPdfLayout | undefined;
+  let formattedHtml = '';
 
   try {
     if (extension === 'pdf' && input.mimetype === PDF_MIME && hasPdfSignature(input.buffer)) {
@@ -272,7 +313,12 @@ export async function extractResumeDocument(input: {
         }
       }
     } else if (extension === 'docx' && DOCX_MIMES.has(input.mimetype) && hasZipSignature(input.buffer)) {
-      rawText = (await mammoth.extractRawText({ buffer: input.buffer })).value;
+      const [rawResult, htmlResult] = await Promise.all([
+        mammoth.extractRawText({ buffer: input.buffer }),
+        mammoth.convertToHtml({ buffer: input.buffer })
+      ]);
+      rawText = rawResult.value;
+      formattedHtml = sanitizeMammothHtml(htmlResult.value);
     } else {
       throw new AppError(400, 'UNSUPPORTED_RESUME_FILE', 'Only valid PDF and DOCX files are accepted.');
     }
@@ -282,6 +328,7 @@ export async function extractResumeDocument(input: {
   }
 
   const text = sanitizeResumeText(rawText);
+  if (!formattedHtml) formattedHtml = resumeTextToHtml(text);
   if (text.length < 50) {
     throw new AppError(
       422,
@@ -292,6 +339,7 @@ export async function extractResumeDocument(input: {
 
   return {
     text,
+    formattedHtml,
     uploadedPdfLayout
   };
 }

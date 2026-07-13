@@ -107,6 +107,7 @@ async function scanUploadedResume(request: FastifyRequest, reply: FastifyReply) 
     filename: part.filename,
     ...(savedDocxPath ? { savedDocxPath } : {}),
     ...(extractedDocument.uploadedPdfLayout ? { uploadedPdfLayout: extractedDocument.uploadedPdfLayout } : {}),
+    formattedHtml: extractedDocument.formattedHtml,
     resumeText: result.resumeText,
     analysis: result.analysis
   });

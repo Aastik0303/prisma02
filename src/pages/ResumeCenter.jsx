@@ -529,6 +529,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [uploadedPdfLayout, setUploadedPdfLayout] = useState(null);
   const [layoutBlockTexts, setLayoutBlockTexts] = useState([]);
   const [uploadedPdfUrl, setUploadedPdfUrl] = useState('');
+  const [scannerEditorHtml, setScannerEditorHtml] = useState('');
   const [fixingIssueId, setFixingIssueId] = useState('');
   const [comparison, setComparison] = useState(null);
   const [rechecking, setRechecking] = useState(false);
@@ -549,6 +550,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [analyzingLeetcode, setAnalyzingLeetcode] = useState(false);
 
   const previewRef = useRef(null);
+  const scannerEditorRef = useRef(null);
   const fileInputRef = useRef(null);
   const printFrameRef = useRef(null);
   const lastAnalyzedTextRef = useRef('');
@@ -822,8 +824,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setScanProgress(100);
       const nextText = result.resumeText || '';
       const nextLayout = result.uploadedPdfLayout || null;
+      const nextEditorHtml = cleanEditorHtml(result.formattedHtml || textToEditorHtml(nextText));
       setUploadedPdfLayout(nextLayout);
       setLayoutBlockTexts(nextLayout?.blocks?.length ? createLayoutTexts(nextLayout, nextText) : []);
+      setScannerEditorHtml(nextEditorHtml);
       setScanText(nextText);
       setComparison(null);
       applyAnalysis(result.analysis, nextText);
@@ -832,6 +836,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setUploadedFileName('');
       setUploadedPdfLayout(null);
       setLayoutBlockTexts([]);
+      setScannerEditorHtml('');
       if (uploadedPdfUrlRef.current) {
         URL.revokeObjectURL(uploadedPdfUrlRef.current);
         uploadedPdfUrlRef.current = '';
@@ -853,17 +858,22 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setResumeError('');
     const scoreBeforeFix = Number(resumeReview?.atsScore ?? atsScore) || 0;
     try {
+      const editorHtml = getScannerEditorContentHtml();
+      const shouldUseHtml = !uploadedPdfLayout?.blocks?.length && editorHtml.trim().length > 50;
+      const sourceForFix = shouldUseHtml ? editorHtml : reviewText;
       const jdInstruction = jobDescription.trim()
         ? ` Tailor the language to this job description without inventing facts: ${jobDescription.trim().slice(0, 1200)}`
         : '';
       const instruction = problem
         ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
         : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
-      const formatInstruction = ' Return the updated resume in the same extracted text format as the uploaded PDF. Preserve section order, heading names/casing, blank lines, indentation, line breaks, bullet symbols, separators, date alignment cues, and plain-text layout. Do not convert it into a different template. Do not collapse separate lines into paragraphs.';
+      const formatInstruction = shouldUseHtml
+        ? ' Return clean HTML using the same tags and visual hierarchy from the source. Preserve headings, bold/italic text, bullet lists, paragraph breaks, spacing, and section order. Do not return Markdown or plain text.'
+        : ' Return the updated resume in the same extracted text format as the uploaded PDF. Preserve section order, heading names/casing, blank lines, indentation, line breaks, bullet symbols, separators, date alignment cues, and plain-text layout. Do not convert it into a different template. Do not collapse separate lines into paragraphs.';
       const result = await resumeApiRequest('/fix', {
         method: 'POST',
         body: JSON.stringify({
-          resumeText: reviewText,
+          resumeText: sourceForFix,
           targetRole,
           issueId: problem?.id,
           instruction: `${instruction}${formatInstruction}`
@@ -875,7 +885,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         changes: result.changes,
         scoreBeforeFix
       });
-      applyAnalysis(result.analysis, result.improvedText, { scoreFloor: scoreBeforeFix });
+      if (shouldUseHtml && result.improvedText?.trim().startsWith('<')) {
+        const nextHtml = cleanEditorHtml(result.improvedText);
+        setScannerEditorHtml(nextHtml);
+        setScanText(htmlToPlainText(nextHtml));
+      }
+      applyAnalysis(result.analysis, shouldUseHtml ? htmlToPlainText(result.improvedText) : result.improvedText, { scoreFloor: scoreBeforeFix });
     } catch (error) {
       setResumeError(error.message);
     } finally {
@@ -916,6 +931,46 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+
+  const textToEditorHtml = (text = '') => text
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map(block => block.trim())
+    .filter(Boolean)
+    .map(block => {
+      const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+      if (lines.length === 1 && /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(lines[0])) return `<h2>${escapeHtml(lines[0])}</h2>`;
+      if (lines.every(line => /^[-*•]\s+/.test(line))) {
+        return `<ul>${lines.map(line => `<li>${escapeHtml(line.replace(/^[-*•]\s+/, ''))}</li>`).join('')}</ul>`;
+      }
+      return lines.map(line => {
+        if (/^[A-Z][A-Z0-9 &/+-]{2,}$/.test(line)) return `<h2>${escapeHtml(line)}</h2>`;
+        if (/^[-*•]\s+/.test(line)) return `<ul><li>${escapeHtml(line.replace(/^[-*•]\s+/, ''))}</li></ul>`;
+        return `<p>${escapeHtml(line)}</p>`;
+      }).join('');
+    })
+    .join('');
+
+  const htmlToPlainText = (html = '') => {
+    if (!html) return '';
+    const container = document.createElement('div');
+    container.innerHTML = html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '- ');
+    return (container.textContent || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, 50000);
+  };
+
+  const cleanEditorHtml = (html = '') => html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
 
   const sortPdfBlocks = (layout = uploadedPdfLayout) => [...(layout?.blocks || [])]
     .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
@@ -1124,9 +1179,35 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 <body><pre>${escapeHtml(text)}</pre></body>
 </html>`;
 
+  const scannerEditorDocumentHtml = (bodyHtml, title = 'Resume') => `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="Prisma Resume Scanner">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 0.65in; }
+    body { margin: 0; color: #0f172a; font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.42; }
+    h1 { font-size: 20pt; margin: 0 0 8pt; }
+    h2 { font-size: 12pt; margin: 12pt 0 5pt; padding-bottom: 2pt; border-bottom: 1pt solid #0f172a; text-transform: uppercase; }
+    h3 { font-size: 11pt; margin: 9pt 0 4pt; }
+    p { margin: 0 0 5pt; }
+    ul, ol { margin: 3pt 0 8pt 18pt; padding: 0; }
+    li { margin: 0 0 3pt; }
+    strong, b { font-weight: 700; }
+    em, i { font-style: italic; }
+  </style>
+</head>
+<body>${cleanEditorHtml(bodyHtml || '')}</body>
+</html>`;
+
+  const getScannerEditorContentHtml = () => cleanEditorHtml(scannerEditorRef.current?.innerHTML || scannerEditorHtml || '');
+
   const downloadScannerResumeDoc = () => {
     const text = getScannerExportText().trim();
-    if (!text) return;
+    const editorHtml = getScannerEditorContentHtml();
+    if (!text && !editorHtml) return;
 
     const label = (uploadedFileName || contactInfo.name || 'resume')
       .replace(/\.[^.]+$/, '')
@@ -1138,7 +1219,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         backgroundPdfUrl: uploadedPdfUrl,
         forceEdited: Boolean(comparison?.improvedText)
       })
-      : scannerWordHtml(text, label);
+      : scannerEditorDocumentHtml(comparison?.improvedText?.trim().startsWith('<') ? comparison.improvedText : (editorHtml || textToEditorHtml(text)), label);
     const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
     downloadBlob(blob, `${label}-edited.doc`);
     triggerConfetti();
@@ -1146,7 +1227,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   const downloadScannerResumePdf = () => {
     const text = getScannerExportText().trim();
-    if (!text) return;
+    const editorHtml = getScannerEditorContentHtml();
+    if (!text && !editorHtml) return;
 
     setIsExporting(true);
     const title = contactInfo.name || uploadedFileName?.replace(/\.[^.]+$/, '') || 'Resume';
@@ -1155,7 +1237,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         backgroundPdfUrl: uploadedPdfUrl,
         forceEdited: Boolean(comparison?.improvedText)
       })
-      : scannerWordHtml(text, `${title} - Resume`);
+      : scannerEditorDocumentHtml(comparison?.improvedText?.trim().startsWith('<') ? comparison.improvedText : (editorHtml || textToEditorHtml(text)), `${title} - Resume`);
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -1972,6 +2054,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           setScanText(e.target.value);
                           setUploadedPdfLayout(null);
                           setLayoutBlockTexts([]);
+                          setScannerEditorHtml(textToEditorHtml(e.target.value));
                           if (uploadedPdfUrlRef.current) {
                             URL.revokeObjectURL(uploadedPdfUrlRef.current);
                             uploadedPdfUrlRef.current = '';
@@ -2162,17 +2245,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         </div>
                       ) : (
                         <div className="mx-auto w-full max-w-[794px] min-h-[1040px] bg-white shadow-sm border border-slate-200">
-                          {scanText.trim() ? (
-                            <textarea
+                          {(scannerEditorHtml || scanText.trim()) ? (
+                            <div
+                              ref={scannerEditorRef}
                               aria-label="Editable resume document"
-                              value={scanText}
-                              maxLength={50000}
-                              onChange={e => {
-                                setScanText(e.target.value);
+                              contentEditable
+                              suppressContentEditableWarning
+                              spellCheck
+                              onInput={event => {
+                                const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
+                                setScannerEditorHtml(nextHtml);
+                                setScanText(htmlToPlainText(nextHtml));
                                 if (comparison) setComparison(null);
                               }}
-                              spellCheck
-                              className="block w-full min-h-[1040px] resize-none border-0 bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                              dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
+                              className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
                             />
                           ) : (
                             <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
@@ -2270,7 +2357,17 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck
                       </button>
-                      <button onClick={() => { setScanText(comparison.improvedText); setComparison(null); }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
+                      <button onClick={() => {
+                        if (comparison.improvedText?.trim().startsWith('<')) {
+                          const nextHtml = cleanEditorHtml(comparison.improvedText);
+                          setScannerEditorHtml(nextHtml);
+                          setScanText(htmlToPlainText(nextHtml));
+                        } else {
+                          setScanText(comparison.improvedText);
+                          setScannerEditorHtml(textToEditorHtml(comparison.improvedText));
+                        }
+                        setComparison(null);
+                      }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
                     </div>
                   </div>
                   {Number.isFinite(comparison.scoreBeforeFix) && (
