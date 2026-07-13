@@ -6,6 +6,7 @@ import { AppError } from '../../app.js';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { resumeAiRateLimit, resumeUploadRateLimit } from '../../plugins/rateLimit.js';
 import { MAX_RESUME_BYTES } from './resume.extractor.js';
+import { extractResumeDocument } from './resume.extractor.js';
 import {
   analyzeResumeBodySchema,
   fixResumeBodySchema
@@ -71,13 +72,26 @@ async function scanUploadedResume(request: FastifyRequest, reply: FastifyReply) 
   const targetRole = extractMultipartField(part, 'targetRole', 120);
 
   let result;
+  let extractedDocument: Awaited<ReturnType<typeof extractResumeDocument>>;
   let savedDocxPath: string | undefined;
   try {
-    result = await runResumeWorkflow({
-      operation: 'analyze',
-      fileBuffer: buffer,
+    extractedDocument = await extractResumeDocument({
+      buffer,
       filename: part.filename,
       mimetype: part.mimetype,
+      includePdfLayout: true
+    });
+    const layoutText = extractedDocument.uploadedPdfLayout?.blocks?.length
+      ? [...extractedDocument.uploadedPdfLayout.blocks]
+        .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x)
+        .map(block => block.text)
+        .join('\n')
+      : '';
+    const resumeText = layoutText || extractedDocument.text;
+
+    result = await runResumeWorkflow({
+      operation: 'analyze',
+      resumeText,
       targetRole
     });
     savedDocxPath = await persistDocxForAgent({
@@ -92,6 +106,7 @@ async function scanUploadedResume(request: FastifyRequest, reply: FastifyReply) 
   return reply.code(200).send({
     filename: part.filename,
     ...(savedDocxPath ? { savedDocxPath } : {}),
+    ...(extractedDocument.uploadedPdfLayout ? { uploadedPdfLayout: extractedDocument.uploadedPdfLayout } : {}),
     resumeText: result.resumeText,
     analysis: result.analysis
   });
