@@ -5,7 +5,8 @@ import {
   Check, Flame, Diamond, BrainCircuit, ScanLine, Activity, BookOpen, Trophy,
   Star, GitBranch, Code2, Cpu, FolderGit2, TrendingUp, Fingerprint, Crown, Globe, Terminal,
   Minus, Plus, Trash2, PlusCircle, ExternalLink, Calendar, Clock, Link2,
-  Layers, Briefcase, Code, FileText, GraduationCap
+  Layers, Briefcase, Code, FileText, GraduationCap, Bold, Italic, Underline,
+  List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -1151,6 +1152,19 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   const getScannerEditorContentHtml = () => cleanEditorHtml(scannerEditorRef.current?.innerHTML || scannerEditorHtml || '');
 
+  const syncScannerEditorFromDom = () => {
+    const nextHtml = getScannerEditorContentHtml();
+    setScannerEditorHtml(nextHtml);
+    setScanText(htmlToPlainText(nextHtml));
+  };
+
+  const runScannerEditorCommand = (command, value = null) => {
+    if (uploadedPdfLayout?.blocks?.length) return;
+    scannerEditorRef.current?.focus();
+    document.execCommand(command, false, value);
+    syncScannerEditorFromDom();
+  };
+
   const downloadScannerResumeDoc = () => {
     const text = getScannerExportText().trim();
     const editorHtml = getScannerEditorContentHtml();
@@ -2142,6 +2156,55 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </div>
                     </div>
 
+                    {!uploadedPdfLayout?.blocks?.length && (scannerEditorHtml || scanText.trim()) && (
+                      <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <select
+                            aria-label="Paragraph style"
+                            onChange={event => runScannerEditorCommand('formatBlock', event.target.value)}
+                            className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400"
+                            defaultValue="p"
+                          >
+                            <option value="p">Normal</option>
+                            <option value="h1">Title</option>
+                            <option value="h2">Heading</option>
+                            <option value="h3">Subheading</option>
+                          </select>
+                          {[
+                            { icon: Undo2, label: 'Undo', command: 'undo' },
+                            { icon: Redo2, label: 'Redo', command: 'redo' },
+                            { icon: Bold, label: 'Bold', command: 'bold' },
+                            { icon: Italic, label: 'Italic', command: 'italic' },
+                            { icon: Underline, label: 'Underline', command: 'underline' },
+                            { icon: List, label: 'Bullet list', command: 'insertUnorderedList' },
+                            { icon: ListOrdered, label: 'Numbered list', command: 'insertOrderedList' },
+                            { icon: AlignLeft, label: 'Align left', command: 'justifyLeft' },
+                            { icon: AlignCenter, label: 'Align center', command: 'justifyCenter' },
+                            { icon: AlignRight, label: 'Align right', command: 'justifyRight' }
+                          ].map(item => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              title={item.label}
+                              aria-label={item.label}
+                              onClick={() => runScannerEditorCommand(item.command)}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                            >
+                              <item.icon className="h-4 w-4" />
+                            </button>
+                          ))}
+                          <div className="mx-1 h-7 w-px bg-slate-200" />
+                          <button
+                            type="button"
+                            onClick={downloadScannerResumeDoc}
+                            className="flex h-9 items-center gap-2 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-100"
+                          >
+                            <Download className="h-4 w-4" /> DOC
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-5 overflow-auto max-h-[78vh]">
                       {uploadedPdfLayout?.blocks?.length ? (
                         <div className="space-y-5">
@@ -2190,7 +2253,17 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           ))}
                         </div>
                       ) : (
-                        <div className="mx-auto w-full max-w-[794px] min-h-[1040px] bg-white shadow-sm border border-slate-200">
+                        <div className="mx-auto w-full max-w-[794px] overflow-hidden bg-white shadow-md ring-1 ring-slate-200">
+                          <div className="h-7 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-8 sm:px-12">
+                            <div className="flex h-full items-end justify-between text-[9px] font-bold text-slate-300">
+                              {Array.from({ length: 9 }, (_, index) => (
+                                <span key={index} className="relative pb-1">
+                                  <span className="absolute bottom-0 left-1/2 h-2 w-px bg-slate-300" />
+                                  {index + 1}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                           {(scannerEditorHtml || scanText.trim()) ? (
                             <div
                               ref={scannerEditorRef}
