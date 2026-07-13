@@ -21,7 +21,10 @@ function normalizeKeyMaterial(input: string, type: 'PRIVATE' | 'PUBLIC'): string
   }
 
   if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0) {
-    return trimmed;
+    const decoded = Buffer.from(trimmed, 'base64').toString('utf8').trim();
+    if (decoded.includes('-----BEGIN')) {
+      return decoded;
+    }
   }
 
   const lines = trimmed.match(/.{1,64}/g) || [trimmed];
@@ -45,11 +48,10 @@ export class JwtService {
       return jose.importSPKI(normalized, 'RS256');
     }
 
-    const binary = Buffer.from(normalized, 'base64');
     if (type === 'PRIVATE') {
-      return jose.importPKCS8(binary, 'RS256');
+      return jose.importPKCS8(normalized, 'RS256');
     }
-    return jose.importSPKI(binary, 'RS256');
+    return jose.importSPKI(normalized, 'RS256');
   }
 
   private async createFallbackKeys() {
