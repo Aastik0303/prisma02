@@ -989,13 +989,54 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     }
   };
 
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const scannerWordHtml = (text, title = 'Resume') => `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="Prisma Resume Scanner">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 0.65in; }
+    body { margin: 0; color: #0f172a; font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.42; }
+    pre { white-space: pre-wrap; word-break: break-word; font-family: Arial, Helvetica, sans-serif; margin: 0; }
+  </style>
+</head>
+<body><pre>${escapeHtml(text)}</pre></body>
+</html>`;
+
+  const downloadScannerResumeDoc = () => {
+    const text = (comparison?.improvedText || scanText).trim();
+    if (!text) return;
+
+    const label = (uploadedFileName || contactInfo.name || 'resume')
+      .replace(/\.[^.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'resume';
+    const blob = new Blob([scannerWordHtml(text, label)], { type: 'application/msword;charset=utf-8' });
+    downloadBlob(blob, `${label}-edited.doc`);
+    triggerConfetti();
+  };
+
   const downloadScannerResumePdf = () => {
     const text = (comparison?.improvedText || scanText).trim();
     if (!text) return;
 
     setIsExporting(true);
     const title = contactInfo.name || uploadedFileName?.replace(/\.[^.]+$/, '') || 'Resume';
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} - Resume</title><style>@page{size:A4;margin:14mm}html,body{margin:0;background:#fff;color:#0f172a;font-family:Arial,Helvetica,sans-serif}main{max-width:180mm;margin:0 auto;padding:8mm 0}pre{white-space:pre-wrap;word-break:break-word;font-size:10.5pt;line-height:1.45;margin:0}</style></head><body><main><pre>${escapeHtml(text)}</pre></main></body></html>`;
+    const printHtml = scannerWordHtml(text, `${title} - Resume`);
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -1739,7 +1780,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
           {activeTab === 'scanner' && (
             <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
               <div className="grid xl:grid-cols-5 gap-6">
-                <div className="xl:col-span-3 space-y-4">
+                <div className="xl:col-span-2 space-y-4">
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                       <div className="flex items-center gap-3">
@@ -1805,15 +1846,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
                     <div className="relative">
                       <textarea
-                        rows={12}
+                        rows={6}
                         value={scanText}
                         maxLength={50000}
                         onChange={e => {
                           setScanText(e.target.value);
                           if (comparison) setComparison(null);
                         }}
-                        placeholder="Or paste your resume text here..."
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all resize-y"
+                        placeholder="Or paste resume text here..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-5 text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all resize-y"
                       />
                       <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">{scanText.length.toLocaleString()} / 50,000</div>
                     </div>
@@ -1841,10 +1882,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       {(comparison?.improvedText || scanText.trim()) && (
                         <button
                           type="button"
-                          onClick={downloadScannerResumePdf}
+                          onClick={downloadScannerResumeDoc}
                           className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
                         >
-                          <Download className="w-4 h-4" /> Download PDF
+                          <Download className="w-4 h-4" /> Download DOC
                         </button>
                       )}
                       {resumeReview && (
@@ -1870,7 +1911,61 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                   </div>
                 </div>
 
-                <div className="xl:col-span-2 space-y-4">
+                <div className="xl:col-span-3 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-slate-900 text-sm">Editable resume document</h3>
+                          <p className="text-xs text-slate-400">{uploadedFileName || 'No file selected'}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={downloadScannerResumeDoc}
+                          disabled={!scanText.trim()}
+                          className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-emerald-50"
+                        >
+                          <Download className="w-4 h-4" /> DOC
+                        </button>
+                        <button
+                          type="button"
+                          onClick={downloadScannerResumePdf}
+                          disabled={!scanText.trim()}
+                          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black flex items-center gap-2 disabled:opacity-40 disabled:hover:bg-slate-100"
+                        >
+                          <Download className="w-4 h-4" /> PDF
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-5 overflow-auto max-h-[78vh]">
+                      <div className="mx-auto w-full max-w-[794px] min-h-[1040px] bg-white shadow-sm border border-slate-200">
+                        {scanText.trim() ? (
+                          <textarea
+                            aria-label="Editable resume document"
+                            value={scanText}
+                            maxLength={50000}
+                            onChange={e => {
+                              setScanText(e.target.value);
+                              if (comparison) setComparison(null);
+                            }}
+                            spellCheck
+                            className="block w-full min-h-[1040px] resize-none border-0 bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        ) : (
+                          <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
+                            Upload or paste a resume to preview it here.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <h3 className="font-black text-slate-900 text-sm mb-4 flex items-center gap-2"><ScanLine className="w-4 h-4 text-indigo-500" /> ATS Score</h3>
                     <div className="flex items-center gap-5">
@@ -1975,8 +2070,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={downloadScannerResumePdf} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
-                        <Download className="w-4 h-4" /> Download updated PDF
+                      <button onClick={downloadScannerResumeDoc} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
+                        <Download className="w-4 h-4" /> Download updated DOC
                       </button>
                       <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck
