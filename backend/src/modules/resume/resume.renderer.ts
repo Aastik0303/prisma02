@@ -139,11 +139,11 @@ function renderUploadedPdfHtml(input: {
     const blocksHtml = blocks
       .filter(block => block.page === page.page)
       .map(block => {
+        const sourceLineIndex = lineIndex;
         const text = lines[lineIndex] || '';
         lineIndex += 1;
-        if (!text) return '';
         const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(text);
-        return `<div class="pdf-text ${isHeading ? 'heading' : ''}" style="left:${px(block.x)};top:${px(block.y)};width:${px(Math.max(block.width, 60))};min-height:${px(block.height)};font-size:${px(block.fontSize)};font-family:${escapeHtml(block.fontFamily)};">${escapeHtml(text)}</div>`;
+        return `<div class="pdf-text ${isHeading ? 'heading' : ''}" data-line-index="${sourceLineIndex}" style="left:${px(block.x)};top:${px(block.y)};width:${px(Math.max(block.width, 60))};min-height:${px(block.height)};font-size:${px(block.fontSize)};font-family:${escapeHtml(block.fontFamily)};">${escapeHtml(text)}</div>`;
       })
       .join('');
 

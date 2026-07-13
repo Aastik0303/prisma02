@@ -276,13 +276,13 @@ export async function resumeRoutes(fastify: FastifyInstance) {
       buffer.fill(0);
     }
 
-    const parsedJsonData = await parseResumeTextToJson(result.resumeText);
+    const parsedJsonData = await parseResumeTextToJson(extracted.text);
     const templateConfig = uploadedPdfTemplateConfig(extracted?.uploadedPdfLayout);
     const resume = await resumeStore(fastify).create({
       data: {
         userId: request.user!.id,
         title,
-        rawExtractedText: result.resumeText,
+        rawExtractedText: extracted.text,
         parsedJsonData,
         templateConfig
       }
@@ -366,12 +366,17 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   }, async (request) => {
     const resume = await getOwnedResume(request);
     const body = updateResumeBodySchema.parse(request.body);
+    const parsedJsonData = body.parsedJsonData !== undefined
+      ? body.parsedJsonData
+      : body.rawExtractedText !== undefined
+        ? await parseResumeTextToJson(body.rawExtractedText)
+        : undefined;
     const updated = await resumeStore(fastify).update({
       where: { id: resume.id },
       data: {
         ...(body.title !== undefined ? { title: body.title } : {}),
         ...(body.rawExtractedText !== undefined ? { rawExtractedText: body.rawExtractedText } : {}),
-        ...(body.parsedJsonData !== undefined ? { parsedJsonData: body.parsedJsonData } : {}),
+        ...(parsedJsonData !== undefined ? { parsedJsonData } : {}),
         ...(body.templateConfig !== undefined ? { templateConfig: body.templateConfig } : {})
       }
     });
@@ -428,13 +433,17 @@ export async function resumeRoutes(fastify: FastifyInstance) {
       ? String(targetRoleField.value).trim().slice(0, 120)
       : '';
 
+    let extracted;
     let result;
     try {
+      extracted = await extractResumeDocument({
+        buffer,
+        filename: part.filename,
+        mimetype: part.mimetype
+      });
       result = await runResumeWorkflow({
         operation: 'analyze',
-        fileBuffer: buffer,
-        filename: part.filename,
-        mimetype: part.mimetype,
+        resumeText: extracted.text,
         targetRole
       });
     } finally {
@@ -443,7 +452,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
 
     return reply.code(200).send({
       filename: part.filename,
-      resumeText: result.resumeText,
+      resumeText: extracted.text,
       analysis: result.analysis
     });
   });

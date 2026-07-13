@@ -5,7 +5,7 @@ import {
   Check, Flame, Diamond, BrainCircuit, ScanLine, Activity, BookOpen, Trophy,
   Star, GitBranch, Code2, Cpu, FolderGit2, TrendingUp, Fingerprint, Crown, Globe, Terminal,
   Minus, Plus, Trash2, PlusCircle, ExternalLink, Calendar, Clock, Link2,
-  Layers, Briefcase, Code, FileText, GraduationCap
+  Layers, Briefcase, Code, FileText, GraduationCap, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -529,6 +529,46 @@ const resumeApiRequest = async (path, options = {}) => {
   return payload;
 };
 
+const makeEditableScannerPreview = (html) => {
+  const editorStyles = `
+    html, body { overflow: hidden !important; }
+    [contenteditable="true"] { cursor: text; border-radius: 2px; outline: 1px dashed transparent; transition: outline-color .15s, background .15s; }
+    [contenteditable="true"]:hover { outline-color: rgba(79,70,229,.35); background: rgba(238,242,255,.35); }
+    [contenteditable="true"]:focus { outline: 2px solid rgba(79,70,229,.65); background: rgba(238,242,255,.65); }
+  `;
+  const editorScript = `<script>(() => {
+    const indexed = Array.from(document.querySelectorAll('[data-line-index]'));
+    const editable = indexed.length ? indexed : Array.from(document.querySelectorAll('h1,h2,p,li'));
+    editable.forEach(node => { node.contentEditable = 'true'; node.spellcheck = true; });
+    document.addEventListener('keydown', event => {
+      if (indexed.length && event.key === 'Enter') event.preventDefault();
+    });
+    const fitDocument = () => {
+      const body = document.body;
+      body.style.transform = 'none';
+      body.style.marginLeft = '0px';
+      const pages = Array.from(document.querySelectorAll('.pdf-page, .page'));
+      const contentWidth = Math.max(1, ...pages.map(page => page.offsetWidth), body.scrollWidth);
+      const contentHeight = Math.max(1, body.scrollHeight);
+      const scale = Math.min(1, (window.innerWidth - 16) / contentWidth, (window.innerHeight - 16) / contentHeight);
+      body.style.transformOrigin = 'top left';
+      body.style.transform = 'scale(' + scale + ')';
+      body.style.marginLeft = Math.max(0, (window.innerWidth - contentWidth * scale) / 2) + 'px';
+    };
+    const send = () => parent.postMessage({
+      type: 'scanner-resume-edit',
+      updates: indexed.map(node => ({ index: Number(node.dataset.lineIndex), text: node.innerText.replace(/\\r?\\n/g, ' ') })),
+      fullText: indexed.length ? '' : document.body.innerText.replace(/\\r/g, '')
+    }, '*');
+    document.addEventListener('input', () => { send(); fitDocument(); });
+    window.addEventListener('resize', fitDocument);
+    requestAnimationFrame(() => requestAnimationFrame(fitDocument));
+  })();<\/script>`;
+  return html
+    .replace('</style>', `${editorStyles}</style>`)
+    .replace('</body>', `${editorScript}</body>`);
+};
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
@@ -548,8 +588,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [deletingResumeId, setDeletingResumeId] = useState('');
   const [resumeLibraryLoading, setResumeLibraryLoading] = useState(false);
   const [resumeSaving, setResumeSaving] = useState(false);
-  const [fixingIssueId, setFixingIssueId] = useState('');
-  const [comparison, setComparison] = useState(null);
+  const [scannerPreviewHtml, setScannerPreviewHtml] = useState('');
+  const [scannerDraftText, setScannerDraftText] = useState('');
+  const [scannerPreviewLoading, setScannerPreviewLoading] = useState(false);
+  const [scannerPreviewSaving, setScannerPreviewSaving] = useState(false);
+  const [originalUploadFile, setOriginalUploadFile] = useState(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState('');
+  const [manualEditMode, setManualEditMode] = useState(false);
   const [rechecking, setRechecking] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState('modern');
@@ -570,6 +615,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const previewRef = useRef(null);
   const fileInputRef = useRef(null);
   const printFrameRef = useRef(null);
+  const scannerPreviewFrameRef = useRef(null);
+  const originalPreviewUrlRef = useRef('');
   const lastAnalyzedTextRef = useRef('');
   const recheckRequestRef = useRef(0);
 
@@ -606,8 +653,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [newProjectDate, setNewProjectDate] = useState('');
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
-  const [builderPolishing, setBuilderPolishing] = useState(false);
-  const [builderPolishMessage, setBuilderPolishMessage] = useState('');
 
   // Experience — now with startDate, endDate, duration
   const [experience, setExperience] = useState([
@@ -647,7 +692,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
   };
 
-  const reviewText = comparison?.improvedText || scanText;
+  const reviewText = scanText;
 
   const builderRawText = () => [
     contactInfo.name,
@@ -830,7 +875,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         const scannedText = saved.scannerSession.resumeText || saved.rawExtractedText || rawExtractedText;
         setScanText(scannedText);
         applyAnalysis(saved.scannerSession.analysis, scannedText);
-        setComparison(null);
       }
       await loadSavedResumes();
       triggerConfetti();
@@ -852,7 +896,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       const resume = await resumeApiRequest(`/resumes/${id}`, { method: 'GET', authRequired: true });
       setSelectedResumeId(resume.id);
       setScanText(resume.rawExtractedText || '');
-      setComparison(null);
       applyParsedJsonToBuilder(resume.parsedJsonData || {});
       setActiveTab('builder');
     } catch (error) {
@@ -886,39 +929,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     }
   };
 
-  const improveStoredResume = async () => {
-    if (!selectedResumeId) {
-      await saveBuilderResume();
-      return;
-    }
-    setBuilderPolishing(true);
-    setResumeError('');
-    try {
-      const updated = await resumeApiRequest(`/resumes/${selectedResumeId}/improve`, {
-        method: 'POST',
-        authRequired: true,
-        body: JSON.stringify({
-          targetRole: contactInfo.title || targetRole,
-          instruction: 'Improve resume content for ATS while preserving facts, existing layout, headings, and plain-text formatting.'
-        })
-      });
-      applyParsedJsonToBuilder(updated.parsedJsonData || {});
-      if (updated.scannerSession?.analysis) {
-        const scannedText = updated.scannerSession.resumeText || updated.rawExtractedText || scanText;
-        setScanText(scannedText);
-        applyAnalysis(updated.scannerSession.analysis, scannedText);
-        setComparison(null);
-      }
-      await loadSavedResumes();
-      setBuilderPolishMessage('Saved resume content improved with AI.');
-      triggerConfetti();
-    } catch (error) {
-      setResumeError(error.message);
-    } finally {
-      setBuilderPolishing(false);
-    }
-  };
-
   const downloadStoredResumePdf = async (id = selectedResumeId) => {
     if (!id) {
       handleExport();
@@ -948,110 +958,104 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     }
   };
 
-  const downloadScannerResumePdf = async () => {
-    if (!selectedResumeId) {
-      setResumeError('Save the resume first so the backend can export it with the preserved template.');
+  const loadScannerPreview = async (resumeId) => {
+    if (!resumeId) {
+      setScannerPreviewHtml('');
       return;
     }
-    await downloadStoredResumePdf(selectedResumeId);
+    setScannerPreviewLoading(true);
+    try {
+      const accessToken = getStoredAccessToken();
+      if (!accessToken) throw new Error('Please sign in to open the editable resume preview.');
+      const response = await fetch(`${RESUME_API_BASE_URL}/resumes/${resumeId}/html`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || 'Unable to load the resume preview.');
+      }
+      setScannerPreviewHtml(makeEditableScannerPreview(await response.text()));
+    } catch (error) {
+      setScannerPreviewHtml('');
+      setResumeError(error.message);
+    } finally {
+      setScannerPreviewLoading(false);
+    }
+  };
+
+  const saveScannerPreview = async () => {
+    if (!selectedResumeId) {
+      setResumeError('Sign in and upload the resume again to save edits with its preserved layout.');
+      return false;
+    }
+    if (scannerDraftText.trim().length < 50) {
+      setResumeError('The edited resume needs at least 50 characters before it can be saved.');
+      return false;
+    }
+
+    setScannerPreviewSaving(true);
+    setResumeError('');
+    try {
+      const updated = await resumeApiRequest(`/resumes/${selectedResumeId}`, {
+        method: 'PUT',
+        authRequired: true,
+        body: JSON.stringify({ rawExtractedText: scannerDraftText })
+      });
+      setScanText(updated.rawExtractedText || scannerDraftText);
+      setScannerDraftText(updated.rawExtractedText || scannerDraftText);
+      if (updated.scannerSession?.analysis) {
+        applyAnalysis(updated.scannerSession.analysis, updated.rawExtractedText || scannerDraftText);
+      }
+      await loadScannerPreview(selectedResumeId);
+      return true;
+    } catch (error) {
+      setResumeError(error.message);
+      return false;
+    } finally {
+      setScannerPreviewSaving(false);
+    }
+  };
+
+  const exportScannerPreview = async () => {
+    if (!manualEditMode && originalUploadFile) {
+      downloadBlob(originalUploadFile, originalUploadFile.name);
+      return;
+    }
+    const saved = await saveScannerPreview();
+    if (saved) await downloadStoredResumePdf(selectedResumeId);
   };
 
   useEffect(() => {
     loadSavedResumes();
+    return () => {
+      if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const serializeBuilderSections = () => [
-    'PROJECTS',
-    ...projects.flatMap(project => [
-      `[[PROJECT:${project.id}]]`,
-      `Title: ${project.title || ''}`,
-      `Date: ${project.date || ''}`,
-      `URL: ${project.url || ''}`,
-      `Description: ${project.description || ''}`,
-      ''
-    ]),
-    'EXPERIENCE',
-    ...experience.flatMap(exp => [
-      `[[EXPERIENCE:${exp.id}]]`,
-      `Title: ${exp.title || ''}`,
-      `Start: ${exp.startDate || ''}`,
-      `End: ${exp.endDate || ''}`,
-      `Duration: ${exp.duration || ''}`,
-      `Description: ${exp.description || ''}`,
-      ''
-    ])
-  ].join('\n');
-
-  const readMarkedField = (block, label) => {
-    const match = block.match(new RegExp(`^${label}:\\s*([\\s\\S]*?)(?=\\n(?:Title|Date|URL|Start|End|Duration|Description):|$)`, 'im'));
-    return match ? match[1].trim() : undefined;
-  };
-
-  const applyBuilderPolish = (improvedText) => {
-    const projectMatches = [...improvedText.matchAll(/\[\[PROJECT:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
-    const experienceMatches = [...improvedText.matchAll(/\[\[EXPERIENCE:([^\]]+)\]\]([\s\S]*?)(?=\n\[\[(?:PROJECT|EXPERIENCE):|$)/g)];
-
-    if (!projectMatches.length && !experienceMatches.length) {
-      throw new Error('AI polish finished, but the response could not be mapped back into the builder fields.');
-    }
-
-    setProjects(current => current.map(project => {
-      const match = projectMatches.find(item => item[1] === project.id);
-      if (!match) return project;
-      const block = match[2];
-      return {
-        ...project,
-        title: readMarkedField(block, 'Title') ?? project.title,
-        date: readMarkedField(block, 'Date') ?? project.date,
-        url: readMarkedField(block, 'URL') ?? project.url,
-        description: readMarkedField(block, 'Description') ?? project.description
-      };
-    }));
-
-    setExperience(current => current.map(exp => {
-      const match = experienceMatches.find(item => item[1] === exp.id);
-      if (!match) return exp;
-      const block = match[2];
-      return {
-        ...exp,
-        title: readMarkedField(block, 'Title') ?? exp.title,
-        startDate: readMarkedField(block, 'Start') ?? exp.startDate,
-        endDate: readMarkedField(block, 'End') ?? exp.endDate,
-        duration: readMarkedField(block, 'Duration') ?? exp.duration,
-        description: readMarkedField(block, 'Description') ?? exp.description
-      };
-    }));
-  };
-
-  const handleBuilderAiPolish = async () => {
-    if (selectedResumeId) {
-      await improveStoredResume();
-      return;
-    }
-    if (builderPolishing || (!projects.length && !experience.length)) return;
-    setBuilderPolishing(true);
-    setBuilderPolishMessage('');
-    setResumeError('');
-
-    try {
-      const result = await resumeApiRequest('/fix', {
-        method: 'POST',
-        body: JSON.stringify({
-          resumeText: serializeBuilderSections(),
-          targetRole: contactInfo.title || targetRole,
-          instruction: 'Polish only project and experience wording. Fix grammar, spelling, capitalization, tense, and resume formatting. Keep every [[PROJECT:id]] and [[EXPERIENCE:id]] marker exactly unchanged. Keep every field label exactly unchanged. Preserve titles, dates, URLs, duration values, employers, technologies, and facts. Do not add new items.'
-        })
+  useEffect(() => {
+    const handlePreviewEdit = (event) => {
+      if (event.source !== scannerPreviewFrameRef.current?.contentWindow || event.data?.type !== 'scanner-resume-edit') return;
+      if (event.data.fullText) {
+        setScannerDraftText(String(event.data.fullText).slice(0, 50000));
+        return;
+      }
+      if (!Array.isArray(event.data.updates)) return;
+      setScannerDraftText(current => {
+        const lines = current.replace(/\r\n/g, '\n').split('\n');
+        event.data.updates.forEach(update => {
+          if (Number.isInteger(update.index) && update.index >= 0) {
+            while (lines.length <= update.index) lines.push('');
+            lines[update.index] = String(update.text || '');
+          }
+        });
+        return lines.join('\n').slice(0, 50000);
       });
-      applyBuilderPolish(result.improvedText || '');
-      setBuilderPolishMessage('Projects and experience polished with AI.');
-      triggerConfetti();
-    } catch (error) {
-      setBuilderPolishMessage(error.message);
-    } finally {
-      setBuilderPolishing(false);
-    }
-  };
+    };
+    window.addEventListener('message', handlePreviewEdit);
+    return () => window.removeEventListener('message', handlePreviewEdit);
+  }, []);
 
   const handleScan = async () => {
     if (scanText.trim().length < 50) return;
@@ -1071,7 +1075,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         body: JSON.stringify({ resumeText: scanText, targetRole })
       });
       setScanProgress(100);
-      setComparison(null);
       applyAnalysis(result.analysis, result.resumeText);
     } catch (error) {
       setScanProgress(0);
@@ -1119,6 +1122,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
+    if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
+    const nextPreviewUrl = extension === 'pdf' ? URL.createObjectURL(file) : '';
+    originalPreviewUrlRef.current = nextPreviewUrl;
+    setOriginalPreviewUrl(nextPreviewUrl);
+    setOriginalUploadFile(file);
+    setManualEditMode(false);
+
     setScanning(true);
     setScanProgress(15);
     setResumeError('');
@@ -1164,18 +1174,31 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         }
       }
       const storedResume = result.resume;
+      const extractedResumeText = storedResume?.rawExtractedText || result.resumeText || '';
       setScanProgress(100);
       setSelectedResumeId(storedResume?.id || '');
-      setScanText(storedResume?.rawExtractedText || result.resumeText || '');
+      setScanText(extractedResumeText);
+      setScannerDraftText(extractedResumeText);
       if (storedResume?.parsedJsonData) {
         applyParsedJsonToBuilder(storedResume.parsedJsonData);
         await loadSavedResumes();
       }
-      setComparison(null);
-      applyAnalysis(result.analysis, storedResume?.rawExtractedText || result.resumeText || '');
+      if (storedResume?.id) {
+        await loadScannerPreview(storedResume.id);
+      } else {
+        setScannerPreviewHtml('');
+      }
+      applyAnalysis(result.analysis, extractedResumeText);
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
+      if (originalPreviewUrlRef.current) URL.revokeObjectURL(originalPreviewUrlRef.current);
+      originalPreviewUrlRef.current = '';
+      setOriginalPreviewUrl('');
+      setOriginalUploadFile(null);
+      setManualEditMode(false);
+      setScannerPreviewHtml('');
+      setScannerDraftText('');
       setScanProgress(0);
       setResumeError(error.code === 'INSUFFICIENT_RESUME_TEXT'
         ? 'This PDF does not contain enough selectable text for ATS scanning. If it was exported as an image, open the resume builder/site, copy the resume text, and paste it below, or export as DOCX/text instead of PDF.'
@@ -1183,42 +1206,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     } finally {
       window.clearInterval(progressTimer);
       setScanning(false);
-    }
-  };
-
-  const handleAiFix = async (problem) => {
-    if (!reviewText.trim()) return;
-    setFixingIssueId(problem?.id || 'all');
-    setResumeError('');
-    const scoreBeforeFix = Number(resumeReview?.atsScore ?? atsScore) || 0;
-    try {
-      const jdInstruction = jobDescription.trim()
-        ? ` Tailor the language to this job description without inventing facts: ${jobDescription.trim().slice(0, 1200)}`
-        : '';
-      const instruction = problem
-        ? `${problem.title}. ${problem.suggestedFix}${jdInstruction}`
-        : `Rewrite all weak resume content and improve ATS compatibility without inventing facts.${jdInstruction}`;
-      const formatInstruction = ' Return the updated resume in the same extracted text format as the uploaded PDF. Preserve section order, heading names/casing, blank lines, indentation, line breaks, bullet symbols, separators, date alignment cues, and plain-text layout. Do not convert it into a different template. Do not collapse separate lines into paragraphs.';
-      const result = await resumeApiRequest('/fix', {
-        method: 'POST',
-        body: JSON.stringify({
-          resumeText: reviewText,
-          targetRole,
-          issueId: problem?.id,
-          instruction: `${instruction}${formatInstruction}`
-        })
-      });
-      setComparison({
-        originalText: result.originalText,
-        improvedText: result.improvedText,
-        changes: result.changes,
-        scoreBeforeFix
-      });
-      applyAnalysis(result.analysis, result.improvedText, { scoreFloor: scoreBeforeFix });
-    } catch (error) {
-      setResumeError(error.message);
-    } finally {
-      setFixingIssueId('');
     }
   };
 
@@ -1241,7 +1228,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   useEffect(() => {
-    if (comparison) return undefined;
     if (!resumeReview || reviewText.trim().length < 50 || `${targetRole}\u0000${reviewText}` === lastAnalyzedTextRef.current) return undefined;
     const timeout = setTimeout(() => recheckResume(reviewText, true), 1200);
     return () => clearTimeout(timeout);
@@ -1510,7 +1496,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
             </div>
           </div>
         </div>
-        <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-xl">
+        <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mx-auto flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl bg-white/75 p-1.5 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-xl">
           {tabs.map(tab => {
             const Icon = tab.icon; const isActive = activeTab === tab.id;
             return (
@@ -1528,54 +1514,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-6 pb-8">
+      <div className="relative z-10 mx-auto max-w-[1500px] px-4 pb-6 pt-5 sm:px-6">
         <AnimatePresence mode="wait">
 
           {/* ══════════════════════ BUILDER TAB ══════════════════════ */}
           {activeTab === 'builder' && (
             <motion.div key="builder" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid lg:grid-cols-5 gap-6">
               <div className="lg:col-span-3 space-y-4">
-
-                {/* Saved resumes */}
-                <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-sm">
-                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-indigo-500" /> Saved Resumes</h3>
-                      <p className="mt-0.5 text-[11px] font-semibold text-slate-400">Stored in backend session JSON and limited to 4 resumes per account.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={loadSavedResumes} disabled={resumeLibraryLoading} className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-50">
-                        {resumeLibraryLoading ? 'Loading...' : 'Refresh'}
-                      </button>
-                      {selectedResumeId && (
-                        <button type="button" onClick={() => setSelectedResumeId('')} className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-100">
-                          New Draft
-                        </button>
-                      )}
-                      <button type="button" onClick={saveBuilderResume} disabled={resumeSaving} className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700 disabled:opacity-50">
-                        {resumeSaving ? 'Saving...' : selectedResumeId ? 'Save Changes' : 'Save New'}
-                      </button>
-                    </div>
-                  </div>
-                  {savedResumes.length >= 4 && (
-                    <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Maximum resume limit reached. Select a saved resume and delete it before creating another.</p>
-                  )}
-                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                    <select value={selectedResumeId} onChange={e => loadStoredResume(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-                      <option value="">Current unsaved resume</option>
-                      {savedResumes.map(resume => (
-                        <option key={resume.id} value={resume.id}>{resume.title}</option>
-                      ))}
-                    </select>
-                    <button type="button" onClick={() => downloadStoredResumePdf()} disabled={!selectedResumeId} className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
-                      <Download className="w-3.5 h-3.5" /> Backend PDF
-                    </button>
-                    <button type="button" onClick={() => deleteStoredResume()} disabled={!selectedResumeId || Boolean(deletingResumeId)} className="rounded-xl bg-red-50 px-3 py-2.5 text-[11px] font-black text-red-600 hover:bg-red-100 disabled:opacity-40 flex items-center justify-center gap-1.5">
-                      {deletingResumeId ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      {deletingResumeId ? 'Deleting' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
 
                 {/* Templates */}
                 <TiltCard intensity={6}>
@@ -1915,25 +1860,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                 {/* Actions */}
                 <div className="space-y-2">
                   <div className="flex gap-3">
-                    <motion.button whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99,102,241,0.3)' }} whileTap={{ scale: 0.98 }} onClick={handleBuilderAiPolish} disabled={builderPolishing || (!projects.length && !experience.length)} className="flex-1 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                      {builderPolishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
-                      {builderPolishing ? 'Polishing...' : selectedResumeId ? 'AI Improve Saved Resume' : 'AI Grammar & Format Fix'}
-                    </motion.button>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveBuilderResume} disabled={resumeSaving} className="px-5 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-100 flex items-center gap-2 min-w-[120px] justify-center disabled:opacity-50">
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveBuilderResume} disabled={resumeSaving} className="flex-1 px-5 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-100 flex items-center gap-2 min-w-[120px] justify-center disabled:opacity-50">
                       {resumeSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                       Save
                     </motion.button>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleExport} disabled={isExporting} className="flex-1 px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl border border-slate-200 flex items-center gap-2 min-w-[140px] justify-center">
                       {isExporting ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> : <Download className="w-4 h-4" />}
                       {isExporting ? 'Exporting...' : 'Export PDF'}
                     </motion.button>
                   </div>
-                  {builderPolishMessage && (
-                    <div className={`rounded-xl px-3 py-2 text-xs font-bold ${builderPolishMessage.includes('polished') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                      {builderPolishMessage}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -2097,14 +2032,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
           {/* ══════════════════════ SCANNER TAB ══════════════════════ */}
           {activeTab === 'scanner' && (
-            <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-              <div className="grid xl:grid-cols-5 gap-6">
-                <div className="xl:col-span-3 space-y-4">
-                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-12 xl:items-start">
+                <div className="space-y-4 xl:col-span-5">
+                  <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                          <BrainCircuit className="w-6 h-6 text-white" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
+                          <BrainCircuit className="h-5 w-5 text-white" />
                         </div>
                         <div>
                           <h2 className="font-black text-slate-900 text-lg">AI Resume Review</h2>
@@ -2116,37 +2051,37 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </div>
                     </div>
 
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Target job role</label>
+                    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Target job role</label>
                     <input
                       value={targetRole}
                       onChange={e => setTargetRole(e.target.value)}
                       maxLength={120}
                       placeholder="e.g. Frontend Engineer, Embedded Systems Intern"
-                      className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                      className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
 
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Job description for tailored fixes</label>
+                    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Job description for keyword comparison</label>
                     <textarea
-                      rows={4}
+                      rows={2}
                       value={jobDescription}
                       onChange={e => setJobDescription(e.target.value)}
                       maxLength={3000}
-                      placeholder="Paste the job description here to make AI Fix target the right keywords and recruiter expectations..."
-                      className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 resize-y"
+                      placeholder="Paste the job description to compare keywords and recruiter requirements..."
+                      className="mb-3 w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
 
-                    <div className="grid sm:grid-cols-3 gap-2 mb-4">
+                    <div className="mb-3 grid grid-cols-3 gap-1.5">
                       {[
                         { icon: ShieldCheck, label: 'Private scan', text: 'Processed securely' },
-                        { icon: Target, label: 'JD keywords', text: 'Tailored fixes' },
-                        { icon: Zap, label: 'Smart rewrite', text: 'Score protected' }
+                        { icon: Target, label: 'JD keywords', text: 'Keyword comparison' },
+                        { icon: Eye, label: 'Original preview', text: 'No automatic changes' }
                       ].map(item => (
-                        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <item.icon className="w-4 h-4 text-indigo-500" />
-                            <span className="text-[11px] font-black text-slate-800">{item.label}</span>
+                        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-2 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <item.icon className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+                            <span className="text-[10px] font-black text-slate-800">{item.label}</span>
                           </div>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-400">{item.text}</p>
+                          <p className="mt-0.5 text-[9px] font-semibold text-slate-400">{item.text}</p>
                         </div>
                       ))}
                     </div>
@@ -2156,24 +2091,20 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={scanning}
-                      className="w-full mb-4 border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-2xl p-7 flex flex-col items-center justify-center transition-colors disabled:opacity-60"
+                      className="mb-3 flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 p-4 transition-colors hover:border-indigo-400 disabled:opacity-60"
                     >
-                      <UploadCloud className="w-9 h-9 text-indigo-500 mb-2" />
-                      <span className="text-sm font-black text-slate-800">{uploadedFileName || 'Upload PDF or DOCX resume'}</span>
-                      <span className="text-xs text-slate-400 mt-1">Maximum 5 MB · text is extracted on the server</span>
+                      <UploadCloud className="h-7 w-7 shrink-0 text-indigo-500" />
+                      <span className="min-w-0 text-left"><span className="block truncate text-sm font-black text-slate-800">{uploadedFileName || 'Upload PDF or DOCX resume'}</span><span className="mt-0.5 block text-[10px] text-slate-400">Maximum 5 MB · server-side extraction</span></span>
                     </button>
 
                     <div className="relative">
                       <textarea
-                        rows={12}
+                        rows={7}
                         value={scanText}
                         maxLength={50000}
-                        onChange={e => {
-                          setScanText(e.target.value);
-                          if (comparison) setComparison(null);
-                        }}
+                        onChange={e => setScanText(e.target.value)}
                         placeholder="Or paste your resume text here..."
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all resize-y"
+                        className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-800 placeholder:text-slate-300 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                       />
                       <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">{scanText.length.toLocaleString()} / 50,000</div>
                     </div>
@@ -2198,15 +2129,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     )}
 
                     <div className="flex flex-wrap justify-end gap-2 mt-4">
-                      {(comparison?.improvedText || scanText.trim()) && (
-                        <button
-                          type="button"
-                          onClick={downloadScannerResumePdf}
-                          className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black flex items-center gap-2"
-                        >
-                          <Download className="w-4 h-4" /> Download PDF
-                        </button>
-                      )}
                       {resumeReview && (
                         <button
                           type="button"
@@ -2228,11 +2150,35 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </button>
                     </div>
                   </div>
+
+                  {resumeReview && (
+                    <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
+                      <h3 className="mb-2 text-sm font-black text-slate-900">Resume insights</h3>
+                      <p className="mb-3 text-xs leading-5 text-slate-500">{resumeReview.summary}</p>
+                      <div className="space-y-2">
+                        {Object.entries(resumeReview.categoryScores).map(([key, value]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="w-24 truncate text-[9px] font-bold capitalize text-slate-500">{key.replace(/([A-Z])/g, ' $1')}</span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${value}%` }} /></div>
+                            <span className="w-7 text-right text-[9px] font-black text-slate-500">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {resumeReview.missingKeywords.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">Missing target keywords</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {resumeReview.missingKeywords.map(keyword => <span key={keyword} className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">{keyword}</span>)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div className="xl:col-span-2 space-y-4">
-                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <h3 className="font-black text-slate-900 text-sm mb-4 flex items-center gap-2"><ScanLine className="w-4 h-4 text-indigo-500" /> ATS Score</h3>
+                <div className="space-y-4 xl:col-span-7">
+                  <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900"><ScanLine className="h-4 w-4 text-indigo-500" /> ATS Score</h3>
                     <div className="flex items-center gap-5">
                       <div className="relative h-28 w-28 shrink-0">
                         <svg className="h-full w-full -rotate-90">
@@ -2251,48 +2197,103 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     </div>
                   </div>
 
-                  {resumeReview && (
-                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                      <h3 className="font-black text-slate-900 text-sm mb-3">Resume insights</h3>
-                      <p className="text-xs text-slate-500 leading-5 mb-4">{resumeReview.summary}</p>
-                      <div className="space-y-2">
-                        {Object.entries(resumeReview.categoryScores).map(([key, value]) => (
-                          <div key={key} className="flex items-center gap-2">
-                            <span className="w-28 truncate text-[10px] font-bold text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500" style={{ width: `${value}%` }} /></div>
-                            <span className="w-7 text-right text-[10px] font-black text-slate-500">{value}</span>
-                          </div>
-                        ))}
+                  {uploadedFileName && scannerDraftText && (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+                        <div>
+                          <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Eye className="h-4 w-4 text-indigo-500" /> {manualEditMode ? 'Manual editing mode' : 'Original uploaded resume'}</h3>
+                          <p className="mt-1 text-[10px] font-semibold text-slate-400">{manualEditMode ? 'Only changes you type in the preview will be applied.' : originalPreviewUrl ? 'Displayed directly from your uploaded file. No content or formatting has been changed.' : 'The original DOCX is retained unchanged. Select manual editing only when you want to alter its extracted content.'}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {originalUploadFile && scannerPreviewHtml && (
+                            <button
+                              type="button"
+                              onClick={() => setManualEditMode(current => !current)}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-200"
+                            >
+                              {manualEditMode ? <Eye className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />} {manualEditMode ? 'View original' : 'Edit manually'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={saveScannerPreview}
+                            disabled={scannerPreviewSaving || !selectedResumeId || !manualEditMode}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
+                          >
+                            {scannerPreviewSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={exportScannerPreview}
+                            disabled={scannerPreviewSaving || (!originalUploadFile && !selectedResumeId)}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
+                          >
+                            <Download className="h-3.5 w-3.5" /> {manualEditMode ? 'Export PDF' : 'Download original'}
+                          </button>
+                        </div>
                       </div>
-                      {resumeReview.missingKeywords.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Missing target keywords</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {resumeReview.missingKeywords.map(keyword => <span key={keyword} className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-[10px] font-bold">{keyword}</span>)}
+                      {originalPreviewUrl && !manualEditMode ? (
+                        <div className="overflow-hidden bg-slate-100 p-2">
+                          <iframe
+                            title="Original uploaded resume preview"
+                            src={`${originalPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
+                            scrolling="no"
+                            className="h-[72vh] min-h-[560px] max-h-[760px] w-full rounded-lg border-0 bg-white shadow-lg"
+                          />
+                        </div>
+                      ) : originalUploadFile && !manualEditMode ? (
+                        <div className="flex min-h-[360px] flex-col items-center justify-center bg-slate-50 px-8 text-center">
+                          <FileText className="mb-3 h-10 w-10 text-indigo-400" />
+                          <p className="text-sm font-black text-slate-800">Original DOCX retained unchanged</p>
+                          <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">Browsers cannot display a local DOCX exactly. Downloading now returns the original file; choose Edit manually only if you want to work with its extracted preview.</p>
+                        </div>
+                      ) : scannerPreviewLoading ? (
+                        <div className="flex h-72 items-center justify-center gap-2 text-xs font-bold text-slate-400"><RefreshCw className="h-4 w-4 animate-spin text-indigo-500" /> Loading preserved layout…</div>
+                      ) : scannerPreviewHtml ? (
+                        <div className="overflow-hidden bg-slate-100 p-2">
+                          <iframe
+                            ref={scannerPreviewFrameRef}
+                            title="Editable uploaded resume preview"
+                            srcDoc={scannerPreviewHtml}
+                            sandbox="allow-scripts allow-same-origin"
+                            scrolling="no"
+                            className="h-[72vh] min-h-[560px] max-h-[760px] w-full rounded-lg border-0 bg-white shadow-lg"
+                          />
+                        </div>
+                      ) : (
+                        <div className="bg-slate-100 p-3">
+                          <div
+                            key={uploadedFileName}
+                            contentEditable
+                            suppressContentEditableWarning
+                            spellCheck
+                            onInput={(event) => setScannerDraftText(event.currentTarget.innerText.slice(0, 50000))}
+                            className="min-h-[560px] whitespace-pre-wrap rounded-lg bg-white p-6 font-mono text-[9px] leading-4 text-slate-800 shadow-lg outline-none focus:ring-2 focus:ring-indigo-500/30"
+                          >
+                            {scannerDraftText}
                           </div>
                         </div>
                       )}
+                      {!selectedResumeId && <p className="border-t border-amber-100 bg-amber-50 px-4 py-2.5 text-[10px] font-bold text-amber-700">Sign in and upload again to enable manual editing and saving. The original file can still be downloaded unchanged.</p>}
                     </div>
                   )}
+
                 </div>
               </div>
 
               {resumeReview && (
                 <div className="grid lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                    <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="mb-4">
                       <div>
-                        <h3 className="font-black text-slate-900">Problems and fixes</h3>
-                        <p className="text-xs text-slate-400">{resumeReview.problems.length} actionable findings</p>
+                        <h3 className="font-black text-slate-900">Review findings</h3>
+                        <p className="text-xs text-slate-400">{resumeReview.problems.length} suggestions for you to review and apply manually</p>
                       </div>
-                      <button onClick={() => handleAiFix()} disabled={!!fixingIssueId} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-black flex items-center gap-2 disabled:opacity-50">
-                        {fixingIssueId === 'all' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} AI Fix all
-                      </button>
                     </div>
                     <div className="space-y-3">
                       {resumeReview.problems.map(problem => (
                         <div key={problem.id} className="rounded-xl border border-slate-200 p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${problem.severity === 'critical' ? 'bg-red-500' : problem.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
@@ -2300,9 +2301,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               </div>
                               <p className="text-xs text-slate-500 mt-2 leading-5">{problem.why}</p>
                             </div>
-                            <button onClick={() => handleAiFix(problem)} disabled={!!fixingIssueId} className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black flex items-center gap-1.5 disabled:opacity-50">
-                              {fixingIssueId === problem.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} AI Fix
-                            </button>
                           </div>
                           <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
                             <div className="rounded-lg bg-red-50 p-3 text-red-800"><span className="font-black block mb-1">Current</span>{problem.originalContent || 'Section or content is missing.'}</div>
@@ -2327,41 +2325,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                 </div>
               )}
 
-              {comparison && (
-                <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div>
-                      <h3 className="font-black text-slate-900">Original vs improved</h3>
-                      <p className="text-xs text-slate-400">The original is preserved. Edit the improved draft, download it, or manually recheck when ready.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={downloadScannerResumePdf} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black flex items-center gap-2">
-                        <Download className="w-4 h-4" /> Download updated PDF
-                      </button>
-                      <button onClick={() => recheckResume(comparison.improvedText)} disabled={rechecking} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black flex items-center gap-2 disabled:opacity-50">
-                        <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck
-                      </button>
-                      <button onClick={() => { setScanText(comparison.improvedText); setComparison(null); }} className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">Use improved draft</button>
-                    </div>
-                  </div>
-                  {Number.isFinite(comparison.scoreBeforeFix) && (
-                    <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                      <span className="font-black">Score protected:</span> AI Fix will not lower the displayed ATS score below your previous {comparison.scoreBeforeFix}. Use Recheck only when you want a fresh score.
-                    </div>
-                  )}
-                  <div className="grid lg:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Original</label>
-                      <textarea readOnly rows={18} value={comparison.originalText} className="mt-2 w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs leading-5 text-slate-600 resize-y" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Improved and editable</label>
-                      <textarea rows={18} value={comparison.improvedText} onChange={e => setComparison(current => ({ ...current, improvedText: e.target.value }))} className="mt-2 w-full p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 text-xs leading-5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-y" />
-                    </div>
-                  </div>
-                  {comparison.changes?.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{comparison.changes.map(change => <span key={change} className="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold">{change}</span>)}</div>}
-                </div>
-              )}
             </motion.div>
           )}
 
