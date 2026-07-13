@@ -17,6 +17,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -186,63 +187,6 @@ const tagTone = {
   Showcase: { chip: "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30", dot: "bg-cyan-400" },
   Discussion: { chip: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30", dot: "bg-rose-400" },
 };
-
-const MOCK_POSTS = [
-  {
-    id: "post-1",
-    authorId: "p-priya",
-    time: "22m",
-    tag: "Project Win",
-    content: "Finished an LLM-powered resume analyzer today. The best part was turning messy feedback into clear ATS improvement steps.",
-    tags: ["LLM", "Python", "ResumeATS"],
-    image: img("photo-1677442136019-21780ecad995", 900, 1125),
-    likes: 286,
-    comments: [
-      { id: "c1", authorId: "p-elena", text: "This is exactly what I needed for placement season 🔥", time: "18m" },
-      { id: "c2", authorId: "p-rahul", text: "Repo link when?", time: "10m" },
-    ],
-  },
-  {
-    id: "post-2",
-    authorId: "p-karan",
-    time: "1h",
-    tag: "Need Advice",
-    content: "Working on a FreeRTOS scheduling demo for interviews. What's the clearest way to explain priority inversion to a non-embedded recruiter?",
-    tags: ["FreeRTOS", "Firmware", "InterviewPrep"],
-    image: null,
-    likes: 94,
-    comments: [
-      { id: "c3", authorId: "p-dev", text: "Use the 'someone important stuck behind traffic' analogy, always lands.", time: "40m" },
-    ],
-  },
-  {
-    id: "post-3",
-    authorId: "p-sneha",
-    time: "3h",
-    tag: "Showcase",
-    content: "Redesigned a student dashboard with clearer progress signals and less visual clutter. Feedback on the color balance welcome.",
-    tags: ["UIUX", "Figma", "Dashboard"],
-    image: img("photo-1559028012-481c04fa702d", 900, 1125),
-    likes: 341,
-    comments: [
-      { id: "c4", authorId: "p-kavya", text: "The contrast on the progress ring is so clean.", time: "2h" },
-    ],
-  },
-  {
-    id: "post-4",
-    authorId: "p-vikram",
-    time: "5h",
-    tag: "Discussion",
-    content: "Hot take: most students over-index on frameworks and under-index on reading their own stack traces. Change my mind.",
-    tags: ["Debugging", "CareerAdvice"],
-    image: img("photo-1517694712202-14dd9538aa97", 900, 1125),
-    likes: 512,
-    comments: [
-      { id: "c5", authorId: "p-priya", text: "Painfully accurate.", time: "4h" },
-      { id: "c6", authorId: "p-karan", text: "Every single time 😭", time: "3h" },
-    ],
-  },
-];
 
 /* ---------------------------------- helpers -------------------------------- */
 let uidCounter = 1000;
@@ -448,7 +392,7 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
               {author.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-cyan-300" />}
             </span>
             <p className="peer-mono truncate text-[11px] text-white/45">
-              {author.handle} · {post.time}
+              {author.handle ? `${author.handle} · ${post.time}` : post.time}
             </p>
           </div>
         </button>
@@ -820,8 +764,73 @@ function ChatPanel({ thread, messages, viewer, onClose, onSend }) {
 }
 
 /* ================================ Profile Page/Modal =============================== */
-function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenChat, onClose, embedded = false }) {
-  const person = personId === "me" ? { ...viewer, id: "me" } : byId(personId);
+function UsernameEditor({ handle, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const startEditing = () => {
+    setDraft(String(handle || "").replace(/^@/, ""));
+    setError("");
+    setEditing(true);
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } catch (saveError) {
+      setError(saveError.message || "Unable to save username.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        {handle ? <p className="peer-mono text-xs font-medium text-white/50">{handle}</p> : <p className="text-xs font-medium text-white/40">No username set</p>}
+        <button type="button" onClick={startEditing} className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-300 hover:text-orange-200">
+          <Pencil className="h-3 w-3" /> {handle ? "Edit" : "Set username"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-1 max-w-xs">
+      <div className="flex items-center gap-1.5">
+        <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg border px-2" style={{ borderColor: HAIRLINE, background: SURFACE_2 }}>
+          <span className="peer-mono text-xs text-white/40">@</span>
+          <input
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+            maxLength={24}
+            className="peer-mono min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/25"
+            placeholder="your.username"
+            aria-label="Community username"
+          />
+        </div>
+        <button type="submit" disabled={saving || draft.length < 3} className="h-8 rounded-lg px-3 text-[10px] font-black text-white disabled:opacity-40" style={{ background: GRADIENT }}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/5" aria-label="Cancel username edit">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-[10px] font-semibold text-rose-300">{error}</p>}
+      <p className="mt-1 text-[9px] text-white/30">3–24 characters: letters, numbers, dots, or underscores.</p>
+    </form>
+  );
+}
+
+function ProfileView({ personId, viewer, posts, stats, follows, onToggleFollow, onOpenChat, onSaveUsername, onClose, embedded = false }) {
+  const person = personId === "me" ? viewer : byId(personId);
   if (!person) return null;
   const isSelf = person.id === viewer.id;
   const relationship = follows[person.id] || "none";
@@ -839,7 +848,11 @@ function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenC
                 {person.name}
                 {person.verified && <BadgeCheck className="h-4 w-4 text-cyan-300" />}
               </h2>
-              <p className="peer-mono text-xs font-medium text-white/50">{person.handle || "@" + person.name.toLowerCase().replace(/\s+/g, ".")}</p>
+              {isSelf ? (
+                <UsernameEditor handle={person.handle} onSave={onSaveUsername} />
+              ) : person.handle ? (
+                <p className="peer-mono mt-1 text-xs font-medium text-white/50">{person.handle}</p>
+              ) : null}
               <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-orange-400">
                 <Flame className="h-3.5 w-3.5" /> {person.streak ?? 0}-day streak
               </p>
@@ -883,9 +896,9 @@ function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenC
 
         <div className="mt-5 grid grid-cols-3 gap-3 sm:max-w-sm">
           {[
-            ["Posts", personPosts.length || 6],
-            ["Followers", isSelf ? "2.4k" : Math.floor(80 + (person.streak || 5) * 12)],
-            ["Following", isSelf ? "318" : Math.floor(40 + (person.streak || 5) * 3)],
+            ["Posts", stats?.postsCount ?? personPosts.length],
+            ["Followers", stats?.followersCount ?? 0],
+            ["Following", stats?.followingCount ?? 0],
           ].map(([label, value]) => (
             <div key={label} className="rounded-2xl border px-3 py-3 text-center" style={{ borderColor: HAIRLINE, background: SURFACE_2 }}>
               <p className="peer-display text-base font-bold text-white">{value}</p>
@@ -901,7 +914,7 @@ function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenC
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-1.5">
-          {(personPosts.length ? personPosts : MOCK_POSTS.slice(0, 3)).map((p) => (
+          {personPosts.map((p) => (
             <div key={p.id} className="aspect-square overflow-hidden rounded-lg" style={{ background: SURFACE_2 }}>
               {p.image ? (
                 <img src={p.image} alt="" className="h-full w-full object-cover" />
@@ -910,6 +923,9 @@ function ProfileView({ personId, viewer, posts, follows, onToggleFollow, onOpenC
               )}
             </div>
           ))}
+          {personPosts.length === 0 && (
+            <p className="col-span-3 py-8 text-center text-xs font-semibold text-white/40">No posts yet.</p>
+          )}
         </div>
       </div>
     </>
@@ -1228,7 +1244,7 @@ function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActiv
 const DEFAULT_VIEWER = {
   id: "me",
   name: "Aastik Srivastava",
-  handle: "@aastik.codes",
+  handle: "",
   role: "Full Stack Learner",
   avatar: img("photo-1535713875002-d1d0cf377fde", 256, 256),
   streak: 0,
@@ -1239,7 +1255,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const normalizeRegisteredUser = (user) => ({
   id: user.id,
   name: user.fullName || user.name || "Registered learner",
-  handle: `@${String(user.fullName || user.name || "learner").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "")}`,
+  handle: user.username || user.metadata?.communityUsername ? `@${user.username || user.metadata.communityUsername}` : "",
   role: String(user.role || "Learner").replace(/_/g, " "),
   avatar: user.avatarUrl || user.avatar || DEFAULT_VIEWER.avatar,
   streak: Number(user.metadata?.communityStreak || 0),
@@ -1259,6 +1275,7 @@ const normalizeCommunityPost = (post) => ({
 
 export default function Community({ userData = {}, authToken = "", onRefreshAuth }) {
   const [communityStreak, setCommunityStreak] = useState(Number(userData.communityStreak || 0));
+  const [communityUsername, setCommunityUsername] = useState(userData.communityUsername || "");
   const viewer = useMemo(
     () => ({
       ...DEFAULT_VIEWER,
@@ -1266,9 +1283,10 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
       name: userData.name || DEFAULT_VIEWER.name,
       role: userData.role || DEFAULT_VIEWER.role,
       avatar: userData.avatarUrl || DEFAULT_VIEWER.avatar,
+      handle: communityUsername ? `@${communityUsername}` : "",
       streak: communityStreak,
     }),
-    [communityStreak, userData]
+    [communityStreak, communityUsername, userData]
   );
 
   const [people, setPeople] = useState([]);
@@ -1285,6 +1303,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [chatMessages, setChatMessages] = useState({});
   const [follows, setFollows] = useState({});
   const [incoming, setIncoming] = useState([]);
+  const [profileStats, setProfileStats] = useState({});
 
   useEffect(() => {
     if (!authToken) return;
@@ -1302,12 +1321,20 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         setPeople((current) => {
           const authors = registeredPosts
             .filter((post) => post.authorId && post.authorId !== viewer.id)
-            .map((post) => normalizeRegisteredUser({ id: post.authorId, fullName: post.author, role: post.role, avatarUrl: post.avatar }));
+            .map((post) => normalizeRegisteredUser({ id: post.authorId, fullName: post.author, role: post.role, avatarUrl: post.avatar, username: post.authorUsername }));
           return [...current, ...authors].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
         });
       }
       if (socialResponse.ok) {
         const social = await socialResponse.json();
+        setProfileStats((current) => ({
+          ...current,
+          [viewer.id]: {
+            ...(current[viewer.id] || {}),
+            followersCount: Math.max(0, Number(social.followersCount || 0)),
+            followingCount: Math.max(0, Number(social.followingCount || 0)),
+          },
+        }));
         setFollows(Object.fromEntries([
           ...(social.followingIds || []).map((id) => [id, "following"]),
           ...(social.outgoingRequests || []).map((request) => [request.toId, "requested"]),
@@ -1317,9 +1344,38 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
       if (profileResponse.ok) {
         const profile = await profileResponse.json();
         setCommunityStreak(Math.max(0, Number(profile.user?.communityStreak || 0)));
+        setCommunityUsername(String(profile.user?.username || ""));
+        setProfileStats((current) => ({
+          ...current,
+          [viewer.id]: {
+            postsCount: Math.max(0, Number(profile.stats?.postsCount || 0)),
+            followersCount: Math.max(0, Number(profile.stats?.followersCount || 0)),
+            followingCount: Math.max(0, Number(profile.stats?.followingCount || 0)),
+          },
+        }));
       }
     }).catch(() => {});
   }, [authToken, viewer.id]);
+
+  useEffect(() => {
+    if (!authToken || !profileId) return;
+    const targetId = profileId === "me" ? viewer.id : profileId;
+    const headers = { Authorization: `Bearer ${authToken}` };
+    fetch(`${API_BASE_URL}/community/profiles/${targetId}`, { credentials: "include", headers })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const profile = await response.json();
+        setProfileStats((current) => ({
+          ...current,
+          [targetId]: {
+            postsCount: Math.max(0, Number(profile.stats?.postsCount || 0)),
+            followersCount: Math.max(0, Number(profile.stats?.followersCount || 0)),
+            followingCount: Math.max(0, Number(profile.stats?.followingCount || 0)),
+          },
+        }));
+      })
+      .catch(() => {});
+  }, [authToken, profileId, viewer.id]);
 
   MOCK_PEOPLE = people;
   CURRENT_VIEWER = viewer;
@@ -1337,6 +1393,43 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     if (filter === "Jobs") return posts.filter((p) => p.tag === "Discussion");
     return posts;
   }, [filter, posts]);
+
+  const saveUsername = async (rawUsername) => {
+    const username = String(rawUsername || "").trim().replace(/^@+/, "").toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._]{1,22}[a-z0-9]$/.test(username) || /[._]{2}/.test(username)) {
+      throw new Error("Use 3–24 letters, numbers, dots, or underscores without repeated punctuation.");
+    }
+    if (!authToken) throw new Error("Please sign in again before setting your username.");
+
+    const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
+    const csrf = await csrfResponse.json().catch(() => ({}));
+    if (!csrfResponse.ok) throw new Error(csrf.message || "Unable to prepare the secure request.");
+
+    const sendUpdate = (accessToken) => fetch(`${API_BASE_URL}/community/username`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrf.csrfToken,
+        ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}),
+      },
+      body: JSON.stringify({ username }),
+    });
+
+    let response = await sendUpdate(authToken);
+    let data = await response.json().catch(() => ({}));
+    if (response.status === 401 && onRefreshAuth) {
+      const refreshedToken = await onRefreshAuth();
+      if (!refreshedToken) throw new Error("Your session has expired. Please sign in again.");
+      response = await sendUpdate(refreshedToken);
+      data = await response.json().catch(() => ({}));
+    }
+    if (!response.ok) throw new Error(data.message || "Unable to save username.");
+
+    setCommunityUsername(data.username);
+    setPosts((items) => items.map((post) => post.authorId === viewer.id ? { ...post, authorUsername: data.username } : post));
+  };
 
   const toggleLike = (postId) =>
     setPosts((items) => items.map((p) => (p.id === postId ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p)));
@@ -1375,6 +1468,13 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     if (!response.ok) throw new Error(data.message || "Unable to share your post.");
     const created = normalizeCommunityPost(data);
     setPosts((items) => [created, ...items]);
+    setProfileStats((current) => ({
+      ...current,
+      [viewer.id]: {
+        ...(current[viewer.id] || { followersCount: 0, followingCount: 0 }),
+        postsCount: Math.max(0, Number(current[viewer.id]?.postsCount || 0)) + 1,
+      },
+    }));
     if (Number.isFinite(Number(created.authorStreak))) setCommunityStreak(Number(created.authorStreak));
   };
 
@@ -1411,7 +1511,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   });
 
   return (
-    <div className="peer-root theme-always-dark relative z-10 min-h-screen overflow-x-hidden bg-transparent pb-24 text-slate-100 lg:pb-16">
+    <div className="peer-root relative min-h-screen overflow-x-hidden pb-24 text-white lg:pb-16" style={{ background: INK }}>
       <GlobalStyle />
 
       <LeftRail viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} />
@@ -1447,7 +1547,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           {tab === "activity" && <ActivityPage incoming={incoming} onAccept={acceptRequest} onDecline={declineRequest} />}
           {tab === "profile" && (
             <div className="mx-4 overflow-hidden rounded-3xl border backdrop-blur-xl sm:mx-0" style={{ background: SURFACE, borderColor: HAIRLINE }}>
-              <ProfileView personId="me" viewer={viewer} posts={posts} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} embedded />
+              <ProfileView personId="me" viewer={viewer} posts={posts} stats={profileStats[viewer.id]} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} onSaveUsername={saveUsername} embedded />
             </div>
           )}
         </main>
@@ -1465,9 +1565,11 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           personId={profileId}
           viewer={viewer}
           posts={posts}
+          stats={profileStats[profileId === "me" ? viewer.id : profileId]}
           follows={follows}
           onToggleFollow={toggleFollow}
           onOpenChat={openChat}
+          onSaveUsername={saveUsername}
           onClose={() => setProfileId(null)}
         />
       )}

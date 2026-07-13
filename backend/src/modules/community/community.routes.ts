@@ -32,7 +32,8 @@ const normalizeUser = (user: any) => ({
   email: user.email,
   role: cleanRole(user.role),
   avatarUrl: user.avatarUrl || fallbackAvatar,
-  avatar: user.avatarUrl || fallbackAvatar
+  avatar: user.avatarUrl || fallbackAvatar,
+  username: metadataObject(user.metadata).communityUsername || ''
 });
 
 const normalizePost = (post: any) => ({
@@ -41,6 +42,7 @@ const normalizePost = (post: any) => ({
   author: post.author?.fullName || 'Learner',
   role: cleanRole(post.author?.role),
   avatar: post.author?.avatarUrl || fallbackAvatar,
+  authorUsername: metadataObject(post.author?.metadata).communityUsername || '',
   time: formatAge(post.createdAt),
   tag: post.tag || 'Discussion',
   content: post.content,
@@ -123,6 +125,55 @@ const normalizeFollowRequest = (request: any, viewerId: string) => ({
 });
 
 export async function communityRoutes(fastify: FastifyInstance) {
+  fastify.patch('/username', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const rawUsername = (request.body as { username?: string })?.username;
+    const username = String(rawUsername || '').trim().replace(/^@+/, '').toLowerCase();
+
+    if (!/^[a-z0-9][a-z0-9._]{1,22}[a-z0-9]$/.test(username) || /[._]{2}/.test(username)) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        code: 'INVALID_COMMUNITY_USERNAME',
+        message: 'Username must be 3–24 characters using letters, numbers, dots, or underscores.'
+      });
+    }
+
+    const existingOwner = await fastify.prisma.user.findFirst({
+      where: {
+        id: { not: request.user!.id },
+        metadata: { path: ['communityUsername'], equals: username }
+      },
+      select: { id: true }
+    });
+
+    if (existingOwner) {
+      return reply.status(409).send({
+        statusCode: 409,
+        error: 'Conflict',
+        code: 'COMMUNITY_USERNAME_TAKEN',
+        message: 'That username is already taken.'
+      });
+    }
+
+    const currentUser = await fastify.prisma.user.findUnique({
+      where: { id: request.user!.id },
+      select: { metadata: true }
+    });
+    if (!currentUser) {
+      return reply.status(404).send({ message: 'Profile not found.' });
+    }
+
+    const metadata = metadataObject(currentUser.metadata);
+    await fastify.prisma.user.update({
+      where: { id: request.user!.id },
+      data: { metadata: { ...metadata, communityUsername: username } }
+    });
+
+    return reply.status(200).send({ username, handle: `@${username}` });
+  });
+
   fastify.get('/profiles/:id', {
     preHandler: [requireAuth]
   }, async (request, reply) => {
@@ -155,7 +206,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
     const projects = Array.isArray(metadata.projects)
       ? metadata.projects.map(normalizeProject).slice(0, 12)
       : [];
-    const [posts, followersCount, followingCount, isFollowing, outgoingRequest, incomingRequest] = await Promise.all([
+    const [posts, postsCount, followersCount, followingCount, isFollowing, outgoingRequest, incomingRequest] = await Promise.all([
       fastify.prisma.communityPost.findMany({
         where: { authorId: id },
         orderBy: { createdAt: 'desc' },
@@ -167,11 +218,13 @@ export async function communityRoutes(fastify: FastifyInstance) {
               fullName: true,
               email: true,
               role: true,
-              avatarUrl: true
+              avatarUrl: true,
+              metadata: true
             }
           }
         }
       }),
+      fastify.prisma.communityPost.count({ where: { authorId: id } }),
       fastify.prisma.follow.count({ where: { followingId: id } }),
       fastify.prisma.follow.count({ where: { followerId: id } }),
       fastify.prisma.follow.findFirst({ where: { followerId: viewerId, followingId: id } }),
@@ -194,7 +247,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       stats: {
         followersCount,
         followingCount,
-        postsCount: posts.length,
+        postsCount,
         projectsCount: projects.length
       },
       relationship: {
@@ -205,7 +258,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       },
       posts: posts.map(normalizePost),
       projects,
-      achievements: profileAchievements(metadata, posts.length, projects.length)
+      achievements: profileAchievements(metadata, postsCount, projects.length)
     });
   });
 
@@ -222,7 +275,8 @@ export async function communityRoutes(fastify: FastifyInstance) {
             fullName: true,
             email: true,
             role: true,
-            avatarUrl: true
+            avatarUrl: true,
+            metadata: true
           }
         }
       }
@@ -279,7 +333,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
             : ['Community', 'Learning']
         },
         include: {
-          author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true } }
+          author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } }
         }
       });
 

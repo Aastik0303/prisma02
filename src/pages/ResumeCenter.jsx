@@ -1490,7 +1490,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   ];
 
   return (
-    <div className="relative z-10 min-h-screen overflow-hidden bg-transparent text-slate-900 transition-colors duration-300 dark:text-slate-100">
+    <div className="min-h-screen bg-[#F8F7FC] relative overflow-hidden">
       <ParticleField />
       <Confetti active={confetti} />
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-indigo-300/10 rounded-full blur-[120px] pointer-events-none" />

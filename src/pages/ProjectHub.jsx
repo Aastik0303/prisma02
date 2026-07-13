@@ -400,9 +400,7 @@ export default function ProjectHub() {
   const projectMatchCount = searchedProjects.length;
 
   return (
-    <div className="theme-always-dark relative z-10 min-h-screen w-full overflow-hidden bg-transparent text-slate-100">
-      <div className="pointer-events-none fixed -left-40 top-1/4 h-96 w-96 rounded-full bg-violet-500/10 blur-[110px]" />
-      <div className="pointer-events-none fixed -right-40 bottom-0 h-[28rem] w-[28rem] rounded-full bg-amber-400/10 blur-[120px]" />
+    <div className="min-h-screen w-full" style={{ background: TOKENS.ink }}>
       <link
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"

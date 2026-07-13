@@ -1,4 +1,4 @@
-import { Suspense, lazy, startTransition, useState, useEffect, useCallback, useMemo } from 'react';
+import { Suspense, lazy, startTransition, useState, useEffect, useCallback } from 'react';
 import { 
   Compass, ShieldCheck, Users, FolderGit2, Award,
   Sun, Moon, Menu, X, LayoutDashboard, BookOpen,
@@ -232,101 +232,6 @@ const PageFallback = () => (
     </div>
   </div>
 );
-
-const BinaryThemeBackground = ({ theme, visible }) => {
-  const [pointer, setPointer] = useState({ x: 0.5, y: 0.5, active: false });
-  const particles = useMemo(() => Array.from({ length: 220 }, (_, index) => ({
-    id: index,
-    left: (index * 7) % 100,
-    top: (index * 11) % 100,
-    driftX: (index % 5 - 2) * (18 + (index % 6) * 5),
-    driftY: (index % 7 - 3) * (12 + (index % 4) * 4),
-    duration: 8 + (index % 9) * 2.2,
-    delay: (index % 12) * 0.3,
-    opacity: 0.22 + (index % 9) * 0.06,
-    size: 9 + (index % 6) * 3.5,
-    value: index % 2 === 0 ? '0' : '1'
-  })), []);
-
-  useEffect(() => {
-    const handlePointerMove = (event) => {
-      setPointer({
-        x: event.clientX / window.innerWidth,
-        y: event.clientY / window.innerHeight,
-        active: true
-      });
-    };
-    const handlePointerLeave = () => setPointer((current) => ({ ...current, active: false }));
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerleave', handlePointerLeave);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerleave', handlePointerLeave);
-    };
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none fixed inset-0 overflow-hidden transition-colors duration-500 ${theme === 'dark' ? 'bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.16),transparent_36%),linear-gradient(135deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))]' : 'bg-[radial-gradient(circle_at_top,rgba(129,140,248,0.18),transparent_36%),linear-gradient(135deg,rgba(248,250,252,0.98),rgba(241,245,249,0.96))]'}`}
-    >
-      <style>{`
-        @keyframes binaryWave {
-          0%, 100% {
-            transform: translate3d(0, 0, 0) scale(1);
-            opacity: var(--base-opacity);
-          }
-          25% {
-            transform: translate3d(calc(var(--drift-x) * 0.6 + var(--wave-x) * 0.7), calc(var(--drift-y) * 0.6 + var(--wave-y) * 0.6), 0) scale(1.06);
-          }
-          50% {
-            transform: translate3d(calc(var(--drift-x) + var(--wave-x) * 1.1), calc(var(--drift-y) + var(--wave-y) * 1.1), 0) scale(1.12);
-            opacity: calc(var(--base-opacity) + 0.16);
-          }
-          75% {
-            transform: translate3d(calc(var(--drift-x) * 0.7 - var(--wave-x) * 0.45), calc(var(--drift-y) * 0.8 - var(--wave-y) * 0.4), 0) scale(1.04);
-          }
-        }
-        .binary-digit {
-          position: absolute;
-          display: inline-block;
-          font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-          font-weight: 700;
-          letter-spacing: 0.18em;
-          text-shadow: 0 0 10px rgba(99, 102, 241, 0.16);
-          will-change: transform, opacity;
-          animation: binaryWave var(--duration) ease-in-out infinite;
-          animation-delay: var(--delay);
-        }
-      `}</style>
-      {particles.map((particle) => (
-        <span
-          key={particle.id}
-          className="binary-digit"
-          style={{
-            left: `${particle.left}%`,
-            top: `${particle.top}%`,
-            opacity: particle.opacity,
-            fontSize: `${particle.size}px`,
-            color: theme === 'dark' ? 'rgba(148, 163, 184, 0.6)' : 'rgba(15, 23, 42, 0.34)',
-            ['--base-opacity']: particle.opacity,
-            ['--drift-x']: `${particle.driftX}px`,
-            ['--drift-y']: `${particle.driftY}px`,
-            ['--wave-x']: `${pointer.active ? (pointer.x - 0.5) * 28 : 0}px`,
-            ['--wave-y']: `${pointer.active ? (pointer.y - 0.5) * 28 : 0}px`,
-            ['--duration']: `${particle.duration}s`,
-            ['--delay']: `${particle.delay}s`
-          }}
-        >
-          {particle.value}
-        </span>
-      ))}
-    </div>
-  );
-};
 
 const authRequest = async (path, body, accessToken) => {
   let csrf = await getCsrfToken();
@@ -953,16 +858,8 @@ export default function App() {
 
   // Handle Dark / Light Theme Toggle Class
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem('pec-theme');
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      setTheme(storedTheme);
-    }
-  }, []);
-
-  useEffect(() => {
     const root = window.document.documentElement;
     const body = window.document.body;
-    window.localStorage.setItem('pec-theme', theme);
     if (theme === 'dark') {
       root.classList.add('dark');
       body.classList.add('dark');
@@ -1619,8 +1516,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen transition-colors duration-300 bg-transparent text-slate-900 dark:text-slate-100 flex flex-col font-sans overflow-hidden">
-      <BinaryThemeBackground theme={theme} visible={authResolved && page !== 'home'} />
+    <div className="min-h-screen transition-colors duration-300 bg-slate-50 dark:bg-darknavy text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       
       {/* HIGHLY FLEXIBLE HORIZONTAL NAVIGATION TOPBAR — only rendered once the visitor is a signed-in user */}
       {isSignedIn && (
@@ -1754,7 +1650,7 @@ export default function App() {
       )}
 
       {/* FULL WIDTH ROUTABLE CANVASES */}
-      <main className="relative z-10 min-w-0 flex-1 overflow-x-hidden">
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         <Suspense fallback={<PageFallback />}>
           {renderPage()}
         </Suspense>
