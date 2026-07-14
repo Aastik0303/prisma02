@@ -275,7 +275,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const posts = await fastify.prisma.communityPost.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 20,
       include: {
         author: {
           select: {
@@ -290,7 +290,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
         likes: { where: { userId: request.user!.id }, select: { id: true } },
         comments: {
           orderBy: { createdAt: 'asc' },
-          take: 50,
+          take: 10,
           include: { author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } } }
         }
       }
@@ -405,7 +405,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
     preHandler: [requireAuth]
   }, async (request, reply) => {
     const viewerId = request.user!.id;
-    const [incomingRequests, outgoingRequests, followersCount, followingCount, followers, following, viewer] = await Promise.all([
+    const [incomingRequests, outgoingRequests, followersCount, followingCount, followers, following, viewer, recentLikes, recentComments, recentFollowers] = await Promise.all([
       fastify.prisma.followRequest.findMany({
         where: { targetId: viewerId, status: 'pending' },
         orderBy: { createdAt: 'desc' },
@@ -426,8 +426,38 @@ export async function communityRoutes(fastify: FastifyInstance) {
       fastify.prisma.follow.count({ where: { followerId: viewerId } }),
       fastify.prisma.follow.findMany({ where: { followingId: viewerId }, select: { followerId: true } }),
       fastify.prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } }),
-      fastify.prisma.user.findUnique({ where: { id: viewerId }, select: { metadata: true } })
+      fastify.prisma.user.findUnique({ where: { id: viewerId }, select: { metadata: true } }),
+      fastify.prisma.communityLike.findMany({
+        where: { userId: { not: viewerId }, post: { authorId: viewerId } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          user: { select: { id: true, fullName: true, avatarUrl: true, role: true, email: true, metadata: true } },
+          post: { select: { id: true, content: true } }
+        }
+      }),
+      fastify.prisma.communityComment.findMany({
+        where: { authorId: { not: viewerId }, post: { authorId: viewerId } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          author: { select: { id: true, fullName: true, avatarUrl: true, role: true, email: true, metadata: true } },
+          post: { select: { id: true, content: true } }
+        }
+      }),
+      fastify.prisma.follow.findMany({
+        where: { followingId: viewerId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: { follower: { select: { id: true, fullName: true, avatarUrl: true, role: true, email: true, metadata: true } } }
+      })
     ]);
+
+    const activities = [
+      ...recentLikes.map((like: any) => ({ id: `like-${like.id}`, type: 'like', person: normalizeUser(like.user), text: 'liked your post', preview: like.post?.content || '', time: formatAge(like.createdAt), createdAt: like.createdAt })),
+      ...recentComments.map((comment: any) => ({ id: `comment-${comment.id}`, type: 'comment', person: normalizeUser(comment.author), text: 'commented on your post', preview: comment.content, time: formatAge(comment.createdAt), createdAt: comment.createdAt })),
+      ...recentFollowers.map((follow: any) => ({ id: `follow-${follow.id}`, type: 'follow', person: normalizeUser(follow.follower), text: 'started following you', preview: '', time: formatAge(follow.createdAt), createdAt: follow.createdAt }))
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 30);
 
     return reply.status(200).send({
       incomingRequests: incomingRequests.map(requestItem => normalizeFollowRequest(requestItem, viewerId)),
@@ -436,6 +466,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       followingCount,
       followerIds: followers.map(item => item.followerId),
       followingIds: following.map(item => item.followingId),
+      activities,
       viewer: {
         username: metadataObject(viewer?.metadata).communityUsername || '',
         communityStreak: Math.max(0, Number(metadataObject(viewer?.metadata).communityStreak || 0))

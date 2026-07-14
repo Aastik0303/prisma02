@@ -397,8 +397,10 @@ export default function App() {
   const [lastStreakDate, setLastStreakDate] = useState('');
 
   // In-memory global data layers to allow dynamic state changes
-  const [tracksData, setTracksData] = useState(() => createFreshTracks());
-  const [activeTrack, setActiveTrack] = useState(() => createFreshTracks()[0]); // Default to Web Dev
+  // Curriculum data is initialized only after authentication/workspace creation;
+  // the public landing page should not deep-clone the full course catalog twice.
+  const [tracksData, setTracksData] = useState([]);
+  const [activeTrack, setActiveTrack] = useState(null);
 
   const closeAuthModal = useCallback(() => {
     setActiveModal(null);
@@ -489,33 +491,8 @@ export default function App() {
     }
   }, [authResolved, isSignedIn, navigateTo]);
 
-  useEffect(() => {
-    if (!authResolved) return undefined;
-
-    const pagesToPreload = isSignedIn
-      ? ['dashboard', 'learning', 'roadmap', 'resume', 'community', 'projects', 'mentorship']
-      : ['home'];
-
-    let cancelled = false;
-    const preloadAll = () => {
-      if (cancelled) return;
-      pagesToPreload.forEach(preloadPage);
-    };
-
-    if ('requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(preloadAll, { timeout: 1800 });
-      return () => {
-        cancelled = true;
-        window.cancelIdleCallback?.(idleId);
-      };
-    }
-
-    const timeoutId = window.setTimeout(preloadAll, 700);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [authResolved, isSignedIn]);
+  // Pages are prefetched from navigation hover/focus. Eagerly downloading every
+  // section here made the first screen compete with several large JS chunks.
 
   const buildWorkspaceMetadata = (workspace) => ({
     college: workspace.userData.college,
@@ -621,24 +598,6 @@ export default function App() {
     });
   }, []);
 
-  const syncCommunitySocial = useCallback(async (token = authToken) => {
-    if (!token) return null;
-    try {
-      const response = await fetch(`${API_BASE_URL}/community/social`, {
-        credentials: 'include',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) return null;
-      mergeCommunitySocialIntoProfile(data);
-      return data;
-    } catch {
-      return null;
-    }
-  }, [authToken, mergeCommunitySocialIntoProfile]);
-
   const refreshCommunityAuth = useCallback(async () => {
     const refreshed = await authRequest('/auth/refresh', { refreshToken });
     const nextAccessToken = refreshed.accessToken || '';
@@ -652,12 +611,6 @@ export default function App() {
     });
     return nextAccessToken;
   }, [refreshToken, userData.email]);
-
-  useEffect(() => {
-    if (isSignedIn && authToken) {
-      void syncCommunitySocial(authToken);
-    }
-  }, [authToken, isSignedIn, syncCommunitySocial]);
 
   const handleSaveUserProfile = async (profileData) => {
     const nextUserData = { ...userData, ...profileData };
@@ -1006,6 +959,19 @@ export default function App() {
       try {
         const session = JSON.parse(savedSession);
         const savedWorkspace = session.email ? localStorage.getItem(workspaceKey(session.email)) : null;
+
+        if (savedWorkspace && session.accessToken) {
+          const workspace = JSON.parse(savedWorkspace);
+          applyWorkspace(workspace);
+          setAuthToken(session.accessToken);
+          setRefreshToken(session.refreshToken || '');
+          setIsSignedIn(true);
+          const requestedPage = pageFromLocation();
+          const restoredPage = protectedPages.has(requestedPage) ? requestedPage : 'dashboard';
+          setPage(restoredPage);
+          window.history.replaceState({ page: restoredPage }, document.title, pathForPage(restoredPage));
+          setAuthResolved(true);
+        }
 
         queueMicrotask(async () => {
           try {

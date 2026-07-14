@@ -1006,8 +1006,7 @@ function SearchPage({ viewer, follows, onToggleFollow, onOpenChat, onOpenProfile
 }
 
 /* ================================ Activity Page =============================== */
-function ActivityPage({ incoming, onAccept, onDecline }) {
-  const feed = [];
+function ActivityPage({ incoming, activities, onAccept, onDecline }) {
 
   return (
     <div className="space-y-6 px-4 pt-4 sm:px-0">
@@ -1025,10 +1024,10 @@ function ActivityPage({ incoming, onAccept, onDecline }) {
                     <p className="truncate text-xs font-black text-white">{person.name}</p>
                     <p className="text-[10px] font-semibold text-white/40">wants to follow you</p>
                   </div>
-                  <button type="button" onClick={() => onAccept(person.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white" style={{ background: GRADIENT }}>
+                  <button type="button" onClick={() => onAccept(request.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white" style={{ background: GRADIENT }}>
                     Accept
                   </button>
-                  <button type="button" onClick={() => onDecline(person.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white/50" style={{ background: SURFACE_2 }}>
+                  <button type="button" onClick={() => onDecline(request.id)} className="rounded-lg px-3 py-1.5 text-[10px] font-black text-white/50" style={{ background: SURFACE_2 }}>
                     Decline
                   </button>
                 </div>
@@ -1041,19 +1040,21 @@ function ActivityPage({ incoming, onAccept, onDecline }) {
       <section>
         <p className="mb-3 text-xs font-black uppercase tracking-wide text-white/40">This week</p>
         <div className="space-y-1">
-          {feed.map((item) => {
-            const person = byId(item.personId);
+          {activities.map((item) => {
+            const person = item.person ? normalizeRegisteredUser(item.person) : null;
             if (!person) return null;
             return (
               <div key={item.id} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition hover:bg-white/5">
                 <img src={person.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
                 <p className="flex-1 text-xs font-medium text-white/70">
                   <span className="font-black text-white">{person.name}</span> {item.text}
+                  {item.preview && <span className="mt-0.5 block truncate text-[10px] text-white/35">“{item.preview}”</span>}
                 </p>
                 <span className="text-[10px] font-semibold text-white/30">{item.time}</span>
               </div>
             );
           })}
+          {activities.length === 0 && <p className="py-10 text-center text-xs font-semibold text-white/30">Your likes, comments, and new followers will appear here.</p>}
         </div>
       </section>
     </div>
@@ -1251,6 +1252,16 @@ const DEFAULT_VIEWER = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+let communityCsrfCache = null;
+
+const getCommunityCsrf = async () => {
+  if (communityCsrfCache?.expiresAt > Date.now()) return communityCsrfCache;
+  const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || "Unable to prepare the secure request.");
+  communityCsrfCache = { ...data, expiresAt: Date.now() + 12 * 60 * 1000 };
+  return communityCsrfCache;
+};
 
 const normalizeRegisteredUser = (user) => ({
   id: user.id,
@@ -1299,10 +1310,14 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [profileId, setProfileId] = useState(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [chatListOpen, setChatListOpen] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
+  const [chatSearchResults, setChatSearchResults] = useState([]);
+  const [chatSearchLoading, setChatSearchLoading] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [chatMessages, setChatMessages] = useState({});
   const [follows, setFollows] = useState({});
   const [incoming, setIncoming] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [profileStats, setProfileStats] = useState({});
 
   useEffect(() => {
@@ -1344,7 +1359,8 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           ...(social.followingIds || []).map((id) => [id, "following"]),
           ...(social.outgoingRequests || []).map((request) => [request.toId, "requested"]),
         ]));
-        setIncoming((social.incomingRequests || []).map((request) => ({ ...request, id: request.fromId })));
+        setIncoming(social.incomingRequests || []);
+        setActivities(social.activities || []);
       }
     }).catch(() => {});
   }, [authToken, viewer.id]);
@@ -1368,6 +1384,31 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
       })
       .catch(() => {});
   }, [authToken, profileId, viewer.id]);
+
+  useEffect(() => {
+    if (!chatListOpen || !authToken) return undefined;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setChatSearchLoading(true);
+      try {
+        const query = chatSearch.trim();
+        const response = await fetch(`${API_BASE_URL}/users/directory?limit=25${query ? `&query=${encodeURIComponent(query)}` : ""}`, {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${authToken}` },
+          signal: controller.signal,
+        });
+        if (response.ok) setChatSearchResults((await response.json()).map(normalizeRegisteredUser));
+      } catch (error) {
+        if (error?.name !== "AbortError") setChatSearchResults([]);
+      } finally {
+        if (!controller.signal.aborted) setChatSearchLoading(false);
+      }
+    }, chatSearch.trim() ? 250 : 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [authToken, chatListOpen, chatSearch]);
 
   MOCK_PEOPLE = people;
   CURRENT_VIEWER = viewer;
@@ -1423,13 +1464,11 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     setPosts((items) => items.map((post) => post.authorId === viewer.id ? { ...post, authorUsername: data.username } : post));
   };
 
-  const mutateWithCsrf = async (path, body) => {
+  const mutateWithCsrf = async (path, body, method = "POST") => {
     if (!authToken) throw new Error("Please sign in again.");
-    const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
-    const csrf = await csrfResponse.json().catch(() => ({}));
-    if (!csrfResponse.ok) throw new Error(csrf.message || "Unable to prepare the secure request.");
+    const csrf = await getCommunityCsrf();
     const send = (token) => fetch(`${API_BASE_URL}${path}`, {
-      method: "POST", credentials: "include",
+      method, credentials: "include",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-CSRF-Token": csrf.csrfToken, ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}) },
       body: JSON.stringify(body || {}),
     });
@@ -1499,19 +1538,25 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     if (Number.isFinite(Number(created.authorStreak))) setCommunityStreak(Number(created.authorStreak));
   };
 
-  const toggleFollow = (person) => {
-    setFollows((state) => {
-      const current = state[person.id] || "none";
-      if (current === "following") return { ...state, [person.id]: "none" };
-      if (current === "requested") return state;
-      return { ...state, [person.id]: person.private ? "requested" : "following" };
-    });
+  const toggleFollow = async (person) => {
+    const current = follows[person.id] || "none";
+    if (current !== "none") return;
+    setFollows((state) => ({ ...state, [person.id]: "requested" }));
+    try {
+      await mutateWithCsrf('/community/follow-requests', { targetUserId: person.id });
+    } catch {
+      setFollows((state) => ({ ...state, [person.id]: "none" }));
+    }
   };
 
-  const acceptRequest = (id) => {
-    setIncoming((items) => items.filter((r) => r.id !== id));
+  const acceptRequest = async (id) => {
+    await mutateWithCsrf(`/community/follow-requests/${id}`, { action: "accept" }, "PATCH");
+    setIncoming((items) => items.filter((request) => request.id !== id));
   };
-  const declineRequest = (id) => setIncoming((items) => items.filter((r) => r.id !== id));
+  const declineRequest = async (id) => {
+    await mutateWithCsrf(`/community/follow-requests/${id}`, { action: "decline" }, "PATCH");
+    setIncoming((items) => items.filter((request) => request.id !== id));
+  };
 
   const openChat = async (person) => {
     setActiveChat(person);
@@ -1526,8 +1571,14 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   };
 
   const sendMessage = async (threadId, messageText) => {
-    const saved = await mutateWithCsrf('/chat/messages', { receiverId: threadId, content: messageText });
-    setChatMessages((items) => ({ ...items, [threadId]: [...(items[threadId] || []), { id: saved.id, from: "me", text: saved.content, time: "now" }] }));
+    const optimisticId = uid("sending");
+    setChatMessages((items) => ({ ...items, [threadId]: [...(items[threadId] || []), { id: optimisticId, from: "me", text: messageText, time: "sending…" }] }));
+    try {
+      const saved = await mutateWithCsrf('/chat/messages', { receiverId: threadId, content: messageText });
+      setChatMessages((items) => ({ ...items, [threadId]: (items[threadId] || []).map((message) => message.id === optimisticId ? { id: saved.id, from: "me", text: saved.content, time: "now" } : message) }));
+    } catch {
+      setChatMessages((items) => ({ ...items, [threadId]: (items[threadId] || []).map((message) => message.id === optimisticId ? { ...message, time: "failed" } : message) }));
+    }
   };
 
   const threadList = Object.keys(chatMessages).map((id) => {
@@ -1535,6 +1586,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     const last = chatMessages[id][chatMessages[id].length - 1];
     return { ...person, lastText: last?.text || "", lastTime: last?.time || "" };
   });
+  const chatPeople = chatSearchResults.filter((person) => person.id !== viewer.id && !threadList.some((thread) => thread.id === person.id));
 
   return (
     <div className="peer-root relative min-h-screen overflow-x-hidden pb-24 text-white lg:pb-16" style={{ background: INK }}>
@@ -1570,7 +1622,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           )}
 
           {tab === "search" && <SearchPage viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} onOpenProfile={setProfileId} />}
-          {tab === "activity" && <ActivityPage incoming={incoming} onAccept={acceptRequest} onDecline={declineRequest} />}
+          {tab === "activity" && <ActivityPage incoming={incoming} activities={activities} onAccept={acceptRequest} onDecline={declineRequest} />}
           {tab === "profile" && (
             <div className="mx-4 overflow-hidden rounded-3xl border backdrop-blur-xl sm:mx-0" style={{ background: SURFACE, borderColor: HAIRLINE }}>
               <ProfileView personId="me" viewer={viewer} posts={posts} stats={profileStats[viewer.id]} follows={follows} onToggleFollow={toggleFollow} onOpenChat={openChat} onSaveUsername={saveUsername} embedded />
@@ -1612,7 +1664,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <ActivityPage incoming={incoming} onAccept={acceptRequest} onDecline={declineRequest} />
+            <ActivityPage incoming={incoming} activities={activities} onAccept={acceptRequest} onDecline={declineRequest} />
           </div>
         </div>
       )}
@@ -1629,7 +1681,21 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                 <X className="h-4 w-4" />
               </button>
             </div>
+            <div className="px-4 pb-3">
+              <label className="flex items-center gap-2 rounded-2xl border px-3 py-2.5" style={{ borderColor: HAIRLINE, background: SURFACE_2 }}>
+                <Search className="h-4 w-4 shrink-0 text-white/35" />
+                <input
+                  value={chatSearch}
+                  onChange={(event) => setChatSearch(event.target.value)}
+                  placeholder="Search registered users..."
+                  className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-white/30"
+                  autoFocus
+                />
+                {chatSearchLoading && <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />}
+              </label>
+            </div>
             <div className="flex-1 space-y-1 overflow-y-auto px-3 peer-scroll">
+              {threadList.length > 0 && <p className="px-2 pb-1 text-[10px] font-black uppercase tracking-wide text-white/30">Recent chats</p>}
               {threadList.map((thread) => (
                 <button
                   key={thread.id}
@@ -1645,6 +1711,25 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                   <span className="text-[10px] font-bold text-white/30">{thread.lastTime}</span>
                 </button>
               ))}
+              {chatPeople.length > 0 && <p className="px-2 pb-1 pt-3 text-[10px] font-black uppercase tracking-wide text-white/30">Registered users</p>}
+              {chatPeople.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => openChat(person)}
+                  className="flex w-full items-center gap-3 rounded-2xl p-2.5 text-left transition hover:bg-white/5"
+                >
+                  <img src={person.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-black text-white">{person.name}</p>
+                    <p className="truncate text-[11px] font-semibold text-white/40">{person.handle || person.role}</p>
+                  </div>
+                  <Send className="h-4 w-4 text-white/30" />
+                </button>
+              ))}
+              {!chatSearchLoading && threadList.length === 0 && chatPeople.length === 0 && (
+                <p className="px-4 py-10 text-center text-xs font-semibold text-white/35">No registered users found.</p>
+              )}
             </div>
           </div>
         </div>
