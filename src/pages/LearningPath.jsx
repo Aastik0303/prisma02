@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Lock, Check, Award, Compass, Flame, Info, CheckCircle2,
   ChevronRight, Sparkles, BookOpen, Cpu, XCircle, RotateCcw,
@@ -944,11 +944,15 @@ export default function LearningPath({
     messageIdRef.current += 1;
     return `${prefix}-${messageIdRef.current}`;
   };
-  const enrolledTracks = Array.isArray(tracksData)
-    ? tracksData.filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
-    : [];
-  const currentTrack = enrolledTracks.find(track => track.id === activeTrack?.id) || enrolledTracks[0] || null;
-  const currentTrackSyllabus = buildTrackSyllabus(currentTrack || {});
+  const enrolledTracks = useMemo(() => (
+    Array.isArray(tracksData)
+      ? tracksData.filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
+      : []
+  ), [tracksData]);
+  const currentTrack = useMemo(() => (
+    enrolledTracks.find(track => track.id === activeTrack?.id) || enrolledTracks[0] || null
+  ), [enrolledTracks, activeTrack?.id]);
+  const currentTrackSyllabus = useMemo(() => buildTrackSyllabus(currentTrack || {}), [currentTrack]);
   const getTrackTone = (trackId = '') => {
     if (trackId === 'web-dev' || trackId === 'frontend' || trackId === 'mern-stack') return {
       glowStrong: 'from-indigo-500/10',
@@ -1020,6 +1024,8 @@ export default function LearningPath({
       return `${path} L ${previous.x},${midY} L ${point.x},${midY} L ${point.x},${point.y}`;
     }, 'M 8,0');
   };
+  const roadmapPath = useMemo(() => buildPixelPath(currentTrack?.nodes || []), [currentTrack?.nodes]);
+  const unlockedRoadmapPath = useMemo(() => buildPixelPath(currentTrack?.nodes || [], true), [currentTrack?.nodes]);
 
   const getCategoryIcon = (category = '') => {
     if (category.includes('Project')) return Terminal;
@@ -1027,14 +1033,16 @@ export default function LearningPath({
     if (category.includes('Core') || category.includes('Skills')) return Cpu;
     return BookOpen;
   };
+  const selectedWorkspaceData = useMemo(() => (
+    selectedNode && activeTrack ? getWorkspaceData(selectedNode, activeTrack.id) : null
+  ), [selectedNode, activeTrack?.id]);
 
   const askAiTutor = async (message) => {
     if (!authToken) {
       return 'Please sign in again so I can securely use the AI tutor for this lesson.';
     }
 
-    const workspace = selectedNode && activeTrack ? getWorkspaceData(selectedNode, activeTrack.id) : null;
-    const currentSlideData = workspace?.slides?.[currentSlide];
+    const currentSlideData = selectedWorkspaceData?.slides?.[currentSlide];
     const recentHistory = chatMessages
       .filter(msg => msg.id !== 'm-init')
       .slice(-6)
@@ -1062,7 +1070,7 @@ export default function LearningPath({
           lessonTitle: selectedNode?.title,
           slideTitle: currentSlideData?.title,
           syllabus: currentSlideData?.bullets,
-          sandboxLanguage: workspace?.sandbox?.language,
+          sandboxLanguage: selectedWorkspaceData?.sandbox?.language,
           sandboxCode
         }
       })
@@ -1159,10 +1167,9 @@ export default function LearningPath({
 
   // Sync workspace configurations whenever selectedNode is loaded
   useEffect(() => {
-    if (selectedNode && activeTrack) {
-      const data = getWorkspaceData(selectedNode, activeTrack.id);
+    if (selectedNode && activeTrack && selectedWorkspaceData) {
       setCurrentSlide(0);
-      setSandboxCode(data.sandbox.code);
+      setSandboxCode(selectedWorkspaceData.sandbox.code);
       setSandboxOutput(`// Practice sandbox is loaded.\n// Modify code in the editor and click "Execute Code" to test compiler logs.`);
       setChatMessages([
         {
@@ -1175,7 +1182,7 @@ export default function LearningPath({
       setShowChatbot(false);
       setShowQuizOverlay(false);
     }
-  }, [selectedNode, activeTrack]);
+  }, [selectedNode, activeTrack, selectedWorkspaceData]);
 
   // Doubt bubble click response
   const handleDoubtClick = async (doubt) => {
@@ -1232,7 +1239,11 @@ export default function LearningPath({
     setTimeout(() => {
       setIsCompiling(false);
       let output = "[Runtime Output]\nExecution complete.";
-      const data = getWorkspaceData(selectedNode, activeTrack.id);
+      const data = selectedWorkspaceData;
+      if (!data) {
+        setSandboxOutput(output);
+        return;
+      }
 
       if (data.sandbox.language === 'html') {
         output = `[Vite Sandbox Dev Server] Hot-reloaded successfully!
@@ -1729,7 +1740,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
                 <path
                   className="pixel-path-bed"
-                  d={buildPixelPath(currentTrack?.nodes || [])}
+                  d={roadmapPath}
                   fill="none"
                   stroke="#808080"
                   strokeWidth="1"
@@ -1738,7 +1749,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                   strokeDasharray="1 5"
                 />
                 <path
-                  d={buildPixelPath(currentTrack?.nodes || [], true)}
+                  d={unlockedRoadmapPath}
                   fill="none"
                   stroke="#000080"
                   strokeWidth="2"
@@ -1748,7 +1759,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                 />
                 <path
                   className="pixel-path-studs"
-                  d={buildPixelPath(currentTrack?.nodes || [])}
+                  d={roadmapPath}
                   fill="none"
                   stroke="#808080"
                   strokeWidth="1"
@@ -2076,7 +2087,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                         Presentation Module
                       </span>
                       <h2 className="text-2xl font-extrabold text-white tracking-tight font-sora mt-1">
-                        {getWorkspaceData(selectedNode, activeTrack.id).pptTitle}
+                        {selectedWorkspaceData?.pptTitle}
                       </h2>
                     </div>
 
@@ -2095,16 +2106,17 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                           >
                             <div className="lesson-slide-kicker">
                               Slide {currentSlide + 1} of{' '}
-                              {getWorkspaceData(selectedNode, activeTrack.id).slides.length}
-                              {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].pointLabel
-                                ? ` - ${getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].pointLabel}`
+                              {selectedWorkspaceData?.slides.length}
+                              {selectedWorkspaceData?.slides[currentSlide]?.pointLabel
+                                ? ` - ${selectedWorkspaceData.slides[currentSlide].pointLabel}`
                                 : ''}
                             </div>
                             <h4 className="text-xl sm:text-2xl font-extrabold text-white font-sora leading-tight">
-                              {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].title}
+                              {selectedWorkspaceData?.slides[currentSlide]?.title}
                             </h4>
                             {(() => {
-                              const workspace = getWorkspaceData(selectedNode, activeTrack.id);
+                              const workspace = selectedWorkspaceData;
+                              if (!workspace) return null;
                               const activeSlide = workspace.slides[currentSlide];
                               const slideText = activeSlide.paragraphs || activeSlide.bullets || [];
                               const isEvenSlide = currentSlide % 2 === 0;
@@ -2125,7 +2137,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                                 <div className={`lesson-slide-content max-w-5xl overflow-y-auto overscroll-contain pr-2 pt-2 text-sm leading-7 text-slate-100 ${
                                   isEvenSlide
                                     ? 'space-y-4'
-                                    : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]'
+                                    : 'space-y-3'
                                 }`}>
                                   <div className={isEvenSlide ? 'space-y-4' : 'space-y-3'}>
                                     {slideText.map((paragraph, i) => (
@@ -2142,17 +2154,8 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                                     ))}
                                   </div>
 
-                                  {!isEvenSlide && (
-                                    <aside className="rounded-2xl border border-cyan-400/15 bg-cyan-400/5 p-4 text-xs leading-6 text-cyan-50">
-                                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Study Check</span>
-                                      <p className="mt-3 font-semibold text-slate-100">
-                                        Read this slide, explain it once in your own words, then connect it to the practice task before moving forward.
-                                      </p>
-                                    </aside>
-                                  )}
-
                                   {isExampleSlide && codeExamples.length > 0 && (
-                                    <div className={`${isEvenSlide ? 'mt-4' : 'xl:col-span-2'} space-y-3`}>
+                                    <div className="space-y-3">
                                       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                                         <Terminal className="h-3.5 w-3.5" />
                                         Coding Example
@@ -2180,7 +2183,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                       {/* Pagination */}
                       <div className="lesson-slide-footer pt-6 mt-6 flex justify-between items-center relative z-10">
                         <div className="flex gap-1.5">
-                          {getWorkspaceData(selectedNode, activeTrack.id).slides.map((_, i) => (
+                          {selectedWorkspaceData?.slides.map((_, i) => (
                             <button
                               key={i}
                               onClick={() => setCurrentSlide(i)}
@@ -2207,11 +2210,11 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                           <button
                             disabled={
                               currentSlide ===
-                              getWorkspaceData(selectedNode, activeTrack.id).slides.length - 1
+                              (selectedWorkspaceData?.slides.length || 1) - 1
                             }
                             onClick={() => setCurrentSlide((prev) => prev + 1)}
                             className={`lesson-slide-nav ${currentSlide ===
-                              getWorkspaceData(selectedNode, activeTrack.id).slides.length - 1
+                              (selectedWorkspaceData?.slides.length || 1) - 1
                               ? 'is-disabled'
                               : ''
                               }`}
@@ -2257,7 +2260,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                             <Terminal className="w-4 h-4 text-emerald-400" />
                             <span className="text-slate-350 font-bold">
                               workspace_compiler.
-                              {getWorkspaceData(selectedNode, activeTrack.id).sandbox.language}
+                              {selectedWorkspaceData?.sandbox.language}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2299,7 +2302,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                         <div className="px-5 py-3 bg-darknavy text-[9px] text-slate-500 font-bold flex justify-between items-center">
                           <span>
                             Language:{' '}
-                            {getWorkspaceData(selectedNode, activeTrack.id).sandbox.language.toUpperCase()}
+                            {selectedWorkspaceData?.sandbox.language.toUpperCase()}
                           </span>
                           <span>Status: Compile Ready</span>
                         </div>
@@ -2378,7 +2381,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
                         {/* Smart Doubt Quick Questions */}
                         <div className="p-3 border-t border-slate-800/60 bg-darknavy flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                          {getWorkspaceData(selectedNode, activeTrack.id).chatbot.map((doubt, idx) => (
+                          {selectedWorkspaceData?.chatbot.map((doubt, idx) => (
                             <button
                               key={idx}
                               onClick={() => handleDoubtClick(doubt)}
