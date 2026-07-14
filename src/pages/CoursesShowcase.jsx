@@ -872,24 +872,46 @@ const difficultyFilters = [
 
 const normalizeCatalogValue = value => String(value || '').trim().toLowerCase();
 
+const categoryAliasMap = {
+  'software development': 'software',
+  'programming foundations': 'software',
+  'programming and algorithms': 'software',
+  'frontend engineering': 'software',
+  'backend engineering': 'software',
+  'mobile development': 'software',
+  'data science': 'data',
+  'business analytics': 'data',
+  'database engineering': 'data',
+  'embedded engineering': 'hardware',
+  'cloud engineering': 'cloud',
+  'devops engineering': 'cloud',
+  cybersecurity: 'security',
+  'product design': 'design',
+  'blockchain development': 'web3'
+};
+
 const inferCourseCategory = (course = {}) => {
   const explicitCategory = normalizeCatalogValue(course.category || course.track || course.domain);
+  if (categoryAliasMap[explicitCategory]) return categoryAliasMap[explicitCategory];
   if (categoryFilters.some(item => item.id === explicitCategory)) return explicitCategory;
 
-  const haystack = normalizeCatalogValue([
+  const identityHaystack = normalizeCatalogValue([
     course.id,
     course.title,
     course.subtitle,
-    course.description,
     course.badge
   ].filter(Boolean).join(' '));
+  const fullHaystack = normalizeCatalogValue([
+    identityHaystack,
+    course.description
+  ].filter(Boolean).join(' '));
 
-  if (/design|figma|ui\/ux|prototype|wireframe|visual/.test(haystack)) return 'design';
-  if (/embedded|firmware|iot|microcontroller|hardware|stm32/.test(haystack)) return 'hardware';
-  if (/cloud|devops|docker|kubernetes|aws|azure|infrastructure/.test(haystack)) return 'cloud';
-  if (/security|cyber|hacking|owasp|cryptography/.test(haystack)) return 'security';
-  if (/data|analytics|science|sql|database|machine learning|ai|ml|statistics/.test(haystack)) return 'data';
-  if (/blockchain|web3|solidity|ethereum|smart contract/.test(haystack)) return 'web3';
+  if (/ui\/ux|figma|wireframe|prototype|product design|visual design|user research|usability|developer-ready handoff/.test(fullHaystack)) return 'design';
+  if (/embedded|firmware|iot|microcontroller|hardware|stm32/.test(fullHaystack)) return 'hardware';
+  if (/cloud|devops|docker|kubernetes|aws|azure|infrastructure/.test(fullHaystack)) return 'cloud';
+  if (/security|cyber|hacking|owasp|cryptography/.test(fullHaystack)) return 'security';
+  if (/data|analytics|science|sql|database|machine learning|ai|ml|statistics/.test(fullHaystack)) return 'data';
+  if (/blockchain|web3|solidity|ethereum|smart contract/.test(fullHaystack)) return 'web3';
   return 'software';
 };
 
