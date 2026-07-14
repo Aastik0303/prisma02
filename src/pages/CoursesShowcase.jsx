@@ -852,6 +852,101 @@ const getCourseTheme = (course) => {
   return courseThemeMap[key] || courseThemeMap.indigo;
 };
 
+const categoryFilters = [
+  { id: 'all', label: 'All' },
+  { id: 'software', label: 'Software' },
+  { id: 'data', label: 'Data' },
+  { id: 'hardware', label: 'Hardware' },
+  { id: 'cloud', label: 'Cloud' },
+  { id: 'security', label: 'Security' },
+  { id: 'design', label: 'Design' },
+  { id: 'web3', label: 'Web3' }
+];
+
+const difficultyFilters = [
+  { id: 'all', label: 'All Levels' },
+  { id: 'easy', label: 'Easy' },
+  { id: 'middle', label: 'Middle' },
+  { id: 'advanced', label: 'Advanced' }
+];
+
+const normalizeCatalogValue = value => String(value || '').trim().toLowerCase();
+
+const inferCourseCategory = (course = {}) => {
+  const explicitCategory = normalizeCatalogValue(course.category || course.track || course.domain);
+  if (categoryFilters.some(item => item.id === explicitCategory)) return explicitCategory;
+
+  const haystack = normalizeCatalogValue([
+    course.id,
+    course.title,
+    course.subtitle,
+    course.description,
+    course.badge
+  ].filter(Boolean).join(' '));
+
+  if (/design|figma|ui\/ux|prototype|wireframe|visual/.test(haystack)) return 'design';
+  if (/embedded|firmware|iot|microcontroller|hardware|stm32/.test(haystack)) return 'hardware';
+  if (/cloud|devops|docker|kubernetes|aws|azure|infrastructure/.test(haystack)) return 'cloud';
+  if (/security|cyber|hacking|owasp|cryptography/.test(haystack)) return 'security';
+  if (/data|analytics|science|sql|database|machine learning|ai|ml|statistics/.test(haystack)) return 'data';
+  if (/blockchain|web3|solidity|ethereum|smart contract/.test(haystack)) return 'web3';
+  return 'software';
+};
+
+const inferCourseDifficulty = (course = {}) => {
+  const explicitDifficulty = normalizeCatalogValue(course.difficulty || course.level);
+  if (['easy', 'middle', 'advanced'].includes(explicitDifficulty)) return explicitDifficulty;
+  if (explicitDifficulty === 'medium' || explicitDifficulty === 'intermediate') return 'middle';
+  if (explicitDifficulty === 'beginner' || explicitDifficulty === 'foundation') return 'easy';
+
+  const haystack = normalizeCatalogValue([
+    course.id,
+    course.title,
+    course.subtitle,
+    course.description,
+    course.badge
+  ].filter(Boolean).join(' '));
+
+  if (/foundation|beginner|essentials|bootcamp|frontend engineering|python programming/.test(haystack)) return 'easy';
+  if (/advanced|elite|industrial|architecture|cloud|devops|security|blockchain|llm|machine learning/.test(haystack)) return 'advanced';
+  return 'middle';
+};
+
+const courseMetaLabel = (items, id) => items.find(item => item.id === id)?.label || id;
+
+function SyllabusPreview({ course, theme, expanded, onToggle }) {
+  const topics = Array.isArray(course.syllabus) ? course.syllabus : [];
+  const visibleTopics = expanded ? topics : topics.slice(0, 3);
+  const hiddenCount = Math.max(topics.length - visibleTopics.length, 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">Syllabus Pillars</h4>
+        {topics.length > 3 && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-extrabold transition-colors ${theme.soft}`}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Collapse' : `+${hiddenCount} more`}
+            <ChevronRight className={`h-3 w-3 transition-transform ${expanded ? '-rotate-90' : 'rotate-90'}`} />
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5 text-left text-xs">
+        {visibleTopics.map((topic, i) => (
+          <div key={`${course.id}-${i}-${topic}`} className="flex gap-2 rounded-xl border border-transparent px-1 py-0.5 text-slate-600 transition-all group-hover:border-white/50 group-hover:bg-white/35 group-hover:text-slate-800 dark:text-slate-300 dark:group-hover:border-slate-800/50 dark:group-hover:bg-slate-950/20 dark:group-hover:text-slate-100">
+            <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${theme.text}`} />
+            <span className="leading-tight font-medium">{topic}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const buildCourseDocument = course => {
   if (!course) return null;
   const syllabus = Array.isArray(course.syllabus) && course.syllabus.length ? course.syllabus : ['Course foundations'];
@@ -879,6 +974,9 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
   const [activePptCourse, setActivePptCourse] = useState(null); // 'web-dev' | 'ai-ml' | 'embedded' | null
   const [publishedCourses, setPublishedCourses] = useState([]);
   const [courseSearch, setCourseSearch] = useState('');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
+  const [activeDifficultyFilter, setActiveDifficultyFilter] = useState('all');
+  const [expandedSyllabusCards, setExpandedSyllabusCards] = useState({});
   const [showCourseChat, setShowCourseChat] = useState(false);
   const [courseChatInput, setCourseChatInput] = useState('');
   const [courseChatMessages, setCourseChatMessages] = useState([
@@ -1113,7 +1211,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
       courseMap.set(course.id, course);
       return courseMap;
     }, new Map()).values()
-  );
+  ).map(course => ({
+    ...course,
+    category: course.category || inferCourseCategory(course),
+    difficulty: course.difficulty || inferCourseDifficulty(course)
+  }));
   const activeCourse = courses.find(course => course.id === activePptCourse);
   const activePpt = activePptCourse
     ? COURSE_LEARNING_CONTENT[activePptCourse] || buildCourseDocument(activeCourse)
@@ -1158,10 +1260,30 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
       .filter(Boolean)
       .some(value => String(value).toLowerCase().includes(normalizedCourseSearch));
   };
-  const filteredPurchasedCourses = purchasedCourses.filter(courseMatchesSearch);
-  const filteredExploreCourses = exploreCourses.filter(courseMatchesSearch);
+  const courseMatchesFilters = (course) => (
+    (activeCategoryFilter === 'all' || course.category === activeCategoryFilter)
+    && (activeDifficultyFilter === 'all' || course.difficulty === activeDifficultyFilter)
+  );
+  const courseMatchesDiscovery = (course) => courseMatchesSearch(course) && courseMatchesFilters(course);
+  const filteredPurchasedCourses = purchasedCourses.filter(courseMatchesDiscovery);
+  const filteredExploreCourses = exploreCourses.filter(courseMatchesDiscovery);
   const hasCourseSearch = normalizedCourseSearch.length > 0;
+  const hasActiveCourseFilters = activeCategoryFilter !== 'all' || activeDifficultyFilter !== 'all';
   const hasCourseMatches = filteredPurchasedCourses.length + filteredExploreCourses.length > 0;
+  const matchedCourseCount = filteredPurchasedCourses.length + filteredExploreCourses.length;
+
+  const toggleSyllabusCard = (courseId) => {
+    setExpandedSyllabusCards(previous => ({
+      ...previous,
+      [courseId]: !previous[courseId]
+    }));
+  };
+
+  const clearCourseDiscoveryFilters = () => {
+    setCourseSearch('');
+    setActiveCategoryFilter('all');
+    setActiveDifficultyFilter('all');
+  };
 
   const sendCourseChatMessage = async (message, course = activeCourse || purchasedCourses[0] || exploreCourses[0]) => {
     if (!authToken) {
@@ -1312,19 +1434,56 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
             />
           </label>
         </div>
-        {hasCourseSearch && (
+        <div className="mt-4 space-y-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categoryFilters.map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveCategoryFilter(filter.id)}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-extrabold transition-colors ${
+                  activeCategoryFilter === filter.id
+                    ? 'border-cyan-400 bg-cyan-500 text-white shadow-sm shadow-cyan-500/20'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {difficultyFilters.map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveDifficultyFilter(filter.id)}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-extrabold transition-colors ${
+                  activeDifficultyFilter === filter.id
+                    ? 'border-indigo-400 bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-indigo-500/50 dark:hover:text-indigo-200'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {(hasCourseSearch || hasActiveCourseFilters) && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
             <span>
               {hasCourseMatches
-                ? `${filteredPurchasedCourses.length + filteredExploreCourses.length} course match${filteredPurchasedCourses.length + filteredExploreCourses.length === 1 ? '' : 'es'}`
-                : 'No courses match your search yet'}
+                ? `${matchedCourseCount} course match${matchedCourseCount === 1 ? '' : 'es'}`
+                : 'No courses match these filters yet'}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+              {courseMetaLabel(categoryFilters, activeCategoryFilter)} / {courseMetaLabel(difficultyFilters, activeDifficultyFilter)}
             </span>
             <button
               type="button"
-              onClick={() => setCourseSearch('')}
+              onClick={clearCourseDiscoveryFilters}
               className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              Clear search
+              Clear
             </button>
           </div>
         )}
@@ -1357,10 +1516,10 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           </p>
         </div>
       )}
-      {purchasedCourses.length > 0 && !filteredPurchasedCourses.length && hasCourseSearch && (
+      {purchasedCourses.length > 0 && !filteredPurchasedCourses.length && (hasCourseSearch || hasActiveCourseFilters) && (
         <div className="rounded-[24px] border border-dashed border-slate-300/70 bg-white/70 p-6 text-center dark:border-slate-700/70 dark:bg-slate-950/30">
-          <h3 className="text-sm font-extrabold text-slate-950 dark:text-white">No enrolled courses match this search</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Try another skill, topic, or technology name.</p>
+          <h3 className="text-sm font-extrabold text-slate-950 dark:text-white">No enrolled courses match this view</h3>
+          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Try another skill, category, or level.</p>
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
@@ -1408,6 +1567,15 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   {course.description}
                 </p>
 
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <span className={`rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider ${theme.chip}`}>
+                    {courseMetaLabel(categoryFilters, course.category)}
+                  </span>
+                  <span className="rounded-full border border-white/70 bg-white/65 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/35 dark:text-slate-300">
+                    {courseMetaLabel(difficultyFilters, course.difficulty)}
+                  </span>
+                </div>
+
                 <div className="mb-4 rounded-2xl border border-white/70 bg-white/75 p-3 text-xs shadow-sm dark:border-slate-800/70 dark:bg-slate-950/45">
                   <div className="flex items-start justify-between gap-3 font-bold">
                     <div>
@@ -1441,17 +1609,13 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </div>
                 </div>
 
-                {/* Syllabus items check */}
-                <div className="mb-4 space-y-2">
-                  <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">Syllabus Pillars</h4>
-                  <div className="space-y-1.5 text-left text-xs">
-                    {course.syllabus.slice(0, 6).map((topic, i) => (
-                      <div key={i} className="flex gap-2 rounded-xl px-1 py-0.5 text-slate-600 transition-colors group-hover:text-slate-800 dark:text-slate-300 dark:group-hover:text-slate-100">
-                        <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${theme.text}`} />
-                        <span className="leading-tight font-medium">{topic}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="mb-4 rounded-2xl border border-white/70 bg-white/45 p-3 dark:border-slate-800/60 dark:bg-slate-950/25">
+                  <SyllabusPreview
+                    course={course}
+                    theme={theme}
+                    expanded={Boolean(expandedSyllabusCards[course.id])}
+                    onToggle={() => toggleSyllabusCard(course.id)}
+                  />
                 </div>
                 <div className="mb-4 rounded-xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
                   Study flow: learn the idea, see a guided example, solve a checkpoint, then apply it in a project artifact.
@@ -1525,6 +1689,15 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   {course.description}
                 </p>
 
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className={`rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider ${theme.chip}`}>
+                    {courseMetaLabel(categoryFilters, course.category)}
+                  </span>
+                  <span className="rounded-full border border-white/70 bg-white/65 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/35 dark:text-slate-300">
+                    {courseMetaLabel(difficultyFilters, course.difficulty)}
+                  </span>
+                </div>
+
                 <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-2xl border border-white/70 bg-white/65 px-2 py-3 dark:border-slate-800/60 dark:bg-slate-950/35">
                     <strong className={`block text-sm font-extrabold ${theme.text}`}>{course.rating}</strong>
@@ -1540,13 +1713,13 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-1.5">
-                  {course.syllabus.slice(0, 6).map((topic, i) => (
-                    <div key={i} className="flex gap-2 rounded-xl border border-transparent text-xs font-medium text-slate-600 transition-all group-hover:border-white/50 group-hover:bg-white/35 dark:text-slate-300 dark:group-hover:border-slate-800/50 dark:group-hover:bg-slate-950/20">
-                      <CheckCircle2 className={`h-4 w-4 shrink-0 ${theme.text}`} />
-                      <span>{topic}</span>
-                    </div>
-                  ))}
+                <div className="mt-4 rounded-2xl border border-white/70 bg-white/45 p-3 dark:border-slate-800/60 dark:bg-slate-950/25">
+                  <SyllabusPreview
+                    course={course}
+                    theme={theme}
+                    expanded={Boolean(expandedSyllabusCards[course.id])}
+                    onToggle={() => toggleSyllabusCard(course.id)}
+                  />
                 </div>
                 <div className="mt-3 rounded-xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
                   Study flow: concept explanation, guided example, practice checkpoint, mini project, and revision notes.
@@ -1574,10 +1747,10 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           );
         })}
       </div>
-      {!filteredExploreCourses.length && hasCourseSearch && (
+      {!filteredExploreCourses.length && (hasCourseSearch || hasActiveCourseFilters) && (
         <div className="rounded-[24px] border border-dashed border-cyan-300/70 bg-cyan-50/70 p-6 text-center dark:border-cyan-500/30 dark:bg-cyan-500/10">
           <h3 className="text-sm font-extrabold text-slate-950 dark:text-white">No explore courses found</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Clear the search to browse the full catalog.</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Clear filters to browse the full catalog.</p>
         </div>
       )}
 
