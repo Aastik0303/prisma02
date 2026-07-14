@@ -2758,6 +2758,11 @@
   text-transform: uppercase;
 }
 
+.lesson-slide-content {
+  max-height: min(300px, calc(100vh - 28rem));
+  min-height: 0;
+}
+
 .lesson-slide-bullet {
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 14px;
@@ -2927,7 +2932,12 @@
     border-radius: 18px;
     padding: 1rem !important;
     box-shadow: none !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    max-height: calc(100vh - 9.5rem) !important;
+  }
+
+  .lesson-slide-content {
+    max-height: calc(100vh - 21rem);
   }
 
   .lesson-slide-kicker {

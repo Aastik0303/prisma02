@@ -20,7 +20,9 @@ const createMockPrismaClient = () => {
     catalogProject: [],
     followRequest: [],
     follow: [],
-    communityPost: []
+    communityPost: [],
+    communityLike: [],
+    communityComment: []
   };
 
   const matchesWhere = (record: any, where: any = {}) => {
@@ -42,6 +44,9 @@ const createMockPrismaClient = () => {
         }
         if ('not' in expected) {
           return actual !== expected.not;
+        }
+        if (key === 'postId_userId') {
+          return record.postId === expected.postId && record.userId === expected.userId;
         }
       }
 
@@ -149,7 +154,7 @@ const createMockPrismaClient = () => {
 
       return records.map(record => applySelect(record, args.select));
     },
-    create: async ({ data }: any) => {
+    create: async ({ data, include }: any) => {
       const now = new Date();
       const record = {
         id: name === 'auditLog' ? BigInt(state[name].length + 1) : crypto.randomUUID(),
@@ -168,6 +173,16 @@ const createMockPrismaClient = () => {
         ...data
       };
       state[name].push(record);
+      if (name === 'communityComment' && include?.author) {
+        return { ...record, author: applySelect(state.user.find(user => user.id === record.authorId) || null, include.author.select) };
+      }
+      if (name === 'chatMessage' && include) {
+        return {
+          ...record,
+          sender: applySelect(state.user.find(user => user.id === record.senderId) || null, include.sender?.select),
+          receiver: applySelect(state.user.find(user => user.id === record.receiverId) || null, include.receiver?.select)
+        };
+      }
       return record;
     },
     update: async ({ where, data, select }: any) => {
@@ -215,6 +230,8 @@ const createMockPrismaClient = () => {
     followRequest: makeModel('followRequest'),
     follow: makeModel('follow'),
     communityPost: makeModel('communityPost'),
+    communityLike: makeModel('communityLike'),
+    communityComment: makeModel('communityComment'),
     $connect: async () => undefined,
     $disconnect: async () => undefined,
     $transaction: async (callback: any) => callback(mockPrisma)

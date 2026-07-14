@@ -34,6 +34,26 @@ export async function chatRoutes(fastify: FastifyInstance) {
     return reply.status(200).send(messages);
   });
 
+  fastify.post('/messages', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { receiverId, content } = request.body as { receiverId?: string; content?: string };
+    const clean = String(content || '').trim();
+    if (!receiverId || !clean || clean.length > 1200) {
+      return reply.status(400).send({ message: 'A recipient and a message of up to 1200 characters are required.' });
+    }
+    if (receiverId === request.user!.id) return reply.status(400).send({ message: 'You cannot message yourself.' });
+    const receiver = await fastify.prisma.user.findUnique({ where: { id: receiverId }, select: { id: true } });
+    if (!receiver) return reply.status(404).send({ message: 'Recipient not found.' });
+
+    const saved = await chatService.saveMessage({ senderId: request.user!.id, receiverId, content: clean });
+    const receiverSocket = activeClients.get(receiverId);
+    if (receiverSocket && receiverSocket.readyState === WebSocket.OPEN) {
+      receiverSocket.send(JSON.stringify({ type: 'message', message: saved }));
+    }
+    return reply.status(201).send(saved);
+  });
+
   fastify.post('/ai', {
     preHandler: [requireAuth],
     config: { rateLimit: learningChatAiRateLimit }

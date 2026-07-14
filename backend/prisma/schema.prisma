@@ -67,6 +67,8 @@ model User {
   following          Follow[]        @relation("UserFollowing")
   followers          Follow[]        @relation("UserFollowers")
   communityPosts     CommunityPost[] @relation("CommunityPosts")
+  communityLikes     CommunityLike[]
+  communityComments  CommunityComment[]
 
   @@map("users")
 }
@@ -376,8 +378,39 @@ model CommunityPost {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   author User @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  likes CommunityLike[]
+  comments CommunityComment[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
   @@map("community_posts")
+}
+
+model CommunityLike {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @db.Uuid @map("post_id")
+  userId    String   @db.Uuid @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@map("community_likes")
+}
+
+model CommunityComment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @db.Uuid @map("post_id")
+  authorId  String   @db.Uuid @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_comments")
 }

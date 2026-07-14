@@ -9,6 +9,110 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+const sectionToBullets = section => {
+  if (section.content) return [section.content];
+  if (section.concepts) return section.concepts.map(concept => `${concept.name}: ${concept.detailed_explanation}${concept.important_note ? ` Important: ${concept.important_note}` : ''}`);
+  if (section.steps) return section.steps.map(step => `${step.step}. ${step.title} - ${step.explanation}`);
+  if (section.mistakes) return section.mistakes.map(item => `${item.mistake}: ${item.how_to_fix}`);
+  if (section.points) return section.points.map(point => typeof point === 'string' ? point : `${point.practice}: ${point.reason}`);
+  if (section.questions) return section.questions.map(item => `${item.question} - ${item.answer}`);
+  if (section.comparisons) return section.comparisons.map(item => `${item.concept_a} vs ${item.concept_b}: ${item.difference}`);
+  if (section.diagram) return [`${section.diagram}\n${section.diagram_explanation || ''}`];
+  if (section.scenario) return [`${section.scenario} ${section.implementation_explanation || ''}`];
+  return [];
+};
+
+const sectionToParagraphs = section => {
+  if (section.content) return [section.content];
+  if (section.concepts) return section.concepts.map(concept => `${concept.name} is explained as follows: ${concept.detailed_explanation}${concept.important_note ? ` An important point to remember is that ${concept.important_note.toLowerCase()}` : ''}`);
+  if (section.steps) return [`The process begins with ${section.steps.map(step => `${step.title.toLowerCase()}, where you ${step.explanation.charAt(0).toLowerCase() + step.explanation.slice(1)}`).join(' It then continues with ')} Following the sequence makes the final result easier to understand and verify.`];
+  if (section.mistakes) return section.mistakes.map(item => `A common mistake is ${item.mistake.toLowerCase()}. This happens because ${item.why_it_happens.toLowerCase()} Correct it by doing the following: ${item.how_to_fix}`);
+  if (section.points) return [section.points.map(point => typeof point === 'string' ? point : `${point.practice} because ${point.reason.toLowerCase()}`).join(' ')];
+  if (section.questions) return section.questions.map(item => `${item.question} ${item.answer}`);
+  if (section.comparisons) return section.comparisons.map(item => `${item.concept_a} and ${item.concept_b} are related, but ${item.difference}`);
+  if (section.diagram) return [`${section.diagram}\n${section.diagram_explanation || ''}`];
+  if (section.scenario) return [`${section.scenario} ${section.implementation_explanation || ''}`];
+  return [];
+};
+
+const lessonToSevenSlides = lesson => {
+  const topics = lesson.topic_contents || [];
+  if (!topics.length) return [];
+
+  return [
+    {
+      title: `${lesson.topic.title}: Core Idea`,
+      pointLabel: 'Point 1',
+      paragraphs: topics.map(topic => topic.introduction)
+    },
+    {
+      title: `${lesson.topic.title}: How It Works`,
+      pointLabel: 'Point 2',
+      paragraphs: topics.map(topic => topic.detailed_explanation)
+    },
+    {
+      title: `${lesson.topic.title}: Simple Examples`,
+      pointLabel: 'Point 3',
+      paragraphs: topics.map(topic => topic.beginner_example)
+    },
+    {
+      title: `${lesson.topic.title}: Professional Use`,
+      pointLabel: 'Point 4',
+      paragraphs: topics.map(topic => topic.professional_example)
+    },
+    {
+      title: `${lesson.topic.title}: Mistakes`,
+      pointLabel: 'Point 5',
+      paragraphs: topics.map(topic => topic.common_mistakes)
+    },
+    {
+      title: `${lesson.topic.title}: Practice`,
+      pointLabel: 'Point 6',
+      paragraphs: topics.map(topic => topic.practice_paragraph)
+    },
+    {
+      title: `${lesson.topic.title}: Quick Recall`,
+      pointLabel: 'Point 7',
+      paragraphs: [
+        `Before moving forward, explain ${topics.map(topic => topic.title).join(', ')} in your own words. Connect each topic to one example, describe one mistake to avoid, and name one test or observation that proves your understanding. This final check helps you remember the level as useful knowledge, not just as a list of definitions.`
+      ]
+    }
+  ];
+};
+
+const getStructuredWorkspaceData = node => {
+  const lesson = node?.lessonContent;
+  if (!lesson) return null;
+
+  const topicSlides = lessonToSevenSlides(lesson);
+  const sectionSlides = lesson.sections
+    .map(section => ({ title: section.title, paragraphs: sectionToParagraphs(section), legacyBullets: sectionToBullets(section) }))
+    .filter(slide => slide.paragraphs.length > 0);
+  const slides = topicSlides.length ? topicSlides : sectionSlides;
+  const assignment = lesson.practice?.practical_assignments?.[0];
+  const codeExample = lesson.sections.find(section => section.type === 'code_example');
+  const language = codeExample?.language || 'text';
+  const code = codeExample?.code || [
+    `Course: ${lesson.course}`,
+    `Level ${lesson.level.number}: ${lesson.level.title}`,
+    '',
+    'Practice activity:',
+    assignment?.description || 'Complete the guided practice activity using an appropriate external tool.',
+    '',
+    ...(assignment?.requirements || []).map((requirement, index) => `${index + 1}. ${requirement}`)
+  ].join('\n');
+
+  return {
+    pptTitle: lesson.topic.title,
+    slides: slides.length ? slides : [{ title: lesson.topic.title, paragraphs: [lesson.topic.learning_objectives.join(' ')] }],
+    sandbox: { code, language },
+    chatbot: [
+      { q: 'What should I learn in this level?', a: lesson.topic.learning_objectives.join(' ') },
+      { q: 'How should I practice this topic?', a: assignment?.solution_approach || lesson.practice?.instructions }
+    ]
+  };
+};
+
 const getCsrfToken = async () => {
   const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
     credentials: 'include'
@@ -162,6 +266,9 @@ const createDetailedStudySlides = ({ node, trackId, baseSlides }) => {
 
 // Mock helper to generate customized slide deck PPTs, starter code, and smart AI chat responder parameters for every stage
 const getWorkspaceData = (node, trackId) => {
+  const structuredWorkspace = getStructuredWorkspaceData(node);
+  if (structuredWorkspace) return structuredWorkspace;
+
   const id = node.id;
   const title = node.title;
 
@@ -706,6 +813,56 @@ export default function LearningPath({
     ? tracksData.filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
     : [];
   const currentTrack = enrolledTracks.find(track => track.id === activeTrack?.id) || enrolledTracks[0] || null;
+  const getTrackTone = (trackId = '') => {
+    if (trackId === 'web-dev' || trackId === 'frontend' || trackId === 'mern-stack') return {
+      glowStrong: 'from-indigo-500/10',
+      glowSoft: 'from-indigo-500/5',
+      accentText: 'text-indigo-500 dark:text-brand-accent',
+      accentBg: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+      progress: 'bg-indigo-500'
+    };
+    if (trackId === 'ai-ml' || trackId === 'data-science' || trackId === 'data-analytics') return {
+      glowStrong: 'from-purple-500/10',
+      glowSoft: 'from-purple-500/5',
+      accentText: 'text-purple-500 dark:text-purple-300',
+      accentBg: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+      progress: 'bg-purple-500'
+    };
+    if (trackId === 'embedded' || trackId === 'cloud-computing' || trackId === 'devops') return {
+      glowStrong: 'from-cyan-500/10',
+      glowSoft: 'from-cyan-500/5',
+      accentText: 'text-cyan-500 dark:text-cyan-300',
+      accentBg: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
+      progress: 'bg-cyan-500'
+    };
+    if (trackId === 'cybersecurity' || trackId === 'java' || trackId === 'backend') return {
+      glowStrong: 'from-rose-500/10',
+      glowSoft: 'from-rose-500/5',
+      accentText: 'text-rose-500 dark:text-rose-300',
+      accentBg: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+      progress: 'bg-rose-500'
+    };
+    if (trackId === 'python' || trackId === 'blockchain' || trackId === 'sql-database') return {
+      glowStrong: 'from-amber-500/10',
+      glowSoft: 'from-amber-500/5',
+      accentText: 'text-amber-500 dark:text-amber-300',
+      accentBg: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+      progress: 'bg-amber-500'
+    };
+    return {
+      glowStrong: 'from-emerald-500/10',
+      glowSoft: 'from-emerald-500/5',
+      accentText: 'text-emerald-500 dark:text-emerald-300',
+      accentBg: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+      progress: 'bg-emerald-500'
+    };
+  };
+  const getTrackIcon = (track = {}) => {
+    if (track.id === 'web-dev' || track.id === 'frontend' || track.id === 'ui-ux-design') return Compass;
+    if (track.id === 'ai-ml' || track.id === 'data-science' || track.id === 'data-analytics') return Sparkles;
+    if (track.id === 'embedded' || track.id === 'devops' || track.id === 'cloud-computing') return Cpu;
+    return BookOpen;
+  };
   const buildPixelPath = (nodes = [], unlockedOnly = false) => {
     const points = nodes
       .map((node, index) => ({
@@ -1117,6 +1274,8 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
             const nextNode = track.nodes?.find(node => node.status === 'active')
               || track.nodes?.find(node => node.status !== 'completed')
               || track.nodes?.[0];
+            const tone = getTrackTone(track.id);
+            const TrackIcon = getTrackIcon(track);
 
             return (
               <button
@@ -1126,7 +1285,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
               >
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <span className="mb-2 block text-[10px] font-extrabold uppercase tracking-wider text-indigo-500 dark:text-brand-accent">
+                    <span className={`mb-2 block text-[10px] font-extrabold uppercase tracking-wider ${tone.accentText}`}>
                       Enrolled Course
                     </span>
                     <h3 className="truncate text-lg font-extrabold text-slate-950 dark:text-white font-sora">
@@ -1136,18 +1295,18 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                       {track.description}
                     </p>
                   </div>
-                  <div className="shrink-0 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-500">
-                    {track.id === 'web-dev' ? <Compass className="h-5 w-5" /> : track.id === 'ai-ml' ? <Sparkles className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
+                  <div className={`shrink-0 rounded-xl border p-2 ${tone.accentBg}`}>
+                    <TrackIcon className="h-5 w-5" />
                   </div>
                 </div>
 
                 <div className="space-y-3 rounded-2xl border border-white/80 bg-white/75 p-3 dark:border-slate-800/70 dark:bg-slate-950/45">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-slate-500 dark:text-slate-400">Progress</span>
-                    <span className="text-indigo-600 dark:text-brand-accent">{percent}%</span>
+                    <span className={tone.accentText}>{percent}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${percent}%` }} />
+                    <div className={`h-full rounded-full transition-all ${tone.progress}`} style={{ width: `${percent}%` }} />
                   </div>
                   <div className="flex items-center justify-between gap-3 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                     <span>{track.completedNodes || 0} of {totalNodes} milestones complete</span>
@@ -1634,20 +1793,10 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
               {/* Ambient Background Glow matching the active track theme color */}
               <div
-                className={`absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-br ${activeTrack.id === 'web-dev'
-                  ? 'from-indigo-500/10'
-                  : activeTrack.id === 'ai-ml'
-                    ? 'from-purple-500/10'
-                    : 'from-cyan-500/10'
-                  } rounded-full blur-[100px] pointer-events-none`}
+                className={`absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-br ${getTrackTone(activeTrack.id).glowStrong} rounded-full blur-[100px] pointer-events-none`}
               ></div>
               <div
-                className={`absolute bottom-0 left-0 w-[450px] h-[450px] bg-gradient-to-tr ${activeTrack.id === 'web-dev'
-                  ? 'from-indigo-500/5'
-                  : activeTrack.id === 'ai-ml'
-                    ? 'from-purple-500/5'
-                    : 'from-cyan-500/5'
-                  } rounded-full blur-[100px] pointer-events-none`}
+                className={`absolute bottom-0 left-0 w-[450px] h-[450px] bg-gradient-to-tr ${getTrackTone(activeTrack.id).glowSoft} rounded-full blur-[100px] pointer-events-none`}
               ></div>
 
               {/* Header section */}
@@ -1662,7 +1811,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                     </h3>
                     <span className="text-[10px] text-slate-300 font-bold block mt-0.5">
                       {activeTrack.name} Track &bull; Stage{' '}
-                      {activeTrack.nodes.findIndex((n) => n.id === selectedNode.id) + 1} of 11
+                      {activeTrack.nodes.findIndex((n) => n.id === selectedNode.id) + 1} of {activeTrack.nodes.length}
                     </span>
                   </div>
                 </div>
@@ -1703,8 +1852,8 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                     </div>
 
                     {/* PPT Card Frame */}
-                    <div className="lesson-slide-card p-6 sm:p-8 relative overflow-hidden min-h-[460px] flex flex-col justify-between">
-                      <div className="space-y-4">
+                    <div className="lesson-slide-card p-6 sm:p-8 relative overflow-hidden min-h-[460px] max-h-[calc(100vh-15rem)] flex flex-col justify-between">
+                      <div className="min-h-0 space-y-4">
                         {/* Active Slide details */}
                         <AnimatePresence mode="wait">
                           <motion.div
@@ -1718,19 +1867,21 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                             <div className="lesson-slide-kicker">
                               Slide {currentSlide + 1} of{' '}
                               {getWorkspaceData(selectedNode, activeTrack.id).slides.length}
+                              {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].pointLabel
+                                ? ` - ${getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].pointLabel}`
+                                : ''}
                             </div>
-                            <h4 className="text-2xl font-extrabold text-white font-sora leading-tight">
+                            <h4 className="text-xl sm:text-2xl font-extrabold text-white font-sora leading-tight">
                               {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].title}
                             </h4>
-                            <div className="space-y-3 pt-2 text-sm leading-relaxed text-slate-100 max-w-5xl">
-                              {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].bullets.map(
-                                (b, i) => (
-                                  <div key={i} className="lesson-slide-bullet flex gap-3 items-start">
-                                    <div className="lesson-slide-bullet-dot shrink-0 mt-1.5"></div>
-                                    <span>{b}</span>
-                                  </div>
-                                )
-                              )}
+                            <div className="lesson-slide-content max-w-5xl space-y-4 overflow-y-auto overscroll-contain pr-2 pt-2 text-sm leading-7 text-slate-100">
+                              {(getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].paragraphs
+                                || getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].bullets
+                                || []).map((paragraph, i) => (
+                                  <p key={i} className="rounded-xl border border-white/5 bg-slate-950/35 p-4 text-slate-100">
+                                    {paragraph}
+                                  </p>
+                                ))}
                             </div>
                           </motion.div>
                         </AnimatePresence>

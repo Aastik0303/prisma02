@@ -31,7 +31,7 @@ const Community = lazy(pageLoaders.community);
 
 // Import Global Mock Data
 import { 
-  CAREER_TRACKS, PROJECTS, MENTORS, LEADERBOARD 
+  COURSE_LEARNING_TRACKS, PROJECTS, MENTORS, LEADERBOARD 
 } from './data/mockData';
 
 const orderLearningNodes = (nodes = []) => {
@@ -45,7 +45,7 @@ const orderLearningNodes = (nodes = []) => {
   return [...coreLessons, ...projects, ...finalTests];
 };
 
-const cloneTracks = (tracks = CAREER_TRACKS) => JSON.parse(JSON.stringify(tracks)).map(track => ({
+const cloneTracks = (tracks = COURSE_LEARNING_TRACKS) => JSON.parse(JSON.stringify(tracks)).map(track => ({
   ...track,
   nodes: orderLearningNodes(track.nodes)
 }));
@@ -77,17 +77,22 @@ const syncTrackCurriculum = (savedTracks) => {
 
   const syncedBuiltInTracks = cloneTracks().map((track, trackIndex) => {
     const savedTrack = savedTracks.find(item => item.id === track.id);
-    const completedNodeIds = new Set(
-      (savedTrack?.nodes || [])
-        .filter(node => node.status === 'completed')
-        .map(node => node.id)
-    );
-    const firstIncompleteIndex = track.nodes.findIndex(node => !completedNodeIds.has(node.id));
+    const savedNodes = Array.isArray(savedTrack?.nodes) ? savedTrack.nodes : [];
+    const findSavedNode = node => savedNodes.find(item => (
+      item.id === node.id
+      || (
+        node.type === 'lesson'
+        && item.type === 'lesson'
+        && Number(item.levelNumber) === Number(node.levelNumber)
+      )
+    ));
+    const isCompleted = node => findSavedNode(node)?.status === 'completed';
+    const firstIncompleteIndex = track.nodes.findIndex(node => !isCompleted(node));
     const nodes = track.nodes.map((node, nodeIndex) => {
-      const savedNode = savedTrack?.nodes?.find(item => item.id === node.id);
+      const savedNode = findSavedNode(node);
       return {
         ...node,
-        status: completedNodeIds.has(node.id)
+        status: isCompleted(node)
           ? 'completed'
           : (
             savedTrack?.enrolled && nodeIndex === firstIncompleteIndex

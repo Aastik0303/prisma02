@@ -510,7 +510,7 @@ function CommentsSheet({ post, viewer, onClose, onAddComment }) {
             </div>
           </div>
           {post.comments.map((comment) => {
-            const commenter = byId(comment.authorId) || viewer;
+            const commenter = byId(comment.authorId) || (comment.author ? normalizeRegisteredUser(comment.author) : viewer);
             return (
               <div key={comment.id} className="flex gap-3">
                 <img src={commenter.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
@@ -1269,7 +1269,7 @@ const normalizeCommunityPost = (post) => ({
   likes: Number(post.likes ?? post.stats?.likes ?? 0),
   comments: Array.isArray(post.comments) ? post.comments : [],
   tags: Array.isArray(post.tags) ? post.tags : (Array.isArray(post.skills) ? post.skills : []),
-  liked: false,
+  liked: Boolean(post.liked),
   saved: false,
 });
 
@@ -1309,15 +1309,18 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     if (!authToken) return;
     const headers = { Authorization: `Bearer ${authToken}` };
     Promise.all([
-      fetch(`${API_BASE_URL}/users/directory?limit=100`, { credentials: "include", headers }),
+      fetch(`${API_BASE_URL}/users/directory?limit=40`, { credentials: "include", headers }),
       fetch(`${API_BASE_URL}/community/posts`, { credentials: "include", headers }),
       fetch(`${API_BASE_URL}/community/social`, { credentials: "include", headers }),
-      fetch(`${API_BASE_URL}/community/profiles/${viewer.id}`, { credentials: "include", headers }),
-    ]).then(async ([usersResponse, postsResponse, socialResponse, profileResponse]) => {
+    ]).then(async ([usersResponse, postsResponse, socialResponse]) => {
       if (usersResponse.ok) setPeople((await usersResponse.json()).map(normalizeRegisteredUser));
       if (postsResponse.ok) {
         const registeredPosts = (await postsResponse.json()).map(normalizeCommunityPost);
         setPosts(registeredPosts);
+        setProfileStats((current) => ({
+          ...current,
+          [viewer.id]: { ...(current[viewer.id] || {}), postsCount: registeredPosts.filter((post) => post.authorId === viewer.id).length },
+        }));
         setPeople((current) => {
           const authors = registeredPosts
             .filter((post) => post.authorId && post.authorId !== viewer.id)
@@ -1327,6 +1330,8 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
       }
       if (socialResponse.ok) {
         const social = await socialResponse.json();
+        setCommunityStreak(Math.max(0, Number(social.viewer?.communityStreak || 0)));
+        setCommunityUsername(String(social.viewer?.username || ""));
         setProfileStats((current) => ({
           ...current,
           [viewer.id]: {
@@ -1340,19 +1345,6 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           ...(social.outgoingRequests || []).map((request) => [request.toId, "requested"]),
         ]));
         setIncoming((social.incomingRequests || []).map((request) => ({ ...request, id: request.fromId })));
-      }
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json();
-        setCommunityStreak(Math.max(0, Number(profile.user?.communityStreak || 0)));
-        setCommunityUsername(String(profile.user?.username || ""));
-        setProfileStats((current) => ({
-          ...current,
-          [viewer.id]: {
-            postsCount: Math.max(0, Number(profile.stats?.postsCount || 0)),
-            followersCount: Math.max(0, Number(profile.stats?.followersCount || 0)),
-            followingCount: Math.max(0, Number(profile.stats?.followingCount || 0)),
-          },
-        }));
       }
     }).catch(() => {});
   }, [authToken, viewer.id]);
@@ -1431,15 +1423,44 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     setPosts((items) => items.map((post) => post.authorId === viewer.id ? { ...post, authorUsername: data.username } : post));
   };
 
-  const toggleLike = (postId) =>
-    setPosts((items) => items.map((p) => (p.id === postId ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p)));
+  const mutateWithCsrf = async (path, body) => {
+    if (!authToken) throw new Error("Please sign in again.");
+    const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
+    const csrf = await csrfResponse.json().catch(() => ({}));
+    if (!csrfResponse.ok) throw new Error(csrf.message || "Unable to prepare the secure request.");
+    const send = (token) => fetch(`${API_BASE_URL}${path}`, {
+      method: "POST", credentials: "include",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-CSRF-Token": csrf.csrfToken, ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}) },
+      body: JSON.stringify(body || {}),
+    });
+    let response = await send(authToken);
+    if (response.status === 401 && onRefreshAuth) {
+      const token = await onRefreshAuth();
+      if (token) response = await send(token);
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "Request failed.");
+    return data;
+  };
+
+  const toggleLike = async (postId) => {
+    const previous = posts.find((post) => post.id === postId);
+    if (!previous) return;
+    setPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, p.likes + (p.liked ? -1 : 1)) } : p));
+    try {
+      const result = await mutateWithCsrf(`/community/posts/${postId}/like`);
+      setPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: result.liked, likes: result.likes } : p));
+    } catch {
+      setPosts((items) => items.map((p) => p.id === postId ? previous : p));
+    }
+  };
 
   const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
 
-  const addComment = (postId, text) =>
-    setPosts((items) =>
-      items.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { id: uid("c"), authorId: "me", text, time: "now" }] } : p))
-    );
+  const addComment = async (postId, text) => {
+    const comment = await mutateWithCsrf(`/community/posts/${postId}/comments`, { content: text });
+    setPosts((items) => items.map((p) => p.id === postId ? { ...p, comments: [...p.comments, comment] } : p));
+  };
 
   const publishPost = async ({ content, tag }) => {
     if (!authToken) throw new Error("Please sign in again before sharing a post.");
@@ -1492,16 +1513,21 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   };
   const declineRequest = (id) => setIncoming((items) => items.filter((r) => r.id !== id));
 
-  const openChat = (person) => {
+  const openChat = async (person) => {
     setActiveChat(person);
     setChatListOpen(false);
+    if (!authToken || chatMessages[person.id]) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/messages?receiverId=${encodeURIComponent(person.id)}`, { credentials: "include", headers: { Authorization: `Bearer ${authToken}` } });
+      if (!response.ok) return;
+      const history = await response.json();
+      setChatMessages((items) => ({ ...items, [person.id]: history.map((message) => ({ id: message.id, from: message.senderId === viewer.id ? "me" : "them", text: message.content, time: new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })) }));
+    } catch { /* The empty chat remains usable if history is temporarily unavailable. */ }
   };
 
-  const sendMessage = (threadId, text) => {
-    setChatMessages((items) => ({
-      ...items,
-      [threadId]: [...(items[threadId] || []), { id: uid("m"), from: "me", text, time: "now" }],
-    }));
+  const sendMessage = async (threadId, messageText) => {
+    const saved = await mutateWithCsrf('/chat/messages', { receiverId: threadId, content: messageText });
+    setChatMessages((items) => ({ ...items, [threadId]: [...(items[threadId] || []), { id: saved.id, from: "me", text: saved.content, time: "now" }] }));
   };
 
   const threadList = Object.keys(chatMessages).map((id) => {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  CheckCircle2, ChevronRight, Sparkles, Presentation, X, ChevronLeft, Play, Pause, BookOpen, MessageSquare, Send, Search
+  CheckCircle2, ChevronRight, Sparkles, X, BookOpen, MessageSquare, Send, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { COURSE_LEARNING_CONTENT, createLearningTrackFromContent } from '../data/mockData';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -684,17 +685,29 @@ const expandCoursePpt = (deck, courseId) => {
 };
 
 const createCourseTrack = (course) => {
-  const syllabus = Array.isArray(course.syllabus) && course.syllabus.length ? course.syllabus : ['Course Foundations'];
-  const lessonNodes = syllabus.slice(0, 8).map((topic, index) => ({
+  if (COURSE_LEARNING_CONTENT[course.id]) {
+    return {
+      ...createLearningTrackFromContent(course.id),
+      enrolled: true,
+      xp: 0,
+      completedNodes: 0
+    };
+  }
+
+  const courseDocument = buildCourseDocument(course);
+  const lessonNodes = courseDocument.levels.map((lesson, index) => ({
     id: `${course.id}-node-${index + 1}`,
-    title: index === 0 ? `Foundation: ${topic}` : `Core Skills: ${topic}`,
-    description: `Master ${topic.toLowerCase()} through guided lessons and practical checkpoints.`,
+    title: lesson.level.title,
+    description: lesson.sections[0].content,
     category: index === 0 ? 'Foundation' : 'Core Skills',
     status: index === 0 ? 'active' : 'locked',
     xp: 80 + (index * 20),
     type: 'lesson',
+    levelNumber: lesson.level.number,
+    lessonContent: lesson,
+    topicQuiz: lesson.topic_quiz,
     quiz: {
-      question: `What is the best way to progress through ${topic}?`,
+      question: `What is the best way to progress through ${lesson.level.title}?`,
       options: ['Practice with small checkpoints', 'Skip the fundamentals', 'Only read theory', 'Avoid projects'],
       answerIndex: 0,
       explanation: 'Consistent practice with checkpoints turns concepts into usable skills.'
@@ -710,6 +723,7 @@ const createCourseTrack = (course) => {
       status: 'locked',
       xp: 220,
       type: 'project',
+      projectContent: courseDocument.final_project,
       quiz: {
         question: 'Why include a capstone project in a course journey?',
         options: ['It proves applied skill', 'It replaces all practice', 'It removes the need for feedback', 'It is only decorative'],
@@ -725,6 +739,7 @@ const createCourseTrack = (course) => {
       status: 'locked',
       xp: 500,
       type: 'milestone',
+      assessmentContent: courseDocument.final_assessment,
       quiz: {
         question: 'What should a final certification evaluate?',
         options: ['Concepts, applied practice, and project judgment', 'Only memorized definitions', 'Only attendance', 'Only tool names'],
@@ -837,10 +852,31 @@ const getCourseTheme = (course) => {
   return courseThemeMap[key] || courseThemeMap.indigo;
 };
 
+const buildCourseDocument = course => {
+  if (!course) return null;
+  const syllabus = Array.isArray(course.syllabus) && course.syllabus.length ? course.syllabus : ['Course foundations'];
+  const levelTitles = Array.from({ length: 8 }, (_, index) => syllabus[index] || `${course.title} applied practice ${index + 1}`);
+  return {
+    category: course.subtitle || 'Professional course',
+    course: course.title,
+    description: course.description,
+    targetAudience: 'Learners progressing from beginner foundations to professional application',
+    accentColor: 'from-indigo-500 to-cyan-500',
+    textColor: 'text-indigo-400',
+    levels: levelTitles.map((title, index) => ({
+      level: { number: index + 1, title },
+      topic: { title, difficulty: index < 2 ? 'beginner' : index < 6 ? 'intermediate' : 'advanced', estimated_duration_minutes: 90 + (index * 15), learning_objectives: [`Explain ${title}`, `Apply ${title} in a practical activity`] },
+      sections: [{ type: 'introduction', title: 'Introduction', content: `${title} is taught progressively through explanation, guided practice and professional application.` }, { type: 'why_it_matters', title: 'Why This Topic Matters', content: `This topic supports the practical outcomes of ${course.title}.` }, { type: 'practical_application', title: 'Practical Application', content: `Create and validate a small artifact demonstrating ${title}.` }],
+      practice: { instructions: 'Use a local IDE or approved external tool.', practical_assignments: [{ description: `Create a small artifact demonstrating ${title}.` }] },
+      topic_quiz: { total_questions: 10, passing_percentage: 70 }
+    })),
+    final_project: { project: { title: `${course.title} Professional Capstone`, project_overview: 'Combine all eight levels in one tested and documented professional project.', total_marks: 100, passing_marks: 50 } },
+    final_assessment: { final_assessment: { total_questions: 15, total_marks: 15, passing_marks: 7, duration_minutes: 20, difficulty_distribution: { easy: 5, medium: 5, hard: 5 } }, certificate_rule: { requirements: { all_8_levels_completed: true, final_project_submitted: true, minimum_final_assessment_score: 7 } } }
+  };
+};
+
 export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, setTracksData, onEnrollTrack, authToken }) {
   const [activePptCourse, setActivePptCourse] = useState(null); // 'web-dev' | 'ai-ml' | 'embedded' | null
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [isAutoplay, setIsAutoplay] = useState(false);
   const [publishedCourses, setPublishedCourses] = useState([]);
   const [courseSearch, setCourseSearch] = useState('');
   const [showCourseChat, setShowCourseChat] = useState(false);
@@ -1080,7 +1116,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
   );
   const activeCourse = courses.find(course => course.id === activePptCourse);
   const activePpt = activePptCourse
-    ? expandCoursePpt(coursePpts[activePptCourse] || buildDemoPpt(activeCourse), activePptCourse)
+    ? COURSE_LEARNING_CONTENT[activePptCourse] || buildCourseDocument(activeCourse)
     : null;
 
   useEffect(() => {
@@ -1151,7 +1187,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           courseTitle: course?.title,
           trackTitle: course?.subtitle,
           syllabus: course?.syllabus,
-          slideTitle: activePpt?.slides?.[currentSlideIndex]?.title
+          slideTitle: activePpt?.course
         }
       })
     });
@@ -1251,30 +1287,15 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
 
   const handleOpenPpt = (courseId) => {
     setActivePptCourse(courseId);
-    setCurrentSlideIndex(0);
-    setIsAutoplay(true); // Start autoplay by default to guide them
   };
 
   const handleClosePpt = () => {
     setActivePptCourse(null);
-    setIsAutoplay(false);
   };
 
-  // Autoplay handler for slideshow presentation
-  useEffect(() => {
-    let timer;
-    if (isAutoplay && activePpt) {
-      const maxSlides = activePpt.slides.length;
-      timer = setInterval(() => {
-        setCurrentSlideIndex((prev) => (prev + 1) % maxSlides);
-      }, 4000);
-    }
-    return () => clearInterval(timer);
-  }, [isAutoplay, activePpt]);
-
   return (
-    <div className="relative mx-auto max-w-7xl space-y-9 overflow-hidden px-4 py-6 sm:px-6">
-      <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-950/35">
+    <div className="relative mx-auto max-w-[1600px] space-y-6 overflow-hidden px-3 py-4 sm:px-5">
+      <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-950/35">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-500">Search Courses</span>
@@ -1326,13 +1347,13 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
 
       {/* Grid: Course packages */}
       {!purchasedCourses.length && !hasCourseSearch && (
-        <div className="rounded-[24px] border border-dashed border-indigo-300/70 bg-indigo-50/70 p-8 text-center dark:border-indigo-500/30 dark:bg-indigo-500/10">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-white text-indigo-600 shadow-sm dark:bg-slate-950 dark:text-indigo-300">
+        <div className="rounded-2xl border border-dashed border-indigo-300/70 bg-indigo-50/70 p-5 text-center dark:border-indigo-500/30 dark:bg-indigo-500/10">
+          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white text-indigo-600 shadow-sm dark:bg-slate-950 dark:text-indigo-300">
             <BookOpen className="h-6 w-6" />
           </div>
           <h3 className="text-base font-extrabold text-slate-950 dark:text-white">No enrolled courses yet</h3>
           <p className="mx-auto mt-2 max-w-md text-sm font-medium text-slate-600 dark:text-slate-400">
-            Pick a course below to unlock a demo deck, guided milestones, and a saved dashboard card.
+            Pick a course below to unlock its scrollable course guide, guided milestones, and a saved dashboard card.
           </p>
         </div>
       )}
@@ -1342,7 +1363,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Try another skill, topic, or technology name.</p>
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
         {filteredPurchasedCourses.map(course => {
           // Read dynamic progress from props
           const matchingTrack = tracksData?.find(t => t.id === course.id);
@@ -1359,7 +1380,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
               key={course.id}
               whileHover={{ y: -6, scale: 1.01 }}
               transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-[24px] border bg-gradient-to-br p-5 text-left shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-all hover:shadow-[0_26px_70px_rgba(79,70,229,0.16)] ${theme.surface} ${theme.border}`}
+              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-gradient-to-br p-4 text-left shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-all hover:shadow-[0_26px_70px_rgba(79,70,229,0.16)] ${theme.surface} ${theme.border}`}
             >
               <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${theme.line}`} />
               <div className="absolute right-4 top-4">
@@ -1369,7 +1390,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
               </div>
 
               <div>
-                <div className="mb-5 flex items-start gap-3 pr-20">
+                <div className="mb-4 flex items-start gap-3 pr-20">
                   <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl shadow-lg ${theme.icon}`}>
                     <BookOpen className="h-5 w-5" />
                   </div>
@@ -1383,11 +1404,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </div>
                 </div>
 
-                <p className="mb-5 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-400">
+                <p className="mb-4 line-clamp-3 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-400">
                   {course.description}
                 </p>
 
-                <div className="mb-5 rounded-2xl border border-white/70 bg-white/75 p-4 text-xs shadow-sm dark:border-slate-800/70 dark:bg-slate-950/45">
+                <div className="mb-4 rounded-2xl border border-white/70 bg-white/75 p-3 text-xs shadow-sm dark:border-slate-800/70 dark:bg-slate-950/45">
                   <div className="flex items-start justify-between gap-3 font-bold">
                     <div>
                       <span className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Next Milestone</span>
@@ -1409,19 +1430,19 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </div>
                 </div>
 
-                <div className="mb-5 grid grid-cols-2 gap-3 text-xs font-semibold">
-                  <div className="rounded-2xl border border-white/70 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-950/35">
+                <div className="mb-4 grid grid-cols-2 gap-2 text-xs font-semibold">
+                  <div className="rounded-xl border border-white/70 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-950/35">
                     <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Duration</span>
                     <span className="font-extrabold text-slate-900 dark:text-white">{course.duration}</span>
                   </div>
-                  <div className="rounded-2xl border border-white/70 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-950/35">
+                  <div className="rounded-xl border border-white/70 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-950/35">
                     <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Modules</span>
                     <span className="font-extrabold text-slate-900 dark:text-white">{course.modulesCount} Pillars</span>
                   </div>
                 </div>
 
                 {/* Syllabus items check */}
-                <div className="space-y-2 mb-6">
+                <div className="mb-4 space-y-2">
                   <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">Syllabus Pillars</h4>
                   <div className="space-y-1.5 text-left text-xs">
                     {course.syllabus.slice(0, 6).map((topic, i) => (
@@ -1432,13 +1453,21 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                     ))}
                   </div>
                 </div>
-                <div className="mb-6 rounded-2xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
+                <div className="mb-4 rounded-xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
                   Study flow: learn the idea, see a guided example, solve a checkpoint, then apply it in a project artifact.
                 </div>
               </div>
 
               {/* Bottom Actions row */}
               <div className="space-y-2 border-t border-slate-200/50 pt-4 dark:border-slate-800/30">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPpt(course.id)}
+                  className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-xs font-extrabold transition-all hover:bg-white dark:border-slate-800 dark:bg-slate-950/50 dark:hover:bg-slate-900 ${theme.text}`}
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Open Course Guide
+                </button>
                 <button
                   onClick={() => handleLaunchTrack(course.id)}
                   className={`flex w-full items-center justify-center gap-1 rounded-2xl bg-gradient-to-r px-4 py-3 text-xs font-extrabold text-white shadow-lg transition-all active:scale-[0.98] ${theme.button}`}
@@ -1453,7 +1482,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
       </div>
 
       {/* Explore Courses */}
-      <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-400">Discover More</span>
           <h2 className="mt-1 text-2xl font-extrabold text-slate-950 dark:text-white">
@@ -1461,11 +1490,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           </h2>
         </div>
         <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
-          Demo decks + guided journeys
+          Scrollable guides + guided journeys
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
         {filteredExploreCourses.map(course => {
           const theme = getCourseTheme(course);
 
@@ -1474,11 +1503,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
               key={course.id}
               whileHover={{ y: -6, scale: 1.01 }}
               transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-[24px] border bg-gradient-to-br p-5 text-left shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-all hover:shadow-[0_26px_70px_rgba(15,23,42,0.15)] ${theme.surface} ${theme.border}`}
+              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-gradient-to-br p-4 text-left shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-all hover:shadow-[0_26px_70px_rgba(15,23,42,0.15)] ${theme.surface} ${theme.border}`}
             >
               <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${theme.line}`} />
               <div>
-                <div className="mb-5 flex items-start justify-between gap-3">
+                <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <span className={`text-[10px] font-extrabold uppercase tracking-wide ${theme.text}`}>
                       {course.subtitle}
@@ -1492,11 +1521,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </span>
                 </div>
 
-                <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-400">
+                <p className="line-clamp-3 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-400">
                   {course.description}
                 </p>
 
-                <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-2xl border border-white/70 bg-white/65 px-2 py-3 dark:border-slate-800/60 dark:bg-slate-950/35">
                     <strong className={`block text-sm font-extrabold ${theme.text}`}>{course.rating}</strong>
                     <span className="text-[8px] font-bold uppercase text-slate-500">Rating</span>
@@ -1511,7 +1540,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                   </div>
                 </div>
 
-                <div className="mt-5 space-y-2">
+                <div className="mt-4 space-y-1.5">
                   {course.syllabus.slice(0, 6).map((topic, i) => (
                     <div key={i} className="flex gap-2 rounded-xl border border-transparent text-xs font-medium text-slate-600 transition-all group-hover:border-white/50 group-hover:bg-white/35 dark:text-slate-300 dark:group-hover:border-slate-800/50 dark:group-hover:bg-slate-950/20">
                       <CheckCircle2 className={`h-4 w-4 shrink-0 ${theme.text}`} />
@@ -1519,18 +1548,18 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 rounded-2xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
+                <div className="mt-3 rounded-xl border border-white/70 bg-white/55 p-3 text-[11px] font-bold leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-950/30 dark:text-slate-300">
                   Study flow: concept explanation, guided example, practice checkpoint, mini project, and revision notes.
                 </div>
               </div>
 
-              <div className="mt-5 space-y-2 border-t border-slate-200/60 pt-4 dark:border-slate-800">
+              <div className="mt-4 space-y-2 border-t border-slate-200/60 pt-4 dark:border-slate-800">
                 <button
                   onClick={() => handleOpenPpt(course.id)}
                   className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-xs font-extrabold transition-all hover:bg-white dark:border-slate-800 dark:bg-slate-950/50 dark:hover:bg-slate-900 ${theme.text}`}
                 >
-                  <Presentation className="h-3.5 w-3.5" />
-                  View Demo PPT
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Open Course Guide
                 </button>
 
                 <button
@@ -1635,145 +1664,86 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
         )}
       </AnimatePresence>
 
-      {/* High-Fidelity Presentation PPT Slide Deck Modal */}
+      {/* Scrollable course guide */}
       <AnimatePresence>
         {activePpt && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-md sm:p-5">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative shadow-2xl flex flex-col md:flex-row min-h-[460px] text-left"
+              className="relative flex max-h-[calc(100vh-1.5rem)] w-full max-w-[1500px] flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 text-left shadow-2xl sm:max-h-[calc(100vh-2.5rem)]"
             >
-              {/* Glow ambient background matching theme color */}
-              <div className={`absolute top-0 right-0 w-80 h-80 bg-gradient-to-br ${activePpt.accentColor} opacity-[0.07] rounded-full blur-3xl pointer-events-none`}></div>
-              <div className={`absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr ${activePpt.accentColor} opacity-[0.05] rounded-full blur-3xl pointer-events-none`}></div>
-
-              {/* Left Side: Presentation Text and Navigation */}
-              <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between relative z-10">
+              <div className={`pointer-events-none absolute right-0 top-0 h-80 w-80 rounded-full bg-gradient-to-br ${activePpt.accentColor} opacity-[0.08] blur-3xl`} />
+              <header className="relative z-10 flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-900/95 px-5 py-4 sm:px-7">
                 <div>
-                  {/* Modal Header */}
-                  <div className="flex justify-between items-start gap-4 pb-4 border-b border-slate-800 mb-6">
-                    <div>
-                      <span className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-wider block mb-0.5">
-                        Demo Presentation Deck
-                      </span>
-                      <h3 className="text-base font-extrabold text-white leading-tight font-sora">
-                        {activePpt.title}
-                      </h3>
-                    </div>
-                    <button
-                      onClick={handleClosePpt}
-                      className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+                  <span className={`text-[10px] font-extrabold uppercase tracking-[0.2em] ${activePpt.textColor}`}>Scrollable premium course guide</span>
+                  <h3 className="mt-1 font-sora text-xl font-extrabold text-white">{activePpt.course}</h3>
+                  <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400">{activePpt.description}</p>
+                </div>
+                <button onClick={handleClosePpt} className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close course guide"><X className="h-5 w-5" /></button>
+              </header>
 
-                  {/* Slide Content using AnimatePresence for transitions */}
-                  <div className="min-h-[220px] flex flex-col justify-between">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={currentSlideIndex}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
-                        className="space-y-4"
-                      >
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-extrabold tracking-wider uppercase border border-slate-700">
-                          {activePpt.slides[currentSlideIndex].badge}
+              <div className="relative z-10 flex-1 overflow-y-auto overscroll-contain bg-slate-950/55 px-4 py-5 sm:px-7">
+                <div className="mx-auto max-w-none space-y-5">
+                  <section className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:grid-cols-3">
+                    <div><span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Category</span><p className="mt-1 text-sm font-bold text-white">{activePpt.category}</p></div>
+                    <div><span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Audience</span><p className="mt-1 text-sm font-bold text-white">{activePpt.targetAudience}</p></div>
+                    <div><span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Learning flow</span><p className="mt-1 text-sm font-bold text-white">8 levels - practice - quizzes - project - assessment</p></div>
+                  </section>
+
+                  {activePpt.levels.map(lesson => (
+                    <article key={lesson.level.number} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90">
+                      <header className="border-b border-slate-800 px-5 py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div><span className={`text-[10px] font-black uppercase tracking-[0.18em] ${activePpt.textColor}`}>Level {lesson.level.number} · {lesson.topic.difficulty}</span><h4 className="mt-1 text-lg font-extrabold text-white">{lesson.level.title}</h4></div>
+                          <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-[10px] font-bold text-slate-300">{lesson.topic.estimated_duration_minutes} minutes</span>
                         </div>
-                        <div>
-                          <h4 className="text-xl font-extrabold text-white tracking-tight font-sora">
-                            {activePpt.slides[currentSlideIndex].title}
-                          </h4>
-                          <p className={`text-xs ${activePpt.textColor} font-bold mt-0.5`}>
-                            {activePpt.slides[currentSlideIndex].subtitle}
-                          </p>
-                        </div>
-                        <div className="space-y-2 text-xs text-slate-300">
-                          {activePpt.slides[currentSlideIndex].bullets.map((bullet, idx) => (
-                            <div key={idx} className="flex gap-2 items-start">
-                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5"></div>
-                              <span className="leading-relaxed">{bullet}</span>
-                            </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-400"><span className="font-black text-slate-200">Objectives: </span>{lesson.topic.learning_objectives.join(' ')}</p>
+                      </header>
+                      <div className="space-y-4 p-4">
+                        {lesson.topic_contents?.length > 0 && (
+                          <div className="grid gap-3 xl:grid-cols-2">
+                            {lesson.topic_contents.map(topic => (
+                              <section key={`${lesson.level.number}-${topic.slug}`} className="rounded-xl border border-cyan-500/15 bg-slate-950/70 p-4">
+                                <h5 className="text-base font-extrabold text-cyan-100">{topic.title}</h5>
+                                <div className="mt-3 space-y-3 text-xs leading-6 text-slate-400">
+                                  <p>{topic.introduction}</p>
+                                  <p>{topic.detailed_explanation}</p>
+                                  <p className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-3 text-slate-300"><span className="font-extrabold text-indigo-200">Example: </span>{topic.beginner_example}</p>
+                                  <p>{topic.professional_example}</p>
+                                  <p>{topic.common_mistakes}</p>
+                                  <p className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-3 text-slate-300"><span className="font-extrabold text-emerald-200">Practice: </span>{topic.practice_paragraph}</p>
+                                </div>
+                              </section>
+                            ))}
+                          </div>
+                        )}
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {lesson.sections.map(section => (
+                            <section key={`${lesson.level.number}-${section.type}`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                              <h5 className="text-xs font-extrabold text-white">{section.title}</h5>
+                              {section.content && <p className="mt-2 text-xs leading-6 text-slate-400">{section.content}</p>}
+                              {section.concepts && <p className="mt-2 text-xs leading-6 text-slate-400">{section.concepts.map(concept => `${concept.name}: ${concept.detailed_explanation}`).join(' ')}</p>}
+                              {section.steps && <p className="mt-2 text-xs leading-6 text-slate-400">{section.steps.map(step => `${step.step}. ${step.title} - ${step.explanation}`).join(' ')}</p>}
+                              {section.mistakes && <p className="mt-2 text-xs leading-6 text-slate-400">{section.mistakes.map(mistake => `${mistake.mistake}: ${mistake.how_to_fix}`).join(' ')}</p>}
+                              {section.points && <p className="mt-2 text-xs leading-6 text-slate-400">{section.points.map(point => typeof point === 'string' ? point : `${point.practice}: ${point.reason}`).join(' ')}</p>}
+                              {section.scenario && <p className="mt-2 text-xs leading-6 text-slate-400">{section.scenario} {section.implementation_explanation}</p>}
+                              {section.diagram && <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[10px] text-cyan-200">{section.diagram}</pre>}
+                            </section>
                           ))}
                         </div>
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-                </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <section className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4"><h5 className="text-xs font-extrabold text-cyan-200">Practice activity</h5><p className="mt-2 text-xs leading-5 text-slate-400">{lesson.practice.instructions} {lesson.practice.practical_assignments?.[0]?.description}</p></section>
+                          <section className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"><h5 className="text-xs font-extrabold text-emerald-200">Topic quiz</h5><p className="mt-2 text-xs leading-5 text-slate-400">{lesson.topic_quiz.total_questions} questions - {lesson.topic_quiz.passing_percentage}% required to complete this topic.</p></section>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
 
-                {/* Controls & Nav dots */}
-                <div className="pt-6 border-t border-slate-800 mt-6 flex justify-between items-center gap-4 flex-wrap">
-                  {/* Play/Pause Autoplay & Indicators */}
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setIsAutoplay(!isAutoplay)}
-                      className={`p-2 rounded-xl border transition-colors ${isAutoplay
-                        ? 'bg-indigo-600/15 border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/25'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                        }`}
-                      title={isAutoplay ? "Pause Slideshow" : "Play Slideshow"}
-                    >
-                      {isAutoplay ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                    </button>
-
-                    <div className="flex items-center gap-1.5">
-                      {activePpt.slides.map((_, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setCurrentSlideIndex(idx);
-                            setIsAutoplay(false); // Stop autoplay on manual choice
-                          }}
-                          className={`h-2 rounded-full transition-all duration-300 ${currentSlideIndex === idx
-                            ? 'w-6 bg-indigo-500'
-                            : 'w-2 bg-slate-700 hover:bg-slate-500'
-                            }`}
-                        ></button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Next/Prev buttons */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setCurrentSlideIndex((prev) => (prev === 0 ? activePpt.slides.length - 1 : prev - 1));
-                        setIsAutoplay(false);
-                      }}
-                      className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-400 hover:text-white transition-all"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCurrentSlideIndex((prev) => (prev + 1) % activePpt.slides.length);
-                        setIsAutoplay(false);
-                      }}
-                      className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-400 hover:text-white transition-all font-bold"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Side: Beautiful interactive live compilation/graph visual matching the slide theme */}
-              <div className="w-full md:w-[360px] bg-slate-950 p-6 flex flex-col justify-center items-stretch relative border-t md:border-t-0 md:border-l border-slate-800 min-h-[300px]">
-                {/* Top banner tag */}
-                <div className="absolute top-0 right-0 bg-slate-900 border-l border-b border-slate-800 text-[8px] text-slate-500 font-extrabold px-3 py-1.5 rounded-bl-xl tracking-wider uppercase">
-                  Live Preview Visual
-                </div>
-
-                <div className="flex-grow flex items-center justify-center">
-                  <SlideVisual courseId={activePptCourse} index={currentSlideIndex} />
-                </div>
-
-                <div className="text-[8px] text-slate-500 text-center mt-3 pt-3 border-t border-slate-900">
-                  Interactive Presentation Engine v2.0
+                  <section className="rounded-2xl border border-purple-500/25 bg-purple-500/5 p-5"><span className="text-[10px] font-black uppercase tracking-wider text-purple-300">Final project</span><h4 className="mt-1 text-lg font-extrabold text-white">{activePpt.final_project.project.title}</h4><p className="mt-2 text-xs leading-6 text-slate-400">{activePpt.final_project.project.project_overview} Evaluation: {activePpt.final_project.project.total_marks} marks; {activePpt.final_project.project.passing_marks} required.</p></section>
+                  <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5"><span className="text-[10px] font-black uppercase tracking-wider text-amber-300">Final assessment</span><h4 className="mt-1 text-lg font-extrabold text-white">15-question course assessment</h4><p className="mt-2 text-xs leading-6 text-slate-400">All eight levels are covered in 20 minutes: 5 easy, 5 medium and 5 hard questions. There is no negative marking, and a score of exactly {activePpt.final_assessment.final_assessment.passing_marks} passes.</p></section>
+                  <section className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5"><span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Certificate</span><h4 className="mt-1 text-lg font-extrabold text-white">Locked until all requirements are complete</h4><p className="mt-2 text-xs leading-6 text-slate-400">Complete all 8 levels, submit the final project, score at least {activePpt.final_assessment.certificate_rule.requirements.minimum_final_assessment_score} out of 15, and generate a verification code.</p></section>
                 </div>
               </div>
             </motion.div>

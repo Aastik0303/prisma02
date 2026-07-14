@@ -52,6 +52,14 @@ const normalizePost = (post: any) => ({
     comments: post.commentsCount || 0,
     shares: post.sharesCount || 0
   },
+  liked: Array.isArray(post.likes) && post.likes.length > 0,
+  comments: Array.isArray(post.comments) ? post.comments.map((comment: any) => ({
+    id: comment.id,
+    authorId: comment.authorId,
+    text: comment.content,
+    time: formatAge(comment.createdAt),
+    author: comment.author ? normalizeUser(comment.author) : null
+  })) : [],
   skills: Array.isArray(post.skills) && post.skills.length ? post.skills : ['Community', 'Learning'],
   featured: false,
   createdAt: post.createdAt
@@ -264,7 +272,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
 
   fastify.get('/posts', {
     preHandler: [requireAuth]
-  }, async (_request, reply) => {
+  }, async (request, reply) => {
     const posts = await fastify.prisma.communityPost.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -278,11 +286,57 @@ export async function communityRoutes(fastify: FastifyInstance) {
             avatarUrl: true,
             metadata: true
           }
+        },
+        likes: { where: { userId: request.user!.id }, select: { id: true } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+          include: { author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } } }
         }
       }
     });
 
     return reply.status(200).send(posts.map(normalizePost));
+  });
+
+  fastify.post('/posts/:id/like', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const userId = request.user!.id;
+    const post = await fastify.prisma.communityPost.findUnique({ where: { id: postId }, select: { id: true } });
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+
+    const result = await fastify.prisma.$transaction(async prisma => {
+      const existing = await prisma.communityLike.findUnique({ where: { postId_userId: { postId, userId } } });
+      if (existing) await prisma.communityLike.delete({ where: { id: existing.id } });
+      else await prisma.communityLike.create({ data: { postId, userId } });
+      const likes = await prisma.communityLike.count({ where: { postId } });
+      await prisma.communityPost.update({ where: { id: postId }, data: { likesCount: likes } });
+      return { liked: !existing, likes };
+    });
+    return reply.status(200).send(result);
+  });
+
+  fastify.post('/posts/:id/comments', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const content = String((request.body as { content?: string })?.content || '').trim();
+    if (!content || content.length > 1000) return reply.status(400).send({ message: 'Comment must be between 1 and 1000 characters.' });
+    const post = await fastify.prisma.communityPost.findUnique({ where: { id: postId }, select: { id: true } });
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+
+    const comment = await fastify.prisma.$transaction(async prisma => {
+      const created = await prisma.communityComment.create({
+        data: { postId, authorId: request.user!.id, content },
+        include: { author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } } }
+      });
+      const comments = await prisma.communityComment.count({ where: { postId } });
+      await prisma.communityPost.update({ where: { id: postId }, data: { commentsCount: comments } });
+      return created;
+    });
+    return reply.status(201).send({ id: comment.id, authorId: comment.authorId, text: comment.content, time: 'now', author: normalizeUser(comment.author) });
   });
 
   fastify.post('/posts', {
@@ -351,7 +405,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
     preHandler: [requireAuth]
   }, async (request, reply) => {
     const viewerId = request.user!.id;
-    const [incomingRequests, outgoingRequests, followersCount, followingCount, followers, following] = await Promise.all([
+    const [incomingRequests, outgoingRequests, followersCount, followingCount, followers, following, viewer] = await Promise.all([
       fastify.prisma.followRequest.findMany({
         where: { targetId: viewerId, status: 'pending' },
         orderBy: { createdAt: 'desc' },
@@ -371,7 +425,8 @@ export async function communityRoutes(fastify: FastifyInstance) {
       fastify.prisma.follow.count({ where: { followingId: viewerId } }),
       fastify.prisma.follow.count({ where: { followerId: viewerId } }),
       fastify.prisma.follow.findMany({ where: { followingId: viewerId }, select: { followerId: true } }),
-      fastify.prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } })
+      fastify.prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } }),
+      fastify.prisma.user.findUnique({ where: { id: viewerId }, select: { metadata: true } })
     ]);
 
     return reply.status(200).send({
@@ -380,7 +435,11 @@ export async function communityRoutes(fastify: FastifyInstance) {
       followersCount,
       followingCount,
       followerIds: followers.map(item => item.followerId),
-      followingIds: following.map(item => item.followingId)
+      followingIds: following.map(item => item.followingId),
+      viewer: {
+        username: metadataObject(viewer?.metadata).communityUsername || '',
+        communityStreak: Math.max(0, Number(metadataObject(viewer?.metadata).communityStreak || 0))
+      }
     });
   });
 
