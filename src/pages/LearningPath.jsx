@@ -68,6 +68,14 @@ const getLessonAssignment = lesson => (
   || 'build a small artifact that proves you understand the topic'
 );
 
+const getLessonCodeExamples = lesson => (lesson.topic_contents || [])
+  .map(topic => ({
+    title: topic.title,
+    language: topic.code_example?.language,
+    code: topic.code_example?.code
+  }))
+  .filter(example => example.language && example.code);
+
 const lessonToSevenSlides = lesson => {
   const topics = lesson.topic_contents || [];
   if (!topics.length) return [];
@@ -76,6 +84,7 @@ const lessonToSevenSlides = lesson => {
   const levelTitle = lesson.level?.title || lesson.topic?.title || 'this level';
   const lessonSummary = getLessonSummary(lesson);
   const assignment = getLessonAssignment(lesson);
+  const codeExamples = getLessonCodeExamples(lesson);
   const firstTopic = topicNames[0] || 'the foundation';
   const finalTopic = topicNames[topicNames.length - 1] || firstTopic;
   const middleTopics = formatList(topicNames.slice(1, -1));
@@ -103,7 +112,8 @@ const lessonToSevenSlides = lesson => {
       paragraphs: compactParagraphs([
         `A simple example should focus on one visible behavior at a time. For this level, begin by using ${firstTopic} in the smallest possible version before adding the rest of the topics.`,
         `When you add ${topicList}, change one thing at a time and predict the result before checking it. That habit makes the concept stick much faster.`
-      ])
+      ]),
+      codeExamples
     },
     {
       title: `${lesson.topic.title}: Professional Use`,
@@ -2093,15 +2103,76 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                             <h4 className="text-xl sm:text-2xl font-extrabold text-white font-sora leading-tight">
                               {getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].title}
                             </h4>
-                            <div className="lesson-slide-content max-w-5xl space-y-4 overflow-y-auto overscroll-contain pr-2 pt-2 text-sm leading-7 text-slate-100">
-                              {(getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].paragraphs
-                                || getWorkspaceData(selectedNode, activeTrack.id).slides[currentSlide].bullets
-                                || []).map((paragraph, i) => (
-                                  <p key={i} className="rounded-xl border border-white/5 bg-slate-950/35 p-4 text-slate-100">
-                                    {paragraph}
-                                  </p>
-                                ))}
-                            </div>
+                            {(() => {
+                              const workspace = getWorkspaceData(selectedNode, activeTrack.id);
+                              const activeSlide = workspace.slides[currentSlide];
+                              const slideText = activeSlide.paragraphs || activeSlide.bullets || [];
+                              const isEvenSlide = currentSlide % 2 === 0;
+                              const isExampleSlide = /example/i.test(activeSlide.title || '');
+                              const codeExamples = activeSlide.codeExamples?.length
+                                ? activeSlide.codeExamples
+                                : (
+                                  isExampleSlide && workspace.sandbox?.code
+                                    ? [{
+                                      title: `${workspace.sandbox.language?.toUpperCase?.() || 'Code'} starter`,
+                                      language: workspace.sandbox.language || 'text',
+                                      code: workspace.sandbox.code
+                                    }]
+                                    : []
+                                );
+
+                              return (
+                                <div className={`lesson-slide-content max-w-5xl overflow-y-auto overscroll-contain pr-2 pt-2 text-sm leading-7 text-slate-100 ${
+                                  isEvenSlide
+                                    ? 'space-y-4'
+                                    : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]'
+                                }`}>
+                                  <div className={isEvenSlide ? 'space-y-4' : 'space-y-3'}>
+                                    {slideText.map((paragraph, i) => (
+                                      <p
+                                        key={i}
+                                        className={`border border-white/5 bg-slate-950/35 p-4 text-slate-100 ${
+                                          isEvenSlide
+                                            ? 'rounded-xl'
+                                            : 'rounded-2xl border-l-4 border-l-cyan-400/70'
+                                        }`}
+                                      >
+                                        {paragraph}
+                                      </p>
+                                    ))}
+                                  </div>
+
+                                  {!isEvenSlide && (
+                                    <aside className="rounded-2xl border border-cyan-400/15 bg-cyan-400/5 p-4 text-xs leading-6 text-cyan-50">
+                                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Study Check</span>
+                                      <p className="mt-3 font-semibold text-slate-100">
+                                        Read this slide, explain it once in your own words, then connect it to the practice task before moving forward.
+                                      </p>
+                                    </aside>
+                                  )}
+
+                                  {isExampleSlide && codeExamples.length > 0 && (
+                                    <div className={`${isEvenSlide ? 'mt-4' : 'xl:col-span-2'} space-y-3`}>
+                                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                                        <Terminal className="h-3.5 w-3.5" />
+                                        Coding Example
+                                      </div>
+                                      <div className="grid gap-3 xl:grid-cols-2">
+                                        {codeExamples.slice(0, 2).map((example, index) => (
+                                          <section key={`${example.title}-${index}`} className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-950/70">
+                                            <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 text-[10px] font-bold text-slate-300">
+                                              <span>{example.title}</span>
+                                              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-emerald-300">{example.language}</span>
+                                            </div>
+                                            <pre className="max-h-64 overflow-auto p-4 text-[11px] leading-5 text-emerald-100"><code>{example.code}</code></pre>
+                                          </section>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </motion.div>
                         </AnimatePresence>
                       </div>
