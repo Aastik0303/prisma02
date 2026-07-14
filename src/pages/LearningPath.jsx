@@ -35,6 +35,15 @@ const sectionToParagraphs = section => {
   return [];
 };
 
+const compactParagraphs = (items = []) => items
+  .flat()
+  .map(item => String(item || '').trim())
+  .filter(Boolean);
+
+const topicField = (topic, ...fields) => fields
+  .map(field => topic?.[field])
+  .find(value => String(value || '').trim());
+
 const lessonToSevenSlides = lesson => {
   const topics = lesson.topic_contents || [];
   if (!topics.length) return [];
@@ -43,32 +52,32 @@ const lessonToSevenSlides = lesson => {
     {
       title: `${lesson.topic.title}: Core Idea`,
       pointLabel: 'Point 1',
-      paragraphs: topics.map(topic => topic.introduction)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'introduction', 'paragraph_1')))
     },
     {
       title: `${lesson.topic.title}: How It Works`,
       pointLabel: 'Point 2',
-      paragraphs: topics.map(topic => topic.detailed_explanation)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'detailed_explanation', 'paragraph_2')))
     },
     {
       title: `${lesson.topic.title}: Simple Examples`,
       pointLabel: 'Point 3',
-      paragraphs: topics.map(topic => topic.beginner_example)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'beginner_example', 'paragraph_2')))
     },
     {
       title: `${lesson.topic.title}: Professional Use`,
       pointLabel: 'Point 4',
-      paragraphs: topics.map(topic => topic.professional_example)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'professional_example', 'paragraph_2')))
     },
     {
       title: `${lesson.topic.title}: Mistakes`,
       pointLabel: 'Point 5',
-      paragraphs: topics.map(topic => topic.common_mistakes)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'common_mistakes', 'paragraph_3')))
     },
     {
       title: `${lesson.topic.title}: Practice`,
       pointLabel: 'Point 6',
-      paragraphs: topics.map(topic => topic.practice_paragraph)
+      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'practice_paragraph', 'paragraph_3')))
     },
     {
       title: `${lesson.topic.title}: Quick Recall`,
