@@ -44,40 +44,90 @@ const topicField = (topic, ...fields) => fields
   .map(field => topic?.[field])
   .find(value => String(value || '').trim());
 
+const formatList = (items = []) => {
+  const values = compactParagraphs(items);
+  if (values.length <= 1) return values[0] || '';
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+};
+
+const sentenceCase = (value = '') => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+};
+
+const getLessonSummary = lesson => {
+  const intro = lesson.sections?.find(section => section.type === 'introduction')?.content;
+  return String(intro || lesson.description || lesson.topic?.title || '').trim();
+};
+
+const getLessonAssignment = lesson => (
+  lesson.practice?.practical_assignments?.[0]?.description
+  || lesson.practice?.instructions
+  || 'build a small artifact that proves you understand the topic'
+);
+
 const lessonToSevenSlides = lesson => {
   const topics = lesson.topic_contents || [];
   if (!topics.length) return [];
+  const topicNames = topics.map(topic => topic.title);
+  const topicList = formatList(topicNames);
+  const levelTitle = lesson.level?.title || lesson.topic?.title || 'this level';
+  const lessonSummary = getLessonSummary(lesson);
+  const assignment = getLessonAssignment(lesson);
+  const firstTopic = topicNames[0] || 'the foundation';
+  const finalTopic = topicNames[topicNames.length - 1] || firstTopic;
+  const middleTopics = formatList(topicNames.slice(1, -1));
 
   return [
     {
       title: `${lesson.topic.title}: Core Idea`,
       pointLabel: 'Point 1',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'introduction', 'paragraph_1')))
+      paragraphs: compactParagraphs([
+        `${levelTitle} brings ${topicList} together into one practical skill. ${lessonSummary}`,
+        `Instead of memorizing each term separately, read this level as a connected workflow: understand the idea, try a small example, test what changes, and explain why the result is correct.`
+      ])
     },
     {
       title: `${lesson.topic.title}: How It Works`,
       pointLabel: 'Point 2',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'detailed_explanation', 'paragraph_2')))
+      paragraphs: compactParagraphs([
+        `Start with ${firstTopic} because it gives the level its base structure. ${middleTopics ? `Then connect it with ${middleTopics} so the idea becomes usable in a real implementation.` : ''}`,
+        `${finalTopic !== firstTopic ? `${finalTopic} is the final layer: it helps you move from knowing the concept to applying it with cleaner decisions.` : `The important part is to test the concept with normal and edge cases.`}`
+      ])
     },
     {
       title: `${lesson.topic.title}: Simple Examples`,
       pointLabel: 'Point 3',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'beginner_example', 'paragraph_2')))
+      paragraphs: compactParagraphs([
+        `A simple example should focus on one visible behavior at a time. For this level, begin by using ${firstTopic} in the smallest possible version before adding the rest of the topics.`,
+        `When you add ${topicList}, change one thing at a time and predict the result before checking it. That habit makes the concept stick much faster.`
+      ])
     },
     {
       title: `${lesson.topic.title}: Professional Use`,
       pointLabel: 'Point 4',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'professional_example', 'paragraph_2')))
+      paragraphs: compactParagraphs([
+        `In professional work, ${levelTitle} matters because the code or system must be understandable, testable, and safe for future changes.`,
+        `A strong implementation does not just work once. It makes the boundaries clear, handles bad inputs, and gives another person enough evidence to trust the result.`
+      ])
     },
     {
       title: `${lesson.topic.title}: Mistakes`,
       pointLabel: 'Point 5',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'common_mistakes', 'paragraph_3')))
+      paragraphs: compactParagraphs([
+        `The common mistake is copying examples for ${topicList} without knowing why each part exists.`,
+        `Fix that by asking three questions: what input enters, what change happens, and what result proves the idea worked? If any answer is vague, simplify the example and test again.`
+      ])
     },
     {
       title: `${lesson.topic.title}: Practice`,
       pointLabel: 'Point 6',
-      paragraphs: compactParagraphs(topics.map(topic => topicField(topic, 'practice_paragraph', 'paragraph_3')))
+      paragraphs: compactParagraphs([
+        `Practice task: ${sentenceCase(assignment)}`,
+        `Keep the first version small. Test one normal case, one tricky case, and one failure case. Then write two lines explaining which topic helped you solve the problem and why.`
+      ])
     },
     {
       title: `${lesson.topic.title}: Quick Recall`,
