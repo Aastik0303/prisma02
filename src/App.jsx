@@ -72,34 +72,117 @@ const createFreshTracks = () => cloneTracks().map((track, trackIndex) => ({
   }))
 }));
 
+const slugifyValue = (value = '') => String(value)
+  .toLowerCase()
+  .replace(/&/g, ' and ')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
+
+const legacyTrackAliases = {
+  'web-dev': ['web-development', 'web-development-mastery', 'full-stack-react-next-js-typescript'],
+  'ai-ml': ['ai-machine-learning', 'ai-and-machine-learning', 'artificial-intelligence-ml'],
+  embedded: ['embedded-systems', 'embedded-systems-iot', 'industrial-embedded-systems']
+};
+
+const trackIdentityKeys = (track = {}) => {
+  const keys = [
+    track.id,
+    track.slug,
+    track.name,
+    track.title,
+    track.course
+  ].map(slugifyValue).filter(Boolean);
+  const aliases = legacyTrackAliases[slugifyValue(track.id)] || [];
+  return new Set([...keys, ...aliases]);
+};
+
+const tracksMatch = (track, savedTrack) => {
+  const currentKeys = trackIdentityKeys(track);
+  const savedKeys = trackIdentityKeys(savedTrack);
+  return [...currentKeys].some(key => savedKeys.has(key));
+};
+
+const completedNodeCount = (track = {}) => {
+  const completedFromNodes = Array.isArray(track.nodes)
+    ? track.nodes.filter(node => node?.status === 'completed').length
+    : 0;
+  return Math.max(Number(track.completedNodes) || 0, completedFromNodes);
+};
+
+const totalNodeCount = (track = {}) => {
+  const nodeTotal = Array.isArray(track.nodes) ? track.nodes.length : 0;
+  return Math.max(Number(track.totalNodes) || 0, nodeTotal, completedNodeCount(track));
+};
+
+const isFullyCompletedTrack = (track = {}) => {
+  const total = totalNodeCount(track);
+  return total > 0 && completedNodeCount(track) >= total;
+};
+
+const completionScore = (tracks = []) => Array.isArray(tracks)
+  ? tracks.reduce((sum, track) => sum + completedNodeCount(track), 0)
+  : 0;
+
+const nodeKind = (node = {}) => {
+  if (node.category === 'Final Test' || node.type === 'milestone') return 'final';
+  if (node.type === 'project') return 'project';
+  return 'lesson';
+};
+
+const nodeOrdinal = (nodes = [], targetNode) => {
+  const kind = nodeKind(targetNode);
+  let ordinal = 0;
+  for (const node of nodes) {
+    if (nodeKind(node) === kind) ordinal += 1;
+    if (node === targetNode || node?.id === targetNode?.id) return ordinal;
+  }
+  return 0;
+};
+
 const syncTrackCurriculum = (savedTracks) => {
   if (!Array.isArray(savedTracks)) return createFreshTracks();
 
   const syncedBuiltInTracks = cloneTracks().map((track, trackIndex) => {
-    const savedTrack = savedTracks.find(item => item.id === track.id);
+    const savedTrack = savedTracks
+      .filter(item => tracksMatch(track, item))
+      .sort((a, b) => completedNodeCount(b) - completedNodeCount(a))[0];
     const savedNodes = Array.isArray(savedTrack?.nodes) ? savedTrack.nodes : [];
-    const findSavedNode = node => savedNodes.find(item => (
-      item.id === node.id
-      || (
-        node.type === 'lesson'
-        && item.type === 'lesson'
-        && Number(item.levelNumber) === Number(node.levelNumber)
-      )
-    ));
+    const savedTrackWasComplete = isFullyCompletedTrack(savedTrack);
+    const findSavedNode = (node, nodeIndex) => {
+      const currentKind = nodeKind(node);
+      const currentOrdinal = nodeOrdinal(track.nodes, node);
+
+      return savedNodes.find(item => item.id === node.id)
+        || savedNodes.find(item => (
+          currentKind === 'lesson'
+          && nodeKind(item) === 'lesson'
+          && Number(item.levelNumber) > 0
+          && Number(item.levelNumber) === Number(node.levelNumber)
+        ))
+        || savedNodes.find(item => (
+          nodeKind(item) === currentKind
+          && nodeOrdinal(savedNodes, item) === currentOrdinal
+        ))
+        || (
+          nodeKind(savedNodes[nodeIndex]) === currentKind
+            ? savedNodes[nodeIndex]
+            : null
+        );
+    };
     const isCompleted = node => findSavedNode(node)?.status === 'completed';
     const firstIncompleteIndex = track.nodes.findIndex(node => !isCompleted(node));
     const nodes = track.nodes.map((node, nodeIndex) => {
-      const savedNode = findSavedNode(node);
+      const savedNode = findSavedNode(node, nodeIndex);
       return {
         ...node,
-        status: isCompleted(node)
+        status: savedTrackWasComplete || isCompleted(node)
           ? 'completed'
           : (
-            savedTrack?.enrolled && nodeIndex === firstIncompleteIndex
+            (savedTrack?.enrolled || completedNodeCount(savedTrack) > 0) && nodeIndex === firstIncompleteIndex
               ? 'active'
               : savedNode?.status === 'active' && firstIncompleteIndex === -1
                 ? 'active'
-                : trackIndex === 0 && nodeIndex === 0 && !savedTrack
+                : trackIndex === 0 && nodeIndex === 0 && (!savedTrack || (!savedTrack.enrolled && completedNodeCount(savedTrack) === 0))
                   ? 'active'
                   : 'locked'
           )
@@ -108,7 +191,7 @@ const syncTrackCurriculum = (savedTracks) => {
 
     return {
       ...track,
-      enrolled: Boolean(savedTrack?.enrolled),
+      enrolled: Boolean(savedTrack?.enrolled || completedNodeCount(savedTrack) > 0),
       xp: savedTrack?.xp || 0,
       completedNodes: nodes.filter(node => node.status === 'completed').length,
       nodes
@@ -116,7 +199,7 @@ const syncTrackCurriculum = (savedTracks) => {
   });
 
   const customTracks = savedTracks
-    .filter(savedTrack => savedTrack?.id && !syncedBuiltInTracks.some(track => track.id === savedTrack.id))
+    .filter(savedTrack => savedTrack?.id && !syncedBuiltInTracks.some(track => tracksMatch(track, savedTrack)))
     .map(savedTrack => ({
       ...savedTrack,
       enrolled: Boolean(savedTrack.enrolled || (savedTrack.completedNodes || 0) > 0),
@@ -301,8 +384,15 @@ const createWorkspaceFromAuthUser = (authUser) => {
     : createWorkspace(authUser.fullName || authUser.email.split('@')[0], authUser.email);
   const metadata = authUser.metadata && typeof authUser.metadata === 'object' ? authUser.metadata : {};
   const metadataTracks = Array.isArray(metadata.tracksData) ? metadata.tracksData : null;
-  const nextTracksData = metadataTracks || workspace.tracksData;
-  const nextActiveTrack = metadata.activeTrack || workspace.activeTrack;
+  const localTracks = Array.isArray(workspace.tracksData) ? workspace.tracksData : [];
+  const useMetadataTracks = Boolean(
+    metadataTracks
+    && completionScore(metadataTracks) >= completionScore(localTracks)
+  );
+  const nextTracksData = useMetadataTracks ? metadataTracks : localTracks;
+  const nextActiveTrack = useMetadataTracks
+    ? (metadata.activeTrack || workspace.activeTrack)
+    : workspace.activeTrack;
 
   return {
     ...workspace,
@@ -541,11 +631,13 @@ export default function App() {
   };
 
   const persistWorkspace = (workspace, options = {}) => {
-    const key = workspace.userData.email ? workspaceKey(workspace.userData.email) : guestWorkspaceKey;
-    localStorage.setItem(key, JSON.stringify(workspace));
+    const normalizedWorkspace = normalizeWorkspaceCurriculum(workspace);
+    const key = normalizedWorkspace.userData.email ? workspaceKey(normalizedWorkspace.userData.email) : guestWorkspaceKey;
+    localStorage.setItem(key, JSON.stringify(normalizedWorkspace));
     if (options.syncBackend !== false) {
-      void syncWorkspaceToBackend(workspace, options.token);
+      void syncWorkspaceToBackend(normalizedWorkspace, options.token);
     }
+    return normalizedWorkspace;
   };
 
   const persistRegisteredSession = ({ email, accessToken = authToken, refreshTokenValue = refreshToken }) => {
@@ -558,21 +650,35 @@ export default function App() {
     }));
   };
 
-  const applyWorkspace = (workspace) => {
-    const syncedTracks = syncTrackCurriculum(workspace.tracksData);
-    const syncedActiveTrack = syncedTracks.find(track => track.id === workspace.activeTrack?.id)
-      || syncedTracks[0];
+  const normalizeWorkspaceCurriculum = (workspace) => {
+    const syncedTracks = syncTrackCurriculum(workspace?.tracksData);
+    const syncedActiveTrack = syncedTracks.find(track => tracksMatch(track, workspace?.activeTrack))
+      || syncedTracks.find(track => track.enrolled || completedNodeCount(track) > 0)
+      || syncedTracks[0]
+      || null;
 
-    setUserData(workspace.userData);
-    setXp(workspace.xp || 0);
-    setStreak(workspace.streak || 0);
-    setAtsScore(workspace.atsScore || 0);
-    setResumeScore(workspace.resumeScore || 0);
-    setInternshipScore(workspace.internshipScore || 0);
-    setFreelanceScore(workspace.freelanceScore || 0);
-    setLastStreakDate(workspace.lastStreakDate || '');
-    setTracksData(syncedTracks);
-    setActiveTrack(syncedActiveTrack);
+    return {
+      ...workspace,
+      tracksData: syncedTracks,
+      activeTrack: syncedActiveTrack
+    };
+  };
+
+  const applyWorkspace = (workspace) => {
+    const normalizedWorkspace = normalizeWorkspaceCurriculum(workspace);
+
+    setUserData(normalizedWorkspace.userData);
+    setXp(normalizedWorkspace.xp || 0);
+    setStreak(normalizedWorkspace.streak || 0);
+    setAtsScore(normalizedWorkspace.atsScore || 0);
+    setResumeScore(normalizedWorkspace.resumeScore || 0);
+    setInternshipScore(normalizedWorkspace.internshipScore || 0);
+    setFreelanceScore(normalizedWorkspace.freelanceScore || 0);
+    setLastStreakDate(normalizedWorkspace.lastStreakDate || '');
+    setTracksData(normalizedWorkspace.tracksData);
+    setActiveTrack(normalizedWorkspace.activeTrack);
+
+    return normalizedWorkspace;
   };
 
   const mergeCommunitySocialIntoProfile = useCallback((social) => {
