@@ -211,6 +211,41 @@ const syncTrackCurriculum = (savedTracks) => {
   return [...syncedBuiltInTracks, ...customTracks];
 };
 
+const compactNodeProgress = (node = {}) => ({
+  id: node.id,
+  title: node.title,
+  description: node.description,
+  type: node.type,
+  category: node.category,
+  status: node.status,
+  levelNumber: node.levelNumber,
+  xp: node.xp || 0
+});
+
+const compactTrackProgress = (track = {}) => ({
+  id: track.id,
+  slug: track.slug,
+  name: track.name,
+  title: track.title,
+  description: track.description,
+  icon: track.icon,
+  enrolled: Boolean(track.enrolled || completedNodeCount(track) > 0),
+  xp: track.xp || 0,
+  totalNodes: totalNodeCount(track),
+  completedNodes: completedNodeCount(track),
+  nodes: Array.isArray(track.nodes) ? track.nodes.map(compactNodeProgress) : []
+});
+
+const compactWorkspaceForStorage = (workspace = {}) => ({
+  ...workspace,
+  tracksData: Array.isArray(workspace.tracksData)
+    ? workspace.tracksData.map(compactTrackProgress)
+    : [],
+  activeTrack: workspace.activeTrack
+    ? compactTrackProgress({ ...workspace.activeTrack, nodes: [] })
+    : null
+});
+
 const createWorkspace = (name = 'New Learner', email = '') => {
   const tracks = createFreshTracks();
   const joined = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -584,27 +619,31 @@ export default function App() {
   // Pages are prefetched from navigation hover/focus. Eagerly downloading every
   // section here made the first screen compete with several large JS chunks.
 
-  const buildWorkspaceMetadata = (workspace) => ({
-    college: workspace.userData.college,
-    degree: workspace.userData.degree,
-    year: workspace.userData.year,
-    location: workspace.userData.location,
-    bio: workspace.userData.bio,
-    backgroundImage: workspace.userData.backgroundImage,
-    projects: workspace.userData.projects || [],
-    xp: workspace.xp || 0,
-    streak: workspace.streak || 0,
-    atsScore: workspace.atsScore || 0,
-    resumeScore: workspace.resumeScore || 0,
-    internshipScore: workspace.internshipScore || 0,
-    freelanceScore: workspace.freelanceScore || 0,
-    lastStreakDate: workspace.lastStreakDate || '',
-    tracksData: workspace.tracksData || [],
-    activeTrack: workspace.activeTrack || null,
-    enrolledCourseIds: (workspace.tracksData || [])
+  const buildWorkspaceMetadata = (workspace) => {
+    const compactWorkspace = compactWorkspaceForStorage(workspace);
+
+    return {
+      college: compactWorkspace.userData.college,
+      degree: compactWorkspace.userData.degree,
+      year: compactWorkspace.userData.year,
+      location: compactWorkspace.userData.location,
+      bio: compactWorkspace.userData.bio,
+      backgroundImage: compactWorkspace.userData.backgroundImage,
+      projects: compactWorkspace.userData.projects || [],
+      xp: compactWorkspace.xp || 0,
+      streak: compactWorkspace.streak || 0,
+      atsScore: compactWorkspace.atsScore || 0,
+      resumeScore: compactWorkspace.resumeScore || 0,
+      internshipScore: compactWorkspace.internshipScore || 0,
+      freelanceScore: compactWorkspace.freelanceScore || 0,
+      lastStreakDate: compactWorkspace.lastStreakDate || '',
+      tracksData: compactWorkspace.tracksData || [],
+      activeTrack: compactWorkspace.activeTrack || null,
+      enrolledCourseIds: (compactWorkspace.tracksData || [])
       .filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
       .map(track => track.id)
-  });
+    };
+  };
 
   const syncWorkspaceToBackend = async (workspace, token = authToken) => {
     if (!token || !workspace?.userData?.email) return;
@@ -632,10 +671,18 @@ export default function App() {
 
   const persistWorkspace = (workspace, options = {}) => {
     const normalizedWorkspace = normalizeWorkspaceCurriculum(workspace);
+    const storedWorkspace = compactWorkspaceForStorage(normalizedWorkspace);
     const key = normalizedWorkspace.userData.email ? workspaceKey(normalizedWorkspace.userData.email) : guestWorkspaceKey;
-    localStorage.setItem(key, JSON.stringify(normalizedWorkspace));
+    const serializedWorkspace = JSON.stringify(storedWorkspace);
+    try {
+      localStorage.setItem(key, serializedWorkspace);
+    } catch (error) {
+      if (error?.name !== 'QuotaExceededError') throw error;
+      localStorage.removeItem(key);
+      localStorage.setItem(key, serializedWorkspace);
+    }
     if (options.syncBackend !== false) {
-      void syncWorkspaceToBackend(normalizedWorkspace, options.token);
+      void syncWorkspaceToBackend(storedWorkspace, options.token);
     }
     return normalizedWorkspace;
   };
@@ -690,13 +737,13 @@ export default function App() {
       const key = nextUserData.email ? workspaceKey(nextUserData.email) : guestWorkspaceKey;
       try {
         const savedWorkspace = JSON.parse(localStorage.getItem(key) || '{}');
-        localStorage.setItem(key, JSON.stringify({
+        localStorage.setItem(key, JSON.stringify(compactWorkspaceForStorage({
           ...savedWorkspace,
           userData: {
             ...(savedWorkspace.userData || previous),
             ...nextUserData
           }
-        }));
+        })));
       } catch {
         // Dashboard still updates in memory even if localStorage is unavailable.
       }
