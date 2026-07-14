@@ -113,6 +113,72 @@ const getStructuredWorkspaceData = node => {
   };
 };
 
+const uniqueCompactList = (items = [], limit = 5) => {
+  const seen = new Set();
+  return items
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter(item => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+};
+
+const extractSyllabusTopics = (node = {}) => {
+  const lesson = node.lessonContent;
+  const project = node.projectContent?.project;
+  const assessment = node.assessmentContent?.final_assessment;
+
+  if (lesson) {
+    return uniqueCompactList([
+      ...(lesson.topic_contents || []).map(topic => topic.title),
+      ...(lesson.topic?.learning_objectives || []),
+      ...(lesson.sections || []).map(section => section.title)
+    ]);
+  }
+
+  if (project) {
+    return uniqueCompactList([
+      ...(project.learning_outcomes || []),
+      ...(project.levels_and_skills_covered || []).flatMap(level => level.skills || []),
+      ...(project.functional_requirements || [])
+    ]);
+  }
+
+  if (assessment) {
+    return uniqueCompactList([
+      `${assessment.total_questions || 15} question assessment`,
+      `${assessment.passing_marks || 7} passing marks`,
+      'Final readiness check',
+      'Certificate unlock requirement'
+    ]);
+  }
+
+  return uniqueCompactList([
+    node.description,
+    node.quiz?.question,
+    node.category
+  ]);
+};
+
+const buildTrackSyllabus = (track = {}) => (track.nodes || []).map((node, index) => {
+  const isProject = node.type === 'project' || node.category?.includes('Project');
+  const isFinal = node.type === 'milestone' || node.category?.includes('Final');
+  const levelNumber = node.levelNumber || node.lessonContent?.level?.number || index + 1;
+
+  return {
+    id: node.id || `${track.id || 'track'}-${index}`,
+    label: isFinal ? 'Final' : isProject ? 'Project' : `Level ${levelNumber}`,
+    title: node.title || `Stage ${index + 1}`,
+    category: node.category || 'Lesson',
+    status: node.status || 'locked',
+    topics: extractSyllabusTopics(node)
+  };
+});
+
 const getCsrfToken = async () => {
   const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
     credentials: 'include'
@@ -813,6 +879,7 @@ export default function LearningPath({
     ? tracksData.filter(track => track?.enrolled || (track?.completedNodes || 0) > 0)
     : [];
   const currentTrack = enrolledTracks.find(track => track.id === activeTrack?.id) || enrolledTracks[0] || null;
+  const currentTrackSyllabus = buildTrackSyllabus(currentTrack || {});
   const getTrackTone = (trackId = '') => {
     if (trackId === 'web-dev' || trackId === 'frontend' || trackId === 'mern-stack') return {
       glowStrong: 'from-indigo-500/10',
@@ -1748,6 +1815,99 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Course Syllabus widget */}
+          <div className="glass-panel p-6 rounded-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-slate-950 dark:text-white flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-cyan-500" />
+                  Course Syllabus
+                </h3>
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                  Level-wise topics you will study in this journey.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-cyan-500/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-cyan-600 dark:text-cyan-300">
+                {currentTrackSyllabus.length} stages
+              </span>
+            </div>
+
+            <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+              {currentTrackSyllabus.map((item, index) => {
+                const isCompleted = item.status === 'completed';
+                const isActive = item.status === 'active';
+                const isLocked = item.status === 'locked';
+                const StatusIcon = isCompleted ? CheckCircle2 : isLocked ? Lock : Sparkles;
+
+                return (
+                  <details
+                    key={item.id}
+                    className={`group overflow-hidden rounded-2xl border bg-slate-50/80 text-left transition-colors dark:bg-slate-950/35 ${
+                      isActive
+                        ? 'border-cyan-400/50 dark:border-cyan-500/40'
+                        : isCompleted
+                          ? 'border-emerald-400/40 dark:border-emerald-500/30'
+                          : 'border-slate-200/70 dark:border-slate-800/70'
+                    }`}
+                    open={index < 2 || isActive}
+                  >
+                    <summary className="flex cursor-pointer list-none items-start gap-3 p-3 marker:hidden">
+                      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
+                        isCompleted
+                          ? 'bg-emerald-500/10 text-emerald-500'
+                          : isActive
+                            ? 'bg-cyan-500/10 text-cyan-500'
+                            : 'bg-slate-200/70 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      }`}>
+                        <StatusIcon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                            {item.label}
+                          </span>
+                          <span className={`text-[9px] font-black uppercase tracking-wider ${
+                            isCompleted
+                              ? 'text-emerald-500'
+                              : isActive
+                                ? 'text-cyan-500'
+                                : 'text-slate-400'
+                          }`}>
+                            {isCompleted ? 'Completed' : isActive ? 'Current' : 'Locked'}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs font-extrabold leading-snug text-slate-900 dark:text-white">
+                          {item.title}
+                        </span>
+                      </span>
+                      <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-90" />
+                    </summary>
+
+                    <div className="border-t border-slate-200/70 px-3 pb-3 pt-2 dark:border-slate-800/70">
+                      <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        Topics in this {item.label.toLowerCase()}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.topics.length ? item.topics.map(topic => (
+                          <span
+                            key={topic}
+                            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold leading-4 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                          >
+                            {topic}
+                          </span>
+                        )) : (
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            Topic details unlock when this course publishes more lesson content.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           </div>
 
