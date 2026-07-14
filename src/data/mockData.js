@@ -838,19 +838,187 @@ const buildTopicQuiz = (topic, level) => ({
   })
 });
 
-const buildTopicParagraphContent = ({ name, levelTitle, summary, assignment, blueprint, topicIndex }) => ({
-  title: name,
-  slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
-  introduction: `${name} is one of the main ideas in ${levelTitle}. In simple language, it is a focused way to understand or control one part of the larger ${blueprint.category.toLowerCase()} workflow. You should learn what information goes into it, what change happens, and what result comes out. This makes the topic easier to remember because the technical name is connected to a clear purpose.`,
-  detailed_explanation: `${summary} ${name} supports this goal by giving you a specific concept or tool to apply. A strong understanding includes more than knowing the definition: you should be able to explain when it is useful, what assumptions it makes, how it connects to the other topics in this level, and how you would check that it behaves correctly. When the input is missing, invalid or unusual, you should also be able to predict the likely result and decide how the system should respond.`,
-  beginner_example: `For example, imagine that your task is to ${assignment.charAt(0).toLowerCase() + assignment.slice(1)} Start by isolating the smallest part of that task that uses ${name}. Write down the result you expect before using any tool. Create or inspect one normal case, then change one condition to create a boundary or failure case. Comparing those two results shows what ${name} actually does instead of asking you to memorize an abstract explanation.`,
-  professional_example: `In professional work, ${name} would not be accepted only because the first demonstration appeared to work. A developer or engineer would record the important assumptions, validate untrusted or unexpected input, measure the result with an appropriate test or tool, and document the decision for another person to review. This evidence makes the implementation repeatable and safer to maintain.`,
-  common_mistakes: `A common mistake is copying an example of ${name} without understanding why each part exists. Another mistake is testing only the successful path and assuming every real input will behave in the same way. Avoid these problems by beginning with a small example, changing one condition at a time, checking a realistic failure case, and explaining the outcome in your own words.`,
-  practice_paragraph: `Practice ${name} by completing one small, observable part of this activity: ${assignment} Keep the first version intentionally simple. After it works, test one normal case and one incorrect or boundary case. Finish by writing a short paragraph that explains what you changed, what evidence you observed, and what you would improve in a production version.`,
-  order: topicIndex + 1
-});
+// Maps each course id to the main language used for its code examples.
+// "none" means the course is not code-based (e.g. design courses).
+const CODE_LANGUAGES = {
+  "web-dev": "javascript",
+  "ai-ml": "python",
+  "embedded": "c",
+  "java": "java",
+  "data-science": "python",
+  "data-analytics": "sql",
+  "mern-stack": "javascript",
+  "python": "python",
+  "cpp": "cpp",
+  "frontend": "javascript",
+  "backend": "javascript",
+  "devops": "bash",
+  "cloud-computing": "bash",
+  "cybersecurity": "python",
+  "mobile-development": "javascript",
+  "ui-ux-design": "none",
+  "sql-database": "sql",
+  "blockchain": "solidity"
+};
 
-const buildCourseLesson = (level, index, blueprint) => {
+// A small bank of real, working code snippets per language. Each entry is
+// matched against a topic name using keywords, so learners always see a
+// short, correct example instead of a wall of text.
+const CODE_SNIPPETS = {
+  javascript: [
+    { keywords: ["component", "hook", "state", "props", "effect"], code: `function Counter({ label }) {\n  const [count, setCount] = useState(0);\n\n  useEffect(() => {\n    document.title = \`\${label}: \${count}\`;\n  }, [count, label]);\n\n  return (\n    <button onClick={() => setCount(count + 1)}>\n      {label}: {count}\n    </button>\n  );\n}` },
+    { keywords: ["async", "fetch", "api", "request", "client", "loading"], code: `async function getUser(id) {\n  const response = await fetch(\`/api/users/\${id}\`);\n  if (!response.ok) {\n    throw new Error("Could not load user");\n  }\n  return response.json();\n}` },
+    { keywords: ["route", "routing", "server component", "next"], code: `// app/courses/[id]/page.js\nexport default async function CoursePage({ params }) {\n  const course = await getCourse(params.id);\n  return <h1>{course.title}</h1>;\n}` },
+    { keywords: ["middleware", "express", "controller"], code: `app.post("/tasks", (req, res) => {\n  const { title } = req.body;\n  if (!title) {\n    return res.status(400).json({ error: "Title is required" });\n  }\n  const task = createTask(title);\n  res.status(201).json(task);\n});` },
+    { keywords: ["schema", "mongoose", "document", "index"], code: `const userSchema = new mongoose.Schema({\n  email: { type: String, required: true, unique: true },\n  name: { type: String, required: true }\n});\nconst User = mongoose.model("User", userSchema);` },
+    { keywords: ["auth", "jwt", "token", "session", "role"], code: `const token = jwt.sign({ userId: user.id, role: user.role }, SECRET, {\n  expiresIn: "1h"\n});\nres.json({ token });` },
+    { keywords: ["test", "jest", "vitest", "unit"], code: `test("adds two numbers", () => {\n  expect(add(2, 3)).toBe(5);\n});` },
+    { keywords: ["error", "try", "catch", "validation"], code: `try {\n  const data = JSON.parse(rawInput);\n  return data;\n} catch (error) {\n  console.error("Invalid input:", error.message);\n  return null;\n}` },
+    { keywords: ["class", "generic", "type", "interface", "union", "narrow"], code: `type ApiResult<T> =\n  | { status: "success"; data: T }\n  | { status: "error"; message: string };\n\nfunction handle<T>(result: ApiResult<T>) {\n  if (result.status === "success") {\n    return result.data;\n  }\n  throw new Error(result.message);\n}` },
+    { keywords: ["css", "flex", "grid", "layout", "responsive"], code: `.dashboard {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));\n  gap: 1rem;\n}` },
+    { keywords: ["form", "validation", "accessibility", "document"], code: `<label for="email">Email</label>\n<input id="email" type="email" required aria-describedby="email-error" />\n<span id="email-error" role="alert"></span>` },
+    { keywords: ["storage", "cache", "cors", "environment"], code: `const cache = new Map();\n\nfunction getCached(key, loader) {\n  if (!cache.has(key)) {\n    cache.set(key, loader());\n  }\n  return cache.get(key);\n}` }
+  ],
+  python: [
+    { keywords: ["variable", "condition", "loop", "control flow"], code: `total = 0\nfor score in [90, 85, 78]:\n    if score >= 80:\n        total += score\n\nprint(total)` },
+    { keywords: ["function"], code: `def average(numbers):\n    return sum(numbers) / len(numbers)\n\nprint(average([90, 85, 78]))` },
+    { keywords: ["list", "dictionary", "set", "tuple", "data structure"], code: `student = {"name": "Ada", "scores": [90, 85, 78]}\nstudent["average"] = sum(student["scores"]) / len(student["scores"])\nprint(student)` },
+    { keywords: ["class", "object", "composition", "method"], code: `class Account:\n    def __init__(self, balance=0):\n        self.balance = balance\n\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance` },
+    { keywords: ["file", "csv", "json", "encoding"], code: `import json\n\nwith open("contacts.json", "w") as file:\n    json.dump({"name": "Ada", "email": "ada@example.com"}, file)` },
+    { keywords: ["numpy", "pandas", "vector", "matrix", "dataframe", "data quality"], code: `import pandas as pd\n\ndf = pd.read_csv("orders.csv")\nprint(df.isna().sum())\nprint(df.describe())` },
+    { keywords: ["regression", "classification", "model", "sklearn", "ensemble", "tree"], code: `from sklearn.linear_model import LogisticRegression\n\nmodel = LogisticRegression()\nmodel.fit(X_train, y_train)\nprint(model.score(X_test, y_test))` },
+    { keywords: ["preprocessing", "scaling", "encoding", "leakage", "cross-validation"], code: `from sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\n\npipeline = Pipeline([\n    ("scale", StandardScaler()),\n    ("model", LogisticRegression())\n])\npipeline.fit(X_train, y_train)` },
+    { keywords: ["neural", "backpropagation", "deep learning", "gradient", "optimization"], code: `import torch.nn as nn\n\nmodel = nn.Sequential(\n    nn.Linear(10, 32),\n    nn.ReLU(),\n    nn.Linear(32, 1)\n)` },
+    { keywords: ["token", "embedding", "attention", "retrieval", "chunk", "rag"], code: `chunks = split_into_chunks(document, size=300)\nquery_vector = embed(query)\nbest_chunk = max(chunks, key=lambda c: similarity(embed(c), query_vector))` },
+    { keywords: ["serving", "monitoring", "fastapi", "drift", "deployment"], code: `from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get("/predict")\ndef predict(value: float):\n    return {"prediction": model.predict([[value]])[0]}` },
+    { keywords: ["request", "api", "automation", "scheduling"], code: `import requests\n\nresponse = requests.get("https://api.example.com/weather")\nif response.status_code == 200:\n    print(response.json()["temperature"])` },
+    { keywords: ["test", "pytest", "assertion", "fixture", "logging"], code: `def test_average():\n    assert average([90, 85, 78]) == 84.33333333333333` },
+    { keywords: ["hash", "password", "encryption", "security", "salting"], code: `import bcrypt\n\nhashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())\nis_valid = bcrypt.checkpw(password.encode(), hashed)` },
+    { keywords: ["threat", "network", "log", "permission", "linux"], code: `import subprocess\n\nresult = subprocess.run(["ls", "-la", "/var/log"], capture_output=True, text=True)\nprint(result.stdout)` }
+  ],
+  c: [
+    { keywords: ["pointer", "memory", "volatile"], code: `int counter = 0;\nint *ptr = &counter;\n*ptr = *ptr + 1;\nprintf("counter = %d\\n", counter);` },
+    { keywords: ["bitwise", "bit", "mask"], code: `uint8_t flags = 0;\nflags |= (1 << 2);   // set bit 2\nflags &= ~(1 << 0);  // clear bit 0\nif (flags & (1 << 2)) {\n    printf("bit 2 is set\\n");\n}` },
+    { keywords: ["gpio", "register", "clock", "architecture"], code: `#define GPIOA_ODR (*(volatile uint32_t *)0x40020014)\n\nGPIOA_ODR |= (1 << 5);   // set pin 5 high\nGPIOA_ODR &= ~(1 << 5);  // set pin 5 low` },
+    { keywords: ["uart", "spi", "i2c", "framing", "driver", "bus"], code: `void uart_send_byte(uint8_t byte) {\n    while (!(UART_SR & UART_SR_TXE)) { }\n    UART_DR = byte;\n}` },
+    { keywords: ["timer", "interrupt", "pwm", "isr", "latency"], code: `void TIM2_IRQHandler(void) {\n    if (TIM2->SR & TIM_SR_UIF) {\n        TIM2->SR &= ~TIM_SR_UIF;\n        tick_count++;\n    }\n}` },
+    { keywords: ["adc", "dma", "sampling", "buffer"], code: `uint16_t adc_buffer[64];\n\nHAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buffer, 64);` },
+    { keywords: ["task", "queue", "mutex", "rtos", "scheduling", "freertos"], code: `xQueueHandle sensorQueue;\n\nvoid sensorTask(void *params) {\n    SensorReading reading;\n    for (;;) {\n        reading = read_sensor();\n        xQueueSend(sensorQueue, &reading, portMAX_DELAY);\n        vTaskDelay(pdMS_TO_TICKS(100));\n    }\n}` },
+    { keywords: ["debug", "swd", "logic", "fault", "test"], code: `void HardFault_Handler(void) {\n    log_fault_registers();\n    while (1) { } // halt for debugger inspection\n}` }
+  ],
+  cpp: [
+    { keywords: ["vector", "container", "iterator", "algorithm"], code: `std::vector<int> scores = {90, 85, 78};\nscores.push_back(100);\n\nfor (int score : scores) {\n    std::cout << score << std::endl;\n}` },
+    { keywords: ["class", "constructor", "raii", "operator"], code: `class Matrix {\npublic:\n    Matrix(int rows, int cols) : rows_(rows), cols_(cols) {\n        data_.resize(rows * cols);\n    }\nprivate:\n    int rows_, cols_;\n    std::vector<double> data_;\n};` },
+    { keywords: ["pointer", "stack", "heap", "reference"], code: `int value = 10;\nint &ref = value;   // reference: another name for value\nint *ptr = &value;  // pointer: stores the address of value\nref = 20;\nstd::cout << *ptr << std::endl; // prints 20` },
+    { keywords: ["map", "set"], code: `std::map<std::string, int> ages;\nages["Ada"] = 30;\nages["Grace"] = 28;` },
+    { keywords: ["recursion", "big o", "divide", "backtracking"], code: `int factorial(int n) {\n    if (n <= 1) return 1;\n    return n * factorial(n - 1);\n}` },
+    { keywords: ["stack", "queue", "array", "string"], code: `std::stack<char> brackets;\nfor (char c : expression) {\n    if (c == '(') brackets.push(c);\n    else if (c == ')' && !brackets.empty()) brackets.pop();\n}` },
+    { keywords: ["tree", "graph", "dfs", "dp", "dynamic programming"], code: `int fib(int n, std::vector<int> &memo) {\n    if (n <= 1) return n;\n    if (memo[n] != -1) return memo[n];\n    return memo[n] = fib(n - 1, memo) + fib(n - 2, memo);\n}` },
+    { keywords: ["compiler", "type", "function"], code: `double average(const std::vector<double> &values) {\n    double sum = 0;\n    for (double v : values) sum += v;\n    return sum / values.size();\n}` }
+  ],
+  java: [
+    { keywords: ["jdk", "jvm", "syntax", "debugging"], code: `public class GradeCalculator {\n    public static void main(String[] args) {\n        int score = 85;\n        String grade = score >= 80 ? "A" : "B";\n        System.out.println("Grade: " + grade);\n    }\n}` },
+    { keywords: ["class", "object", "encapsulation", "inheritance"], code: `public class Account {\n    private double balance;\n\n    public Account(double balance) {\n        this.balance = balance;\n    }\n\n    public void deposit(double amount) {\n        balance += amount;\n    }\n}` },
+    { keywords: ["list", "map", "generic", "exception", "collection"], code: `List<String> names = new ArrayList<>();\nnames.add("Ada");\n\nMap<String, Integer> ages = new HashMap<>();\nages.put("Ada", 30);` },
+    { keywords: ["lambda", "stream", "optional", "immutability"], code: `List<Integer> highScores = scores.stream()\n    .filter(score -> score >= 80)\n    .collect(Collectors.toList());` },
+    { keywords: ["thread", "executor", "synchronization", "race condition"], code: `ExecutorService pool = Executors.newFixedThreadPool(4);\npool.submit(() -> processOrder(order));\npool.shutdown();` },
+    { keywords: ["junit", "mockito", "solid", "test", "layering"], code: `@Test\nvoid addsTwoNumbers() {\n    assertEquals(5, calculator.add(2, 3));\n}` },
+    { keywords: ["sql", "jdbc", "orm", "hibernate", "transaction"], code: `@Entity\npublic class Product {\n    @Id @GeneratedValue\n    private Long id;\n    private String name;\n    private double price;\n}` },
+    { keywords: ["rest", "spring", "security", "deployment"], code: `@RestController\npublic class UserController {\n    @GetMapping("/users/{id}")\n    public User getUser(@PathVariable Long id) {\n        return userService.findById(id);\n    }\n}` }
+  ],
+  sql: [
+    { keywords: ["select", "filter", "where", "sort", "aggregation"], code: `SELECT customer_id, SUM(amount) AS total_spent\nFROM orders\nWHERE amount > 0\nGROUP BY customer_id\nORDER BY total_spent DESC;` },
+    { keywords: ["join", "subquery", "cte"], code: `SELECT u.name, o.amount\nFROM users u\nJOIN orders o ON o.user_id = u.id\nWHERE o.amount > 100;` },
+    { keywords: ["table", "key", "relationship", "normalization"], code: `CREATE TABLE orders (\n    id SERIAL PRIMARY KEY,\n    user_id INT REFERENCES users(id),\n    amount NUMERIC(10, 2) NOT NULL\n);` },
+    { keywords: ["constraint", "acid", "transaction", "rollback"], code: `BEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 1;\nUPDATE accounts SET balance = balance + 100 WHERE id = 2;\nCOMMIT;` },
+    { keywords: ["index", "explain", "performance", "selectivity"], code: `CREATE INDEX idx_orders_customer ON orders(customer_id);\nEXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 42;` },
+    { keywords: ["view", "procedure", "materialized", "report"], code: `CREATE VIEW monthly_revenue AS\nSELECT DATE_TRUNC('month', created_at) AS month, SUM(amount) AS revenue\nFROM orders\nGROUP BY 1;` },
+    { keywords: ["role", "backup", "maintenance", "configuration"], code: `CREATE ROLE analyst WITH LOGIN PASSWORD 'change_me';\nGRANT SELECT ON ALL TABLES IN SCHEMA public TO analyst;` },
+    { keywords: ["partition", "replication", "pooling", "migration"], code: `CREATE TABLE orders_2026 PARTITION OF orders\nFOR VALUES FROM ('2026-01-01') TO ('2027-01-01');` },
+    { keywords: ["kpi", "dimension", "duplicate", "reconciliation"], code: `SELECT customer_id, COUNT(*) AS duplicate_rows\nFROM orders\nGROUP BY customer_id, order_date, amount\nHAVING COUNT(*) > 1;` }
+  ],
+  bash: [
+    { keywords: ["filesystem", "permission", "process", "shell script"], code: `#!/bin/bash\nDISK_USAGE=$(df -h / | tail -1 | awk '{print $5}')\necho "Disk usage: $DISK_USAGE"` },
+    { keywords: ["branch", "pull request", "tag", "release", "git"], code: `git checkout -b feature/login\ngit commit -m "Add login form"\ngit push origin feature/login` },
+    { keywords: ["image", "container", "volume", "network", "docker"], code: `docker build -t my-app:latest .\ndocker run -p 3000:3000 --env-file .env my-app:latest` },
+    { keywords: ["pipeline", "build", "test", "artifact", "quality gate", "ci"], code: `name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm install\n      - run: npm test` },
+    { keywords: ["vm", "networking", "secret", "proxy", "cloud"], code: `aws ec2 run-instances \\\n  --image-id ami-0123456789 \\\n  --instance-type t3.micro \\\n  --key-name my-key` },
+    { keywords: ["pod", "deployment", "service", "kubernetes", "config map"], code: `apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web-app\nspec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n        - name: web\n          image: my-app:latest` },
+    { keywords: ["log", "metric", "alert", "runbook", "monitoring"], code: `curl -s http://localhost:9090/api/v1/query \\\n  --data-urlencode 'query=up{job="web-app"}'` },
+    { keywords: ["iac", "backup", "scaling", "cost", "terraform"], code: `resource "aws_db_instance" "main" {\n  engine            = "postgres"\n  instance_class    = "db.t3.micro"\n  backup_retention_period = 7\n}` }
+  ],
+  solidity: [
+    { keywords: ["block", "transaction", "consensus", "wallet"], code: `// A transaction moves value between two accounts\n// and is only final once enough blocks confirm it.\naddress payable recipient = payable(0x1234...);\nrecipient.transfer(1 ether);` },
+    { keywords: ["evm", "gas", "account", "deployment"], code: `pragma solidity ^0.8.0;\n\ncontract HelloWorld {\n    string public message = "Hello";\n}` },
+    { keywords: ["type", "function", "storage", "event"], code: `pragma solidity ^0.8.0;\n\ncontract Counter {\n    uint public count;\n    event CountChanged(uint newCount);\n\n    function increment() public {\n        count += 1;\n        emit CountChanged(count);\n    }\n}` },
+    { keywords: ["erc", "ownership", "access control", "upgrade"], code: `modifier onlyOwner() {\n    require(msg.sender == owner, "Not the owner");\n    _;\n}\n\nfunction withdraw() public onlyOwner {\n    payable(owner).transfer(address(this).balance);\n}` },
+    { keywords: ["hardhat", "fixture", "assertion", "coverage", "test"], code: `it("increments the counter", async function () {\n  await counter.increment();\n  expect(await counter.count()).to.equal(1);\n});` },
+    { keywords: ["wallet connect", "ethers", "signature", "transaction state"], code: `const contract = new ethers.Contract(address, abi, signer);\nconst tx = await contract.increment();\nawait tx.wait();` },
+    { keywords: ["reentrancy", "integer", "access bug", "audit"], code: `// Vulnerable: sends funds before updating balance\nfunction withdraw(uint amount) public {\n    require(balances[msg.sender] >= amount);\n    (bool sent, ) = msg.sender.call{value: amount}("");\n    require(sent);\n    balances[msg.sender] -= amount; // too late, allows reentrancy\n}` },
+    { keywords: ["testnet", "verification", "monitoring", "governance"], code: `npx hardhat run scripts/deploy.js --network sepolia` }
+  ]
+};
+
+const DEFAULT_SNIPPET = {
+  javascript: `// Example: keep the first version small and testable\nfunction process(input) {\n  if (!input) {\n    throw new Error("Input is required");\n  }\n  return input;\n}`,
+  python: `# Example: keep the first version small and testable\ndef process(value):\n    if value is None:\n        raise ValueError("Value is required")\n    return value`,
+  c: `/* Example: keep the first version small and testable */\nint process(int value) {\n    if (value < 0) {\n        return -1;\n    }\n    return value;\n}`,
+  cpp: `// Example: keep the first version small and testable\nint process(int value) {\n    if (value < 0) return -1;\n    return value;\n}`,
+  java: `// Example: keep the first version small and testable\npublic int process(int value) {\n    if (value < 0) {\n        throw new IllegalArgumentException("value must be positive");\n    }\n    return value;\n}`,
+  sql: `-- Example: start with a small, readable query\nSELECT *\nFROM records\nWHERE created_at >= CURRENT_DATE - INTERVAL '7 days';`,
+  bash: `#!/bin/bash\n# Example: start with a small, readable script\nset -e\necho "Running check..."`,
+  solidity: `pragma solidity ^0.8.0;\n\ncontract Example {\n    uint public value;\n\n    function setValue(uint newValue) public {\n        value = newValue;\n    }\n}`
+};
+
+// Picks a small, real code example for a topic based on keyword matching.
+// Returns null for non-code courses (e.g. UI/UX design).
+const getCodeExample = (courseId, topicName) => {
+  const language = CODE_LANGUAGES[courseId] || "javascript";
+  if (language === "none") return null;
+
+  const bank = CODE_SNIPPETS[language] || [];
+  const lowerTopic = topicName.toLowerCase();
+  const match = bank.find(entry => entry.keywords.some(keyword => lowerTopic.includes(keyword.toLowerCase())));
+
+  return {
+    language,
+    code: match ? match.code : DEFAULT_SNIPPET[language]
+  };
+};
+
+const LANGUAGE_DISPLAY_NAMES = {
+  javascript: "JavaScript",
+  python: "Python",
+  c: "C",
+  cpp: "C++",
+  java: "Java",
+  sql: "SQL",
+  bash: "the command line",
+  solidity: "Solidity"
+};
+
+const buildTopicParagraphContent = ({ name, levelTitle, summary, assignment, blueprint, topicIndex, courseId }) => {
+  const shortAssignment = assignment.charAt(0).toLowerCase() + assignment.slice(1);
+  const codeExample = getCodeExample(courseId, name);
+  const languageName = codeExample ? (LANGUAGE_DISPLAY_NAMES[codeExample.language] || codeExample.language) : null;
+
+  return {
+    title: name,
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    // Paragraph 1: a simple, plain-language explanation of what the topic is and why it matters.
+    paragraph_1: `${name} is one of the key ideas in ${levelTitle}. In simple words, ${summary.charAt(0).toLowerCase() + summary.slice(1)} You will learn what goes in, what changes, and what comes out. Knowing this makes the topic easy to remember and use later.`,
+    // Paragraph 2: a short, concrete example, with a real code snippet for coding courses.
+    paragraph_2: codeExample
+      ? `Here is a small example of ${name} in ${languageName}. Read it line by line before you run it. Try changing one value and predict the result before checking it. This is the fastest way to really understand ${name}.`
+      : `For example, imagine your task is to ${shortAssignment} Start with the smallest piece of that task that uses ${name}. Try it once with normal input, then once with a tricky or unusual input. Comparing both results shows you what ${name} really does.`,
+    code_example: codeExample,
+    // Paragraph 3: common mistakes and a short practice step.
+    paragraph_3: `A common mistake is copying an example of ${name} without knowing why each part is there. Another mistake is only checking the easy case and never a tricky one. To practice, try this: ${shortAssignment} Keep your first version simple, test one normal case and one odd case, then write one line about what you learned.`,
+    order: topicIndex + 1
+  };
+};
+
+const buildCourseLesson = (level, index, blueprint, courseId) => {
   const [title, topics, summary, assignment] = level;
   const primaryTopic = topics[0];
   return {
@@ -866,7 +1034,7 @@ const buildCourseLesson = (level, index, blueprint) => {
       prerequisites: index === 0 ? [] : [`Completion of level ${index}`],
       learning_objectives: [`Explain ${topics.join(", ")}`, `Apply ${primaryTopic} in a practical task`, "Recognize common mistakes and justify implementation decisions"]
     },
-    topic_contents: topics.map((name, topicIndex) => buildTopicParagraphContent({ name, levelTitle: title, summary, assignment, blueprint, topicIndex })),
+    topic_contents: topics.map((name, topicIndex) => buildTopicParagraphContent({ name, levelTitle: title, summary, assignment, blueprint, topicIndex, courseId })),
     sections: [
       { type: "introduction", title: "Introduction", content: `${summary} This level explains ${topics.join(", ")} in simple language and connects each topic to a practical example. Read the explanations in order, try the example after each topic, and use the final activity to combine what you learned.` },
       { type: "why_it_matters", title: "Why This Topic Matters", content: `${title} matters because professional systems must be understandable, testable and reliable beyond a single demonstration. Understanding the reason behind each concept helps you choose the right approach and explain your work clearly.` },
@@ -922,7 +1090,7 @@ const buildFinalAssessment = blueprint => {
 
 export const COURSE_LEARNING_CONTENT = Object.fromEntries(Object.entries(COURSE_LEVEL_BLUEPRINTS).map(([id, blueprint]) => [id, {
   ...blueprint,
-  levels: blueprint.levels.map((level, index) => buildCourseLesson(level, index, blueprint)),
+  levels: blueprint.levels.map((level, index) => buildCourseLesson(level, index, blueprint, id)),
   final_project: { generation_mode: "final_project", category: blueprint.category, course: blueprint.course, project: { title: blueprint.finalProject, difficulty: "advanced", estimated_completion_hours: 30, project_overview: `Build a professional ${blueprint.course} project covering all eight levels.`, business_problem: "Create a reliable solution for a realistic user need.", target_users: blueprint.targetAudience.split(" and "), learning_outcomes: blueprint.levels.map(level => level[0]), levels_and_skills_covered: blueprint.levels.map((level, index) => ({ level: index + 1, skills: level[1] })), functional_requirements: ["Implement the core workflow", "Handle failure states", "Provide a usable result"], non_functional_requirements: ["Tested", "Documented", "Secure and performant where relevant"], recommended_technology_or_tools: blueprint.technicalLanguage.split(", "), system_architecture: { description: "Separate input, domain logic, persistence or hardware boundaries, validation and presentation.", ascii_diagram: "User/Input -> Validation -> Core System -> Tested Output" }, implementation_phases: [{ phase: 1, title: "Plan", tasks: ["Define scope", "Design architecture"], deliverables: ["Plan and diagram"] }, { phase: 2, title: "Build and validate", tasks: ["Implement", "Test", "Document"], deliverables: ["Working project"] }], recommended_folder_structure: "Organize source, tests, documentation and assets by responsibility.", data_or_resource_requirements: [], testing_requirements: ["Test normal, boundary and failure paths"], security_requirements: ["Validate untrusted input and protect privileged operations"], performance_requirements: ["Measure the important user or system path"], deployment_or_submission_steps: ["Run tests", "Prepare documentation", "Submit link or file"], documentation_requirements: ["README", "setup", "architecture", "testing evidence"], submission_type: "github_link_or_file_or_external_link", evaluation_rubric: [{ criterion: "Functionality", marks: 35 }, { criterion: "Use of all eight levels", marks: 25 }, { criterion: "Testing and reliability", marks: 20 }, { criterion: "Documentation and decisions", marks: 20 }], total_marks: 100, passing_marks: 50, student_checklist: ["All requirements complete", "Tests pass", "Documentation complete"], common_project_mistakes: ["Building before defining scope", "Testing only successful behavior"], optional_advanced_features: [] } },
   final_assessment: buildFinalAssessment(blueprint)
 }]));
