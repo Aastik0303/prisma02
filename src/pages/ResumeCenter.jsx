@@ -2233,11 +2233,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         </div>
                       ) : (
                         uploadedPdfUrl ? (
-                          <div className="grid gap-4 xl:grid-cols-[minmax(300px,0.92fr)_minmax(460px,1.08fr)]">
+                          <div className="mx-auto w-full max-w-[980px]">
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                               <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
                                 <div>
-                                  <p className="text-xs font-black text-slate-900">Uploaded template preview</p>
+                                  <p className="text-xs font-black text-slate-900">Uploaded PDF preview</p>
                                   <p className="mt-0.5 text-[10px] font-bold text-slate-400">Original PDF stays unchanged</p>
                                 </div>
                                 <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700">PDF</span>
@@ -2246,34 +2246,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                 aria-label="Original uploaded PDF template"
                                 data={`${uploadedPdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
                                 type="application/pdf"
-                                className="h-[760px] w-full bg-white"
+                                className="h-[820px] w-full bg-white"
                               >
-                                <div className="flex h-[760px] items-center justify-center px-6 text-center text-sm font-bold text-slate-400">
+                                <div className="flex h-[820px] items-center justify-center px-6 text-center text-sm font-bold text-slate-400">
                                   Original PDF preview is unavailable in this browser.
                                 </div>
                               </object>
-                            </div>
-
-                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                                <div>
-                                  <p className="text-xs font-black text-slate-900">Extracted document preview</p>
-                                  <p className="mt-0.5 text-[10px] font-bold text-slate-400">Converted preview from uploaded PDF</p>
-                                </div>
-                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">Preview</span>
-                              </div>
-                              {(scannerEditorHtml || scanText.trim()) ? (
-                                <div
-                                  ref={scannerEditorRef}
-                                  aria-label="Extracted resume document preview"
-                                  dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
-                                  className="resume-rich-editor min-h-[760px] bg-white px-8 py-8 sm:px-10 sm:py-9 font-sans text-[13px] leading-6 text-slate-900 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
-                                />
-                              ) : (
-                                <div className="flex min-h-[760px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
-                                  Upload a resume to preview extracted text here.
-                                </div>
-                              )}
                             </div>
                           </div>
                         ) : (
@@ -2419,7 +2397,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               ['File', uploadedFileName || 'No upload'],
                               ['Score', resumeReview ? `${atsScore}/100` : 'Pending'],
                               ['Preview lines', uploadedPdfLayout?.blocks?.length || (scanText.trim() ? scanText.split('\n').filter(Boolean).length : 0)],
-                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template preview' : uploadedPdfUrl ? 'PDF preview + text' : 'Text preview']
+                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template preview' : uploadedPdfUrl ? 'PDF preview' : 'Text preview']
                             ].map(([label, value]) => (
                               <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
