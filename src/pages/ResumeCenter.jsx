@@ -1024,6 +1024,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     });
 
     const resumeBody = clone.querySelector('.resume-preview-body');
+    const resumeHeader = clone.querySelector('.resume-reference-header');
     const stretchNode = (node) => {
       if (!(node instanceof HTMLElement)) return;
       node.style.width = '100%';
@@ -1060,6 +1061,45 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       });
 
       resumeBody.querySelectorAll('section, h4, .resume-full-width-section, .resume-section-content').forEach(stretchNode);
+    }
+
+    if (resumeHeader instanceof HTMLElement) {
+      Object.assign(resumeHeader.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '210mm',
+        maxWidth: 'none',
+        margin: '0',
+        padding: '8mm 12mm 4mm',
+        textAlign: 'center',
+        boxSizing: 'border-box'
+      });
+
+      resumeHeader.querySelectorAll('h1, h2, h3, p').forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        Object.assign(node.style, {
+          width: '100%',
+          textAlign: 'center',
+          marginLeft: 'auto',
+          marginRight: 'auto'
+        });
+      });
+
+      resumeHeader.querySelectorAll('div').forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        Object.assign(node.style, {
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '100%',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          textAlign: 'center'
+        });
+      });
     }
 
     return clone;
@@ -1224,7 +1264,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet{width:210mm!important;max-width:none!important;background:#fff!important}.resume-reference-header{text-align:center!important;padding:8mm 12mm 4mm!important}.resume-reference-header h2{font-size:25px!important;line-height:1.05!important}.resume-reference-header>div{justify-content:center!important}.resume-preview-body{display:block!important;width:186mm!important;max-width:calc(100% - 24mm)!important;margin-left:auto!important;margin-right:auto!important;padding-top:4mm!important;grid-template-columns:none!important}.resume-full-width-section,.resume-section-content{width:100%!important;max-width:100%!important}.resume-preview-body>section+section{margin-top:12px}.resume-full-width-section h4{font-size:14px!important;letter-spacing:.02em!important;border-bottom:1.5px solid #0f172a!important}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
+    const printHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(contactInfo.name || 'Resume')} - Resume</title><style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important;width:210mm;min-height:297mm;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box!important}a{color:inherit;text-decoration:none}svg{display:inline-block;vertical-align:middle}.pdf-container{width:210mm;min-height:297mm;margin:0 auto;background:#fff!important;overflow:visible}.resume-preview-sheet{width:210mm!important;max-width:none!important;background:#fff!important}.resume-reference-header{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;width:210mm!important;max-width:none!important;margin:0!important;text-align:center!important;padding:8mm 12mm 4mm!important}.resume-reference-header h1,.resume-reference-header h2,.resume-reference-header h3,.resume-reference-header p{width:100%!important;text-align:center!important;margin-left:auto!important;margin-right:auto!important}.resume-reference-header h2{font-size:25px!important;line-height:1.05!important}.resume-reference-header>div{display:flex!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center!important;width:100%!important;margin-left:auto!important;margin-right:auto!important;text-align:center!important}.resume-preview-body{display:block!important;width:186mm!important;max-width:calc(100% - 24mm)!important;margin-left:auto!important;margin-right:auto!important;padding-top:4mm!important;grid-template-columns:none!important}.resume-full-width-section,.resume-section-content{width:100%!important;max-width:100%!important}.resume-preview-body>section+section{margin-top:12px}.resume-full-width-section h4{font-size:14px!important;letter-spacing:.02em!important;border-bottom:1.5px solid #0f172a!important}@media print{html,body,.pdf-container{width:210mm;min-height:297mm}}</style></head><body><div class="pdf-container">${printableResume.outerHTML}</div></body></html>`;
     let printFrame = printFrameRef.current;
     if (!printFrame) {
       printFrame = document.createElement('iframe');
