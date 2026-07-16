@@ -738,10 +738,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     }
   };
 
-  const handleScan = async () => {
-    if (scanText.trim().length < 50) return;
+  const runAtsAnalysis = async (text = scanText, options = {}) => {
+    const textToAnalyze = text.trim();
+    if (textToAnalyze.length < 50) return false;
+    const progressStart = Number.isFinite(options.progressStart) ? options.progressStart : 20;
     setScanning(true);
-    setScanProgress(20);
+    setScanProgress(progressStart);
     setResumeError('');
     const progressTimer = window.setInterval(() => {
       setScanProgress(current => {
@@ -750,20 +752,26 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       });
     }, 650);
     try {
-      setScanProgress(55);
+      setScanProgress(Math.max(progressStart, 55));
       const result = await resumeApiRequest('/analyze', {
         method: 'POST',
-        body: JSON.stringify({ resumeText: scanText, targetRole })
+        body: JSON.stringify({ resumeText: textToAnalyze, targetRole })
       });
       setScanProgress(100);
-      applyAnalysis(result.analysis, result.resumeText);
+      applyAnalysis(result.analysis, textToAnalyze);
+      return true;
     } catch (error) {
       setScanProgress(0);
       setResumeError(error.message);
+      return false;
     } finally {
       window.clearInterval(progressTimer);
       setScanning(false);
     }
+  };
+
+  const handleScan = async () => {
+    await runAtsAnalysis(scanText);
   };
 
   // ── PDF UPLOAD ──
@@ -843,6 +851,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setScanText(nextText);
       resetAtsReview();
       triggerConfetti();
+      window.clearInterval(progressTimer);
+      setDocumentProcessing(false);
+      await runAtsAnalysis(nextText, { progressStart: 35 });
     } catch (error) {
       setUploadedFileName('');
       setUploadedPdfLayout(null);
