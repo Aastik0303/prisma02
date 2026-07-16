@@ -2322,39 +2322,94 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           ))}
                         </div>
                       ) : (
-                        <div className="mx-auto w-full max-w-[794px] overflow-hidden bg-white shadow-md ring-1 ring-slate-200">
-                          <div className="h-7 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-8 sm:px-12">
-                            <div className="flex h-full items-end justify-between text-[9px] font-bold text-slate-300">
-                              {Array.from({ length: 9 }, (_, index) => (
-                                <span key={index} className="relative pb-1">
-                                  <span className="absolute bottom-0 left-1/2 h-2 w-px bg-slate-300" />
-                                  {index + 1}
-                                </span>
-                              ))}
+                        uploadedPdfUrl ? (
+                          <div className="grid gap-4 xl:grid-cols-[minmax(300px,0.92fr)_minmax(460px,1.08fr)]">
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                  <p className="text-xs font-black text-slate-900">Uploaded template preview</p>
+                                  <p className="mt-0.5 text-[10px] font-bold text-slate-400">Original PDF stays unchanged</p>
+                                </div>
+                                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700">PDF</span>
+                              </div>
+                              <object
+                                aria-label="Original uploaded PDF template"
+                                data={`${uploadedPdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                                type="application/pdf"
+                                className="h-[760px] w-full bg-white"
+                              >
+                                <div className="flex h-[760px] items-center justify-center px-6 text-center text-sm font-bold text-slate-400">
+                                  Original PDF preview is unavailable in this browser.
+                                </div>
+                              </object>
+                            </div>
+
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                  <p className="text-xs font-black text-slate-900">Editable extracted document</p>
+                                  <p className="mt-0.5 text-[10px] font-bold text-slate-400">Edit this text, then download DOC/PDF</p>
+                                </div>
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">Editable</span>
+                              </div>
+                              {(scannerEditorHtml || scanText.trim()) ? (
+                                <div
+                                  ref={scannerEditorRef}
+                                  aria-label="Editable extracted resume document"
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  spellCheck
+                                  onInput={event => {
+                                    const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
+                                    resetAtsReview();
+                                    setScannerEditorHtml(nextHtml);
+                                    setScanText(htmlToPlainText(nextHtml));
+                                  }}
+                                  dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
+                                  className="resume-rich-editor min-h-[760px] bg-white px-8 py-8 sm:px-10 sm:py-9 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
+                                />
+                              ) : (
+                                <div className="flex min-h-[760px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
+                                  Upload a resume to edit extracted text here.
+                                </div>
+                              )}
                             </div>
                           </div>
-                          {(scannerEditorHtml || scanText.trim()) ? (
-                            <div
-                              ref={scannerEditorRef}
-                              aria-label="Editable resume document"
-                              contentEditable
-                              suppressContentEditableWarning
-                              spellCheck
-                              onInput={event => {
-                                const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
-                                resetAtsReview();
-                                setScannerEditorHtml(nextHtml);
-                                setScanText(htmlToPlainText(nextHtml));
-                              }}
-                              dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
-                              className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
-                            />
-                          ) : (
-                            <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
-                              Upload or paste a resume to preview it here.
+                        ) : (
+                          <div className="mx-auto w-full max-w-[794px] overflow-hidden bg-white shadow-md ring-1 ring-slate-200">
+                            <div className="h-7 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-8 sm:px-12">
+                              <div className="flex h-full items-end justify-between text-[9px] font-bold text-slate-300">
+                                {Array.from({ length: 9 }, (_, index) => (
+                                  <span key={index} className="relative pb-1">
+                                    <span className="absolute bottom-0 left-1/2 h-2 w-px bg-slate-300" />
+                                    {index + 1}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            {(scannerEditorHtml || scanText.trim()) ? (
+                              <div
+                                ref={scannerEditorRef}
+                                aria-label="Editable resume document"
+                                contentEditable
+                                suppressContentEditableWarning
+                                spellCheck
+                                onInput={event => {
+                                  const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
+                                  resetAtsReview();
+                                  setScannerEditorHtml(nextHtml);
+                                  setScanText(htmlToPlainText(nextHtml));
+                                }}
+                                dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
+                                className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
+                              />
+                            ) : (
+                              <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
+                                Upload or paste a resume to preview it here.
+                              </div>
+                            )}
+                          </div>
+                        )
                       )}
                     </div>
                   </div>
@@ -2472,7 +2527,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               ['File', uploadedFileName || 'No upload'],
                               ['Score', resumeReview ? `${atsScore}/100` : 'Pending'],
                               ['Edits', uploadedPdfLayout?.blocks?.length ? layoutBlockTexts.filter((text, index) => text !== (sortPdfBlocks()[index]?.text ?? '')).length : 0],
-                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template' : 'Text']
+                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template overlay' : uploadedPdfUrl ? 'PDF preview + editor' : 'Text editor']
                             ].map(([label, value]) => (
                               <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
@@ -2498,8 +2553,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               <p className="mt-1 text-xs font-bold text-slate-700 truncate">{uploadedFileName || 'Waiting for resume'}</p>
                             </div>
                             <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Template blocks</p>
-                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length || 0} editable lines</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{uploadedPdfUrl ? 'Uploaded template' : 'Template blocks'}</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length ? `${uploadedPdfLayout.blocks.length} editable lines` : uploadedPdfUrl ? 'Original PDF visible' : '0 editable lines'}</p>
                             </div>
                           </>
                         )}
