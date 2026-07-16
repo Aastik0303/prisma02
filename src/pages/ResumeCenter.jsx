@@ -6,7 +6,7 @@ import {
   Star, GitBranch, Code2, Cpu, FolderGit2, TrendingUp, Fingerprint, Crown, Globe, Terminal,
   Minus, Plus, Trash2, PlusCircle, ExternalLink, Calendar, Clock, Link2,
   Layers, Briefcase, Code, FileText, GraduationCap, Bold, Italic, Underline,
-  List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2
+  List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2, Copy, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -524,6 +524,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [scanText, setScanText] = useState('');
   const [scanProgress, setScanProgress] = useState(0);
   const [resumeReview, setResumeReview] = useState(null);
+  const [selectedProblemId, setSelectedProblemId] = useState('');
+  const [copiedProblemId, setCopiedProblemId] = useState('');
   const [resumeError, setResumeError] = useState('');
   const [targetRole, setTargetRole] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -630,6 +632,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     const nextScore = scoreFloor === undefined ? analysis.atsScore : Math.max(scoreFloor, analysis.atsScore);
     const nextAnalysis = { ...analysis, atsScore: nextScore };
     setResumeReview(nextAnalysis);
+    setSelectedProblemId(nextAnalysis.problems?.[0]?.id || '');
+    setCopiedProblemId('');
     setAtsScore(nextScore);
     setResumeScore?.(nextScore);
     lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
@@ -637,6 +641,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   const resetAtsReview = () => {
     setResumeReview(null);
+    setSelectedProblemId('');
+    setCopiedProblemId('');
     setAtsScore(0);
     setResumeScore?.(0);
     lastAnalyzedTextRef.current = '';
@@ -1405,10 +1411,18 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     .replace(/([A-Z])/g, ' $1')
     .trim();
 
-  const previewProblemText = (value = '') => {
-    const normalized = String(value).replace(/\s+/g, ' ').trim();
+  const comparisonProblemText = (value = '', fallback = '') => {
+    const normalized = String(value || fallback).replace(/\r\n/g, '\n').trim();
     if (!normalized) return '';
-    return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
+    return normalized.length > 520 ? `${normalized.slice(0, 520)}...` : normalized;
+  };
+
+  const copySuggestedFix = async (problem) => {
+    const text = comparisonProblemText(problem.improvedContent, problem.suggestedFix);
+    if (!text || !navigator.clipboard?.writeText) return;
+    await navigator.clipboard.writeText(text);
+    setCopiedProblemId(problem.id);
+    window.setTimeout(() => setCopiedProblemId(current => current === problem.id ? '' : current), 1600);
   };
 
   return (
@@ -2335,59 +2349,114 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                   </div>
 
                   <div className="grid lg:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm lg:col-span-2">
-                      <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm lg:col-span-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-5">
                         <div>
-                          <h3 className="font-black text-slate-900 text-sm">What to fix</h3>
-                          <p className="text-xs text-slate-400">{resumeReview ? `${resumeReview.problems.length} findings from the ATS pipeline` : `${scanText.length.toLocaleString()} characters loaded in the document pipeline`}</p>
+                          <h3 className="font-black text-slate-900 text-xl">Mistakes and suggestions</h3>
+                          <p className="mt-1 text-sm font-semibold text-slate-400">{resumeReview ? `${resumeReview.problems.length} actionable findings` : `${scanText.length.toLocaleString()} characters loaded in the document pipeline`}</p>
                         </div>
                         {resumeReview && (
-                          <span className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">
+                          <span className="w-fit rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">
                             Manual edits only
                           </span>
                         )}
                       </div>
-                      <div className="space-y-3">
-                        {resumeReview ? resumeReview.problems.map((problem, index) => {
-                          const tone = problemTone(problem.severity);
-                          const originalContent = previewProblemText(problem.originalContent);
-                          const improvedContent = previewProblemText(problem.improvedContent);
-                          return (
-                            <div key={problem.id} className={`rounded-xl border ${tone.border} p-4`}>
-                              <div className="flex flex-col gap-3">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                  <div className="flex items-start gap-3">
-                                    <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
-                                    <div>
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <h4 className="text-sm font-black text-slate-900">{index + 1}. {problem.title}</h4>
-                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${tone.badge}`}>{tone.label}</span>
-                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black capitalize text-slate-500">{readableProblemCategory(problem.category)}</span>
+                      <div>
+                        {resumeReview ? (
+                          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.35fr]">
+                            <div className="space-y-3">
+                              {resumeReview.problems.map((problem, index) => {
+                                const tone = problemTone(problem.severity);
+                                const isExpanded = selectedProblemId ? selectedProblemId === problem.id : index === 0;
+                                return (
+                                  <button
+                                    key={problem.id}
+                                    type="button"
+                                    onClick={() => setSelectedProblemId(problem.id)}
+                                    className={`w-full rounded-2xl border p-4 text-left transition-all ${isExpanded ? `${tone.border} bg-white shadow-sm ring-2 ring-indigo-100` : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/30'}`}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <h4 className="text-sm font-black leading-5 text-slate-900">{problem.title}</h4>
+                                          <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        <p className="mt-2 text-xs leading-5 text-slate-500">{problem.suggestedFix}</p>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${tone.badge}`}>{tone.label}</span>
+                                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black capitalize text-slate-500">{readableProblemCategory(problem.category)}</span>
+                                        </div>
                                       </div>
-                                      <p className="mt-1.5 text-xs leading-5 text-slate-500">{problem.why}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                              {resumeReview.problems.map((problem, index) => {
+                                const tone = problemTone(problem.severity);
+                                const isExpanded = selectedProblemId ? selectedProblemId === problem.id : index === 0;
+                                if (!isExpanded) return null;
+                                const wrongText = comparisonProblemText(problem.originalContent, 'This issue needs attention in the related resume section.');
+                                const rightText = comparisonProblemText(problem.improvedContent, problem.suggestedFix);
+                                return (
+                                  <div key={problem.id} className="space-y-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                      <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${tone.badge}`}>{tone.label}</span>
+                                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black capitalize text-slate-500">{readableProblemCategory(problem.category)}</span>
+                                        </div>
+                                        <h4 className="mt-3 text-lg font-black text-slate-950">{problem.title}</h4>
+                                        <p className="mt-2 text-sm leading-6 text-slate-600">{problem.why}</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => copySuggestedFix(problem)}
+                                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                      >
+                                        {copiedProblemId === problem.id ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                                        {copiedProblemId === problem.id ? 'Copied' : 'Copy right'}
+                                      </button>
+                                    </div>
+
+                                    <div className="grid gap-4 lg:grid-cols-2">
+                                      <div className="rounded-2xl border border-red-100 bg-red-50/70 p-4">
+                                        <div className="mb-3 flex items-center gap-2">
+                                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-xs font-black text-red-700">A</span>
+                                          <div>
+                                            <p className="text-xs font-black text-red-800">Wrong</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Instead of this</p>
+                                          </div>
+                                        </div>
+                                        <p className="min-h-28 whitespace-pre-wrap rounded-xl bg-white/80 p-3 text-sm leading-6 text-slate-700 ring-1 ring-red-100">{wrongText}</p>
+                                      </div>
+
+                                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                                        <div className="mb-3 flex items-center gap-2">
+                                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">B</span>
+                                          <div>
+                                            <p className="text-xs font-black text-emerald-800">Right</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Do this</p>
+                                          </div>
+                                        </div>
+                                        <p className="min-h-28 whitespace-pre-wrap rounded-xl bg-white/80 p-3 text-sm leading-6 text-slate-800 ring-1 ring-emerald-100">{rightText}</p>
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-indigo-100 bg-white p-4">
+                                      <p className="text-[10px] font-black uppercase tracking-wider text-indigo-500">Next step</p>
+                                      <p className="mt-2 text-sm leading-6 text-slate-700">{problem.suggestedFix}</p>
                                     </div>
                                   </div>
-                                </div>
-
-                                <div className="grid gap-3 md:grid-cols-3">
-                                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Find this</p>
-                                    <p className="mt-1.5 text-xs leading-5 text-slate-700">{originalContent || 'Review the related resume section.'}</p>
-                                  </div>
-                                  <div className="rounded-xl border border-slate-100 bg-white p-3">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">What to do</p>
-                                    <p className="mt-1.5 text-xs leading-5 text-slate-700">{problem.suggestedFix}</p>
-                                  </div>
-                                  <div className={`rounded-xl border ${tone.border} ${tone.panel} p-3`}>
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Suggested wording</p>
-                                    <p className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-800">{improvedContent}</p>
-                                  </div>
-                                </div>
-                              </div>
+                                );
+                              })}
                             </div>
-                          );
-                        }) : (
-                          <div className="grid grid-cols-2 gap-2">
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
                             {[
                               ['File', uploadedFileName || 'No upload'],
                               ['Score', resumeReview ? `${atsScore}/100` : 'Pending'],
