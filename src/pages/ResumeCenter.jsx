@@ -5,8 +5,7 @@ import {
   Check, Flame, Diamond, BrainCircuit, ScanLine, Activity, BookOpen, Trophy,
   Star, GitBranch, Code2, Cpu, FolderGit2, TrendingUp, Fingerprint, Crown, Globe, Terminal,
   Minus, Plus, Trash2, PlusCircle, ExternalLink, Calendar, Clock, Link2,
-  Layers, Briefcase, Code, FileText, GraduationCap, Bold, Italic, Underline,
-  List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Undo2, Redo2, Copy, ChevronDown
+  Layers, Briefcase, Code, FileText, GraduationCap, Copy, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -918,21 +917,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     })
     .join('');
 
-  const htmlToPlainText = (html = '') => {
-    if (!html) return '';
-    const container = document.createElement('div');
-    container.innerHTML = html
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
-      .replace(/<li[^>]*>/gi, '- ');
-    return (container.textContent || '')
-      .replace(/\u00a0/g, ' ')
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-      .slice(0, 50000);
-  };
-
   const cleanEditorHtml = (html = '') => html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/\son\w+="[^"]*"/gi, '')
@@ -958,16 +942,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const getScannerExportText = () => {
     if (uploadedPdfLayout?.blocks?.length) return getLayoutTexts().join('\n');
     return scanText;
-  };
-
-  const updateLayoutBlockText = (index, value) => {
-    resetAtsReview();
-    setLayoutBlockTexts(current => {
-      const next = current.length ? [...current] : getLayoutTexts();
-      next[index] = value;
-      setScanText(next.join('\n'));
-      return next;
-    });
   };
 
   const scannerLayoutHtml = (layout, texts, title = 'Resume', options = {}) => {
@@ -1169,19 +1143,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 </html>`;
 
   const getScannerEditorContentHtml = () => cleanEditorHtml(scannerEditorRef.current?.innerHTML || scannerEditorHtml || '');
-
-  const syncScannerEditorFromDom = () => {
-    const nextHtml = getScannerEditorContentHtml();
-    setScannerEditorHtml(nextHtml);
-    setScanText(htmlToPlainText(nextHtml));
-  };
-
-  const runScannerEditorCommand = (command, value = null) => {
-    if (uploadedPdfLayout?.blocks?.length) return;
-    scannerEditorRef.current?.focus();
-    document.execCommand(command, false, value);
-    syncScannerEditorFromDom();
-  };
 
   const downloadScannerResumeDoc = () => {
     const text = getScannerExportText().trim();
@@ -2201,7 +2162,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                          <h3 className="font-black text-slate-900 text-sm">Editable resume document</h3>
+                          <h3 className="font-black text-slate-900 text-sm">Resume preview</h3>
                           <p className="text-xs text-slate-400">{uploadedFileName || 'No file selected'}</p>
                         </div>
                       </div>
@@ -2224,55 +2185,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         </button>
                       </div>
                     </div>
-
-                    {!uploadedPdfLayout?.blocks?.length && (scannerEditorHtml || scanText.trim()) && (
-                      <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <select
-                            aria-label="Paragraph style"
-                            onChange={event => runScannerEditorCommand('formatBlock', event.target.value)}
-                            className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400"
-                            defaultValue="p"
-                          >
-                            <option value="p">Normal</option>
-                            <option value="h1">Title</option>
-                            <option value="h2">Heading</option>
-                            <option value="h3">Subheading</option>
-                          </select>
-                          {[
-                            { icon: Undo2, label: 'Undo', command: 'undo' },
-                            { icon: Redo2, label: 'Redo', command: 'redo' },
-                            { icon: Bold, label: 'Bold', command: 'bold' },
-                            { icon: Italic, label: 'Italic', command: 'italic' },
-                            { icon: Underline, label: 'Underline', command: 'underline' },
-                            { icon: List, label: 'Bullet list', command: 'insertUnorderedList' },
-                            { icon: ListOrdered, label: 'Numbered list', command: 'insertOrderedList' },
-                            { icon: AlignLeft, label: 'Align left', command: 'justifyLeft' },
-                            { icon: AlignCenter, label: 'Align center', command: 'justifyCenter' },
-                            { icon: AlignRight, label: 'Align right', command: 'justifyRight' }
-                          ].map(item => (
-                            <button
-                              key={item.label}
-                              type="button"
-                              title={item.label}
-                              aria-label={item.label}
-                              onClick={() => runScannerEditorCommand(item.command)}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                            >
-                              <item.icon className="h-4 w-4" />
-                            </button>
-                          ))}
-                          <div className="mx-1 h-7 w-px bg-slate-200" />
-                          <button
-                            type="button"
-                            onClick={downloadScannerResumeDoc}
-                            className="flex h-9 items-center gap-2 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-100"
-                          >
-                            <Download className="h-4 w-4" /> DOC
-                          </button>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-5 overflow-auto max-h-[78vh]">
                       {uploadedPdfLayout?.blocks?.length ? (
@@ -2297,15 +2209,11 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                 .map(({ block, index }) => {
                                   const value = layoutBlockTexts[index] ?? block.text ?? '';
                                   const isHeading = /^[A-Z][A-Z0-9 &/+-]{2,}$/.test(value.trim());
-                                  const isEdited = value !== (block.text ?? '');
                                   return (
-                                    <textarea
+                                    <div
                                       key={`${block.page}-${index}-${block.x}-${block.y}`}
                                       aria-label={`Resume line ${index + 1}`}
-                                      value={value}
-                                      onChange={event => updateLayoutBlockText(index, event.target.value)}
-                                      spellCheck
-                                      className={`absolute resize-none overflow-hidden border border-transparent p-0 caret-indigo-600 outline-none hover:border-indigo-200 focus:border-indigo-300 focus:bg-white/95 focus:text-slate-900 focus:ring-2 focus:ring-indigo-500/20 ${isEdited ? 'bg-white/95 text-slate-900' : 'bg-transparent text-transparent'} ${isHeading ? 'font-black uppercase' : ''}`}
+                                      className={`absolute overflow-hidden whitespace-pre-wrap border border-transparent bg-transparent p-0 text-transparent ${isHeading ? 'font-black uppercase' : ''}`}
                                       style={{
                                         left: `${block.x}px`,
                                         top: `${block.y}px`,
@@ -2315,7 +2223,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                                         fontFamily: block.fontFamily || 'Arial, sans-serif',
                                         lineHeight: 1.16
                                       }}
-                                    />
+                                    >
+                                      {value}
+                                    </div>
                                   );
                                 })}
                             </div>
@@ -2347,30 +2257,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                               <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
                                 <div>
-                                  <p className="text-xs font-black text-slate-900">Editable extracted document</p>
-                                  <p className="mt-0.5 text-[10px] font-bold text-slate-400">Edit this text, then download DOC/PDF</p>
+                                  <p className="text-xs font-black text-slate-900">Extracted document preview</p>
+                                  <p className="mt-0.5 text-[10px] font-bold text-slate-400">Converted preview from uploaded PDF</p>
                                 </div>
-                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">Editable</span>
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">Preview</span>
                               </div>
                               {(scannerEditorHtml || scanText.trim()) ? (
                                 <div
                                   ref={scannerEditorRef}
-                                  aria-label="Editable extracted resume document"
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  spellCheck
-                                  onInput={event => {
-                                    const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
-                                    resetAtsReview();
-                                    setScannerEditorHtml(nextHtml);
-                                    setScanText(htmlToPlainText(nextHtml));
-                                  }}
+                                  aria-label="Extracted resume document preview"
                                   dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
-                                  className="resume-rich-editor min-h-[760px] bg-white px-8 py-8 sm:px-10 sm:py-9 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
+                                  className="resume-rich-editor min-h-[760px] bg-white px-8 py-8 sm:px-10 sm:py-9 font-sans text-[13px] leading-6 text-slate-900 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
                                 />
                               ) : (
                                 <div className="flex min-h-[760px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
-                                  Upload a resume to edit extracted text here.
+                                  Upload a resume to preview extracted text here.
                                 </div>
                               )}
                             </div>
@@ -2390,18 +2291,9 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             {(scannerEditorHtml || scanText.trim()) ? (
                               <div
                                 ref={scannerEditorRef}
-                                aria-label="Editable resume document"
-                                contentEditable
-                                suppressContentEditableWarning
-                                spellCheck
-                                onInput={event => {
-                                  const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
-                                  resetAtsReview();
-                                  setScannerEditorHtml(nextHtml);
-                                  setScanText(htmlToPlainText(nextHtml));
-                                }}
+                                aria-label="Resume document preview"
                                 dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
-                                className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
+                                className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
                               />
                             ) : (
                               <div className="flex min-h-[1040px] items-center justify-center px-8 text-center text-sm font-bold text-slate-400">
@@ -2526,8 +2418,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                             {[
                               ['File', uploadedFileName || 'No upload'],
                               ['Score', resumeReview ? `${atsScore}/100` : 'Pending'],
-                              ['Edits', uploadedPdfLayout?.blocks?.length ? layoutBlockTexts.filter((text, index) => text !== (sortPdfBlocks()[index]?.text ?? '')).length : 0],
-                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template overlay' : uploadedPdfUrl ? 'PDF preview + editor' : 'Text editor']
+                              ['Preview lines', uploadedPdfLayout?.blocks?.length || (scanText.trim() ? scanText.split('\n').filter(Boolean).length : 0)],
+                              ['Mode', uploadedPdfLayout?.blocks?.length ? 'Template preview' : uploadedPdfUrl ? 'PDF preview + text' : 'Text preview']
                             ].map(([label, value]) => (
                               <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
@@ -2553,8 +2445,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               <p className="mt-1 text-xs font-bold text-slate-700 truncate">{uploadedFileName || 'Waiting for resume'}</p>
                             </div>
                             <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{uploadedPdfUrl ? 'Uploaded template' : 'Template blocks'}</p>
-                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length ? `${uploadedPdfLayout.blocks.length} editable lines` : uploadedPdfUrl ? 'Original PDF visible' : '0 editable lines'}</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{uploadedPdfUrl ? 'Uploaded template' : 'Preview blocks'}</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length ? `${uploadedPdfLayout.blocks.length} preview lines` : uploadedPdfUrl ? 'Original PDF visible' : '0 preview lines'}</p>
                             </div>
                           </>
                         )}
