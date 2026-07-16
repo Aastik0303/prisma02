@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Lock, Check, Award, Compass, Flame, Info, CheckCircle2,
-  ChevronRight, Sparkles, BookOpen, Cpu, XCircle, RotateCcw,
-  Presentation, ChevronLeft, Play, Pause, X, Terminal, Sliders, MessageSquare, Send,
+  Lock, Check, Award, Compass, Flame, CheckCircle2,
+  ChevronRight, Sparkles, BookOpen, Cpu, XCircle,
+  ChevronLeft, X, Terminal, MessageSquare, Send,
   CalendarDays, Timer, BadgeCheck, KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -39,10 +39,6 @@ const compactParagraphs = (items = []) => items
   .flat()
   .map(item => String(item || '').trim())
   .filter(Boolean);
-
-const topicField = (topic, ...fields) => fields
-  .map(field => topic?.[field])
-  .find(value => String(value || '').trim());
 
 const formatList = (items = []) => {
   const values = compactParagraphs(items);
@@ -1033,9 +1029,40 @@ export default function LearningPath({
     if (category.includes('Core') || category.includes('Skills')) return Cpu;
     return BookOpen;
   };
+  const activeTrackId = activeTrack?.id;
   const selectedWorkspaceData = useMemo(() => (
-    selectedNode && activeTrack ? getWorkspaceData(selectedNode, activeTrack.id) : null
-  ), [selectedNode, activeTrack?.id]);
+    selectedNode && activeTrackId ? getWorkspaceData(selectedNode, activeTrackId) : null
+  ), [selectedNode, activeTrackId]);
+  const workspaceSlides = selectedWorkspaceData?.slides || [];
+  const activeSlide = workspaceSlides[currentSlide] || null;
+  const activeSlideText = useMemo(() => (
+    activeSlide ? (activeSlide.paragraphs || activeSlide.bullets || []) : []
+  ), [activeSlide]);
+  const activeSlideIsEven = currentSlide % 2 === 0;
+  const activeSlideIsExample = /example/i.test(activeSlide?.title || '');
+  const activeSlideCodeExamples = useMemo(() => {
+    if (!activeSlideIsExample || !selectedWorkspaceData) return [];
+    if (activeSlide?.codeExamples?.length) return activeSlide.codeExamples;
+    if (!selectedWorkspaceData.sandbox?.code) return [];
+
+    return [{
+      title: `${selectedWorkspaceData.sandbox.language?.toUpperCase?.() || 'Code'} starter`,
+      language: selectedWorkspaceData.sandbox.language || 'text',
+      code: selectedWorkspaceData.sandbox.code
+    }];
+  }, [activeSlide, activeSlideIsExample, selectedWorkspaceData]);
+  const goToSlide = useCallback((nextSlide) => {
+    setCurrentSlide((previousSlide) => {
+      const slideCount = workspaceSlides.length;
+      if (!slideCount) return 0;
+      const requestedSlide = typeof nextSlide === 'function'
+        ? nextSlide(previousSlide)
+        : nextSlide;
+      return Math.min(Math.max(requestedSlide, 0), slideCount - 1);
+    });
+  }, [workspaceSlides.length]);
+  const goToPreviousSlide = useCallback(() => goToSlide(slide => slide - 1), [goToSlide]);
+  const goToNextSlide = useCallback(() => goToSlide(slide => slide + 1), [goToSlide]);
 
   const askAiTutor = async (message) => {
     if (!authToken) {
@@ -2033,10 +2060,10 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
 
               {/* Ambient Background Glow matching the active track theme color */}
               <div
-                className={`absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-br ${getTrackTone(activeTrack.id).glowStrong} rounded-full blur-[100px] pointer-events-none`}
+                className={`learning-workspace-glow learning-workspace-glow-top absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-br ${getTrackTone(activeTrack.id).glowStrong} rounded-full blur-[100px] pointer-events-none`}
               ></div>
               <div
-                className={`absolute bottom-0 left-0 w-[450px] h-[450px] bg-gradient-to-tr ${getTrackTone(activeTrack.id).glowSoft} rounded-full blur-[100px] pointer-events-none`}
+                className={`learning-workspace-glow learning-workspace-glow-bottom absolute bottom-0 left-0 w-[450px] h-[450px] bg-gradient-to-tr ${getTrackTone(activeTrack.id).glowSoft} rounded-full blur-[100px] pointer-events-none`}
               ></div>
 
               {/* Header section */}
@@ -2095,56 +2122,32 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                     <div className="lesson-slide-card p-6 sm:p-8 relative overflow-hidden min-h-[460px] max-h-[calc(100vh-15rem)] flex flex-col justify-between">
                       <div className="min-h-0 space-y-4">
                         {/* Active Slide details */}
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={currentSlide}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.15 }}
-                            className="space-y-5 text-left relative z-10"
-                          >
+                        <div
+                          key={currentSlide}
+                          className="lesson-slide-pane space-y-5 text-left relative z-10"
+                        >
                             <div className="lesson-slide-kicker">
                               Slide {currentSlide + 1} of{' '}
-                              {selectedWorkspaceData?.slides.length}
-                              {selectedWorkspaceData?.slides[currentSlide]?.pointLabel
-                                ? ` - ${selectedWorkspaceData.slides[currentSlide].pointLabel}`
+                              {workspaceSlides.length}
+                              {activeSlide?.pointLabel
+                                ? ` - ${activeSlide.pointLabel}`
                                 : ''}
                             </div>
                             <h4 className="text-xl sm:text-2xl font-extrabold text-white font-sora leading-tight">
-                              {selectedWorkspaceData?.slides[currentSlide]?.title}
+                              {activeSlide?.title}
                             </h4>
-                            {(() => {
-                              const workspace = selectedWorkspaceData;
-                              if (!workspace) return null;
-                              const activeSlide = workspace.slides[currentSlide];
-                              const slideText = activeSlide.paragraphs || activeSlide.bullets || [];
-                              const isEvenSlide = currentSlide % 2 === 0;
-                              const isExampleSlide = /example/i.test(activeSlide.title || '');
-                              const codeExamples = activeSlide.codeExamples?.length
-                                ? activeSlide.codeExamples
-                                : (
-                                  isExampleSlide && workspace.sandbox?.code
-                                    ? [{
-                                      title: `${workspace.sandbox.language?.toUpperCase?.() || 'Code'} starter`,
-                                      language: workspace.sandbox.language || 'text',
-                                      code: workspace.sandbox.code
-                                    }]
-                                    : []
-                                );
-
-                              return (
+                            {activeSlide && (
                                 <div className={`lesson-slide-content max-w-5xl overflow-y-auto overscroll-contain pr-2 pt-2 text-sm leading-7 text-slate-100 ${
-                                  isEvenSlide
+                                  activeSlideIsEven
                                     ? 'space-y-4'
                                     : 'space-y-3'
                                 }`}>
-                                  <div className={isEvenSlide ? 'space-y-4' : 'space-y-3'}>
-                                    {slideText.map((paragraph, i) => (
+                                  <div className={activeSlideIsEven ? 'space-y-4' : 'space-y-3'}>
+                                    {activeSlideText.map((paragraph, i) => (
                                       <p
                                         key={i}
                                         className={`border border-white/5 bg-slate-950/35 p-4 text-slate-100 ${
-                                          isEvenSlide
+                                          activeSlideIsEven
                                             ? 'rounded-xl'
                                             : 'rounded-2xl border-l-4 border-l-cyan-400/70'
                                         }`}
@@ -2154,14 +2157,14 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                                     ))}
                                   </div>
 
-                                  {isExampleSlide && codeExamples.length > 0 && (
+                                  {activeSlideIsExample && activeSlideCodeExamples.length > 0 && (
                                     <div className="space-y-3">
                                       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                                         <Terminal className="h-3.5 w-3.5" />
                                         Coding Example
                                       </div>
                                       <div className="grid gap-3 xl:grid-cols-2">
-                                        {codeExamples.slice(0, 2).map((example, index) => (
+                                        {activeSlideCodeExamples.slice(0, 2).map((example, index) => (
                                           <section key={`${example.title}-${index}`} className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-950/70">
                                             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 text-[10px] font-bold text-slate-300">
                                               <span>{example.title}</span>
@@ -2174,19 +2177,17 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                                     </div>
                                   )}
                                 </div>
-                              );
-                            })()}
-                          </motion.div>
-                        </AnimatePresence>
+                            )}
+                        </div>
                       </div>
 
                       {/* Pagination */}
                       <div className="lesson-slide-footer pt-6 mt-6 flex justify-between items-center relative z-10">
                         <div className="flex gap-1.5">
-                          {selectedWorkspaceData?.slides.map((_, i) => (
+                          {workspaceSlides.map((_, i) => (
                             <button
                               key={i}
-                              onClick={() => setCurrentSlide(i)}
+                              onClick={() => goToSlide(i)}
                               className={`lesson-slide-dot ${currentSlide === i
                                 ? 'is-active'
                                 : ''
@@ -2199,7 +2200,7 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                         <div className="flex gap-2">
                           <button
                             disabled={currentSlide === 0}
-                            onClick={() => setCurrentSlide((prev) => prev - 1)}
+                            onClick={goToPreviousSlide}
                             className={`lesson-slide-nav ${currentSlide === 0
                               ? 'is-disabled'
                               : ''
@@ -2210,11 +2211,11 @@ Build Successful. Static memory: 14.2 KB Flash, 1.8 KB RAM.`;
                           <button
                             disabled={
                               currentSlide ===
-                              (selectedWorkspaceData?.slides.length || 1) - 1
+                              (workspaceSlides.length || 1) - 1
                             }
-                            onClick={() => setCurrentSlide((prev) => prev + 1)}
+                            onClick={goToNextSlide}
                             className={`lesson-slide-nav ${currentSlide ===
-                              (selectedWorkspaceData?.slides.length || 1) - 1
+                              (workspaceSlides.length || 1) - 1
                               ? 'is-disabled'
                               : ''
                               }`}

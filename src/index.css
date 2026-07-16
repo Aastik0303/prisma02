@@ -2651,6 +2651,22 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 22%, rgba(0, 0, 0, 0.24));
 }
 
+.learning-workspace-glow {
+  opacity: 0.82;
+  filter: blur(36px) !important;
+  transform: translate3d(0, 0, 0);
+}
+
+.learning-workspace-glow-top {
+  width: min(28vw, 320px) !important;
+  height: min(28vw, 320px) !important;
+}
+
+.learning-workspace-glow-bottom {
+  width: min(26vw, 300px) !important;
+  height: min(26vw, 300px) !important;
+}
+
 .learning-workspace-header {
   background: rgba(7, 11, 20, 0.94);
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
@@ -2701,6 +2717,8 @@
 .learning-workspace-main {
   position: relative;
   z-index: 1;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .learning-module-heading h2 {
@@ -2709,6 +2727,8 @@
 }
 
 .lesson-slide-card {
+  contain: layout paint style;
+  isolation: isolate;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 28px;
   background:
@@ -2743,6 +2763,11 @@
   pointer-events: none;
 }
 
+.lesson-slide-pane {
+  animation: lesson-slide-swap 120ms ease-out both;
+  transform: translate3d(0, 0, 0);
+}
+
 .lesson-slide-kicker {
   display: inline-flex;
   width: fit-content;
@@ -2761,6 +2786,20 @@
 .lesson-slide-content {
   max-height: min(300px, calc(100vh - 28rem));
   min-height: 0;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes lesson-slide-swap {
+  from {
+    opacity: 0;
+    transform: translate3d(10px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .lesson-slide-bullet {
@@ -2857,7 +2896,8 @@
 
   .learning-workspace::before,
   .lesson-slide-card::before,
-  .lesson-slide-card::after {
+  .lesson-slide-card::after,
+  .learning-workspace-glow {
     display: none !important;
   }
 
@@ -2933,11 +2973,12 @@
     padding: 1rem !important;
     box-shadow: none !important;
     overflow: hidden !important;
-    max-height: calc(100vh - 9.5rem) !important;
+    max-height: calc(100dvh - 9.5rem) !important;
   }
 
   .lesson-slide-content {
-    max-height: calc(100vh - 21rem);
+    max-height: calc(100dvh - 21rem);
+    padding-right: 0.15rem !important;
   }
 
   .lesson-slide-kicker {
