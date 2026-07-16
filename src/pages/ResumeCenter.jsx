@@ -1819,15 +1819,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         <TiltCard intensity={8}>
                           <div ref={previewRef} className="resume-preview-sheet bg-white rounded-2xl border border-slate-200/60 shadow-2xl shadow-slate-200/50 overflow-hidden">
                             {/* Header */}
-                            <div className={`resume-reference-header p-3 ${activeTheme.header} ${activePattern.headerAlign}`}>
+                            <div className={`resume-reference-header p-3 ${activeTheme.header} text-center`}>
                               <h2 className={`text-xl font-black ${activeTheme.name}`}>{contactInfo.name}</h2>
                               <p className={`text-xs mt-0.5 font-semibold ${activeTheme.role}`}>{contactInfo.title}</p>
-                              <div className={`flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-[10px] ${activeTheme.meta}`}>
+                              <div className={`flex flex-wrap justify-center gap-x-3 gap-y-0.5 mt-2 text-[10px] ${activeTheme.meta}`}>
                                 <span>{contactInfo.email}</span><span>{contactInfo.phone}</span><span>{contactInfo.location}</span>
                               </div>
                               {/* Links row in Identity */}
                               {links.length > 0 && (
-                                <div className={`flex flex-wrap gap-2 mt-2`}>
+                                <div className={`flex flex-wrap justify-center gap-2 mt-2`}>
                                   {links.map(l => (
                                     <a key={l.id} href={l.url.startsWith('http') ? l.url : `https://${l.url}`} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1 text-[9px] font-bold rounded-full px-2 py-0.5 bg-white/15 hover:bg-white/25 transition-colors`}>
                                       <Link2 className="w-2.5 h-2.5" />{l.label}
