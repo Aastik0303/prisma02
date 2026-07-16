@@ -547,9 +547,10 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
   ];
 
   const team = [
-    { name: "Rishabh Parashari", role: "Co-Founder & Managing Director", phone: "9990543229", icon: Crown, email: "rishabh@prisma.com" },
-    { name: "Harshit Mishra", role: "Co-Founder & Sales Executive", phone: "9410823199", icon: Rocket, email: "harshit@prisma.com" },
-    { name: "Aastik Mishra", role: "Co-Founder & Chief Executive Officer", phone: "7417845421", icon: Cpu, email: "aastik@prisma.com" }
+    { name: "Aastik Mishra", role: "Co-Founder & Chief Executive Officer", phone: "7417845421", icon: Crown, email: "aastik@prisma.com" },
+    { name: "Rishabh Parashari", role: "Co-Founder & Managing Director", phone: "9990543229", icon: Award, email: "rishabh@prisma.com" },
+    { name: "Devansh Singh", role: "Chief Technology Officer", phone: "82798 37701", icon: Code2, email: "devansh@prisma.com" },
+    { name: "Harshit Mishra", role: "Co-Founder & Chief Marketing Officer", phone: "9410823199", icon: Rocket, email: "harshit@prisma.com" }
   ];
 
   return (
