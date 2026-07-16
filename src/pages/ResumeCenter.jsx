@@ -520,6 +520,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const [activeTab, setActiveTab] = useState('builder');
   const [activeFormSection, setActiveFormSection] = useState('contact');
   const [scanning, setScanning] = useState(false);
+  const [documentProcessing, setDocumentProcessing] = useState(false);
   const [scanText, setScanText] = useState('');
   const [scanProgress, setScanProgress] = useState(0);
   const [resumeReview, setResumeReview] = useState(null);
@@ -632,6 +633,13 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     setAtsScore(nextScore);
     setResumeScore?.(nextScore);
     lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
+  };
+
+  const resetAtsReview = () => {
+    setResumeReview(null);
+    setAtsScore(0);
+    setResumeScore?.(0);
+    lastAnalyzedTextRef.current = '';
   };
 
   const reviewText = scanText;
@@ -789,7 +797,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       return;
     }
 
-    setScanning(true);
+    setDocumentProcessing(true);
     setScanProgress(15);
     setResumeError('');
     setUploadedFileName(file.name);
@@ -815,7 +823,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         return formData;
       };
       setScanProgress(45);
-      const result = await resumeApiRequest('/upload', {
+      const result = await resumeApiRequest('/convert', {
         method: 'POST',
         body: createUploadFormData()
       });
@@ -827,7 +835,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setLayoutBlockTexts(nextLayout?.blocks?.length ? createLayoutTexts(nextLayout, nextText) : []);
       setScannerEditorHtml(nextEditorHtml);
       setScanText(nextText);
-      applyAnalysis(result.analysis, nextText);
+      resetAtsReview();
       triggerConfetti();
     } catch (error) {
       setUploadedFileName('');
@@ -845,7 +853,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
         : error.message);
     } finally {
       window.clearInterval(progressTimer);
-      setScanning(false);
+      setDocumentProcessing(false);
     }
   };
 
@@ -866,14 +874,6 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       if (!silent && requestId === recheckRequestRef.current) setRechecking(false);
     }
   };
-
-  useEffect(() => {
-    if (!resumeReview || reviewText.trim().length < 50 || `${targetRole}\u0000${reviewText}` === lastAnalyzedTextRef.current) return undefined;
-    const timeout = setTimeout(() => recheckResume(reviewText, true), 1200);
-    return () => clearTimeout(timeout);
-    // The callback intentionally uses the latest rendered review text.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewText, targetRole]);
 
   const escapeHtml = (value = '') => String(value)
     .replace(/&/g, '&amp;')
@@ -944,6 +944,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const updateLayoutBlockText = (index, value) => {
+    resetAtsReview();
     setLayoutBlockTexts(current => {
       const next = current.length ? [...current] : getLayoutTexts();
       next[index] = value;
@@ -1370,6 +1371,45 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     { id: 'education', label: 'Education', icon: GraduationCap },
     { id: 'custom', label: 'Custom', icon: Layers }
   ];
+
+  const problemTone = (severity) => {
+    if (severity === 'critical') {
+      return {
+        label: 'High impact',
+        dot: 'bg-red-500',
+        badge: 'bg-red-50 text-red-700 border-red-100',
+        border: 'border-red-100',
+        panel: 'bg-red-50/60'
+      };
+    }
+    if (severity === 'warning') {
+      return {
+        label: 'Important',
+        dot: 'bg-amber-500',
+        badge: 'bg-amber-50 text-amber-700 border-amber-100',
+        border: 'border-amber-100',
+        panel: 'bg-amber-50/60'
+      };
+    }
+    return {
+      label: 'Suggestion',
+      dot: 'bg-blue-500',
+      badge: 'bg-blue-50 text-blue-700 border-blue-100',
+      border: 'border-blue-100',
+      panel: 'bg-blue-50/60'
+    };
+  };
+
+  const readableProblemCategory = (category = '') => category
+    .replace(/-/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .trim();
+
+  const previewProblemText = (value = '') => {
+    const normalized = String(value).replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    return normalized.length > 220 ? `${normalized.slice(0, 220)}...` : normalized;
+  };
 
   return (
     <div className="min-h-screen bg-[#F8F7FC] relative overflow-hidden">
@@ -1962,7 +2002,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Target job role</label>
                     <input
                       value={targetRole}
-                      onChange={e => setTargetRole(e.target.value)}
+                      onChange={e => {
+                        setTargetRole(e.target.value);
+                        if (resumeReview) resetAtsReview();
+                      }}
                       maxLength={120}
                       placeholder="e.g. Frontend Engineer, Embedded Systems Intern"
                       className="w-full px-4 py-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
@@ -1981,8 +2024,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     <div className="grid sm:grid-cols-3 gap-2 mb-4">
                       {[
                         { icon: ShieldCheck, label: 'Private scan', text: 'Processed securely' },
-                        { icon: Target, label: 'JD keywords', text: 'Tailored fixes' },
-                        { icon: Zap, label: 'Mistake hints', text: 'Manual edits only' }
+                        { icon: FileText, label: 'Document', text: documentProcessing ? 'Converting...' : 'Preserved text' },
+                        { icon: Zap, label: 'ATS review', text: resumeReview ? 'Score ready' : 'Run manually' }
                       ].map(item => (
                         <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
                           <div className="flex items-center gap-2">
@@ -1998,12 +2041,12 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={scanning}
+                      disabled={scanning || documentProcessing}
                       className="w-full mb-4 border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-2xl p-7 flex flex-col items-center justify-center transition-colors disabled:opacity-60"
                     >
                       <UploadCloud className="w-9 h-9 text-indigo-500 mb-2" />
-                      <span className="text-sm font-black text-slate-800">{uploadedFileName || 'Upload PDF or DOCX resume'}</span>
-                      <span className="text-xs text-slate-400 mt-1">Maximum 5 MB · text is extracted on the server</span>
+                      <span className="text-sm font-black text-slate-800">{uploadedFileName || 'Convert PDF or DOCX resume'}</span>
+                      <span className="text-xs text-slate-400 mt-1">Maximum 5 MB - text stays unchanged unless you edit it</span>
                     </button>
 
                     <div className="relative">
@@ -2013,6 +2056,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         maxLength={50000}
                         onChange={e => {
                           setScanText(e.target.value);
+                          resetAtsReview();
                           setUploadedPdfLayout(null);
                           setLayoutBlockTexts([]);
                           setScannerEditorHtml(textToEditorHtml(e.target.value));
@@ -2035,10 +2079,10 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </div>
                     )}
 
-                    {scanning && (
+                    {(scanning || documentProcessing) && (
                       <div className="mt-4">
                         <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
-                          <span className="flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" /> Reviewing resume securely...</span>
+                          <span className="flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" /> {documentProcessing ? 'Converting document without changing text...' : 'Running ATS review...'}</span>
                           <span>{scanProgress}%</span>
                         </div>
                         <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -2061,7 +2105,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         <button
                           type="button"
                           onClick={() => recheckResume()}
-                          disabled={rechecking || scanning}
+                          disabled={rechecking || scanning || documentProcessing}
                           className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black flex items-center gap-2 disabled:opacity-50"
                         >
                           <RefreshCw className={`w-4 h-4 ${rechecking ? 'animate-spin' : ''}`} /> Recheck score
@@ -2070,7 +2114,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       <button
                         type="button"
                         onClick={handleScan}
-                        disabled={scanning || scanText.trim().length < 50}
+                        disabled={scanning || documentProcessing || scanText.trim().length < 50}
                         className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-40"
                       >
                         {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -2273,6 +2317,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               spellCheck
                               onInput={event => {
                                 const nextHtml = cleanEditorHtml(event.currentTarget.innerHTML);
+                                resetAtsReview();
                                 setScannerEditorHtml(nextHtml);
                                 setScanText(htmlToPlainText(nextHtml));
                               }}
@@ -2290,27 +2335,58 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                   </div>
 
                   <div className="grid lg:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm lg:col-span-2">
                       <div className="flex items-center justify-between gap-3 mb-4">
                         <div>
-                          <h3 className="font-black text-slate-900 text-sm">Mistakes and suggestions</h3>
-                          <p className="text-xs text-slate-400">{resumeReview ? `${resumeReview.problems.length} actionable findings` : `${scanText.length.toLocaleString()} characters loaded`}</p>
+                          <h3 className="font-black text-slate-900 text-sm">What to fix</h3>
+                          <p className="text-xs text-slate-400">{resumeReview ? `${resumeReview.problems.length} findings from the ATS pipeline` : `${scanText.length.toLocaleString()} characters loaded in the document pipeline`}</p>
                         </div>
+                        {resumeReview && (
+                          <span className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">
+                            Manual edits only
+                          </span>
+                        )}
                       </div>
                       <div className="space-y-3">
-                        {resumeReview ? resumeReview.problems.slice(0, 4).map(problem => (
-                          <div key={problem.id} className="rounded-xl border border-slate-200 p-3">
-                            <div className="flex items-start gap-3">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${problem.severity === 'critical' ? 'bg-red-500' : problem.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                  <h4 className="text-xs font-black text-slate-800">{problem.title}</h4>
+                        {resumeReview ? resumeReview.problems.map((problem, index) => {
+                          const tone = problemTone(problem.severity);
+                          const originalContent = previewProblemText(problem.originalContent);
+                          const improvedContent = previewProblemText(problem.improvedContent);
+                          return (
+                            <div key={problem.id} className={`rounded-xl border ${tone.border} p-4`}>
+                              <div className="flex flex-col gap-3">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="flex items-start gap-3">
+                                    <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
+                                    <div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <h4 className="text-sm font-black text-slate-900">{index + 1}. {problem.title}</h4>
+                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${tone.badge}`}>{tone.label}</span>
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black capitalize text-slate-500">{readableProblemCategory(problem.category)}</span>
+                                      </div>
+                                      <p className="mt-1.5 text-xs leading-5 text-slate-500">{problem.why}</p>
+                                    </div>
+                                  </div>
                                 </div>
-                                <p className="text-[11px] text-slate-500 mt-1.5 leading-4">{problem.suggestedFix}</p>
+
+                                <div className="grid gap-3 md:grid-cols-3">
+                                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Find this</p>
+                                    <p className="mt-1.5 text-xs leading-5 text-slate-700">{originalContent || 'Review the related resume section.'}</p>
+                                  </div>
+                                  <div className="rounded-xl border border-slate-100 bg-white p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">What to do</p>
+                                    <p className="mt-1.5 text-xs leading-5 text-slate-700">{problem.suggestedFix}</p>
+                                  </div>
+                                  <div className={`rounded-xl border ${tone.border} ${tone.panel} p-3`}>
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Suggested wording</p>
+                                    <p className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-800">{improvedContent}</p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )) : (
+                          );
+                        }) : (
                           <div className="grid grid-cols-2 gap-2">
                             {[
                               ['File', uploadedFileName || 'No upload'],

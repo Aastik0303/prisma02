@@ -115,6 +115,61 @@ async function scanUploadedResume(request: FastifyRequest, reply: FastifyReply) 
   });
 }
 
+async function convertUploadedResume(request: FastifyRequest, reply: FastifyReply) {
+  let part;
+  try {
+    part = await request.file({
+      limits: { files: 1, fileSize: MAX_RESUME_BYTES }
+    });
+  } catch {
+    throw new AppError(400, 'INVALID_UPLOAD', 'The resume upload is invalid or exceeds 5 MB.');
+  }
+
+  if (!part) {
+    throw new AppError(400, 'RESUME_REQUIRED', 'A PDF or DOCX resume file is required.');
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = await part.toBuffer();
+  } catch {
+    throw new AppError(400, 'RESUME_TOO_LARGE', 'Resume files are limited to 5 MB.');
+  }
+
+  let extractedDocument: Awaited<ReturnType<typeof extractResumeDocument>>;
+  let savedDocxPath: string | undefined;
+  try {
+    extractedDocument = await extractResumeDocument({
+      buffer,
+      filename: part.filename,
+      mimetype: part.mimetype,
+      includePdfLayout: true
+    });
+    savedDocxPath = await persistDocxForAgent({
+      buffer,
+      filename: part.filename,
+      mimetype: part.mimetype
+    });
+  } finally {
+    buffer.fill(0);
+  }
+
+  const layoutText = extractedDocument.uploadedPdfLayout?.blocks?.length
+    ? [...extractedDocument.uploadedPdfLayout.blocks]
+      .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x)
+      .map(block => block.text)
+      .join('\n')
+    : '';
+
+  return reply.code(200).send({
+    filename: part.filename,
+    ...(savedDocxPath ? { savedDocxPath } : {}),
+    ...(extractedDocument.uploadedPdfLayout ? { uploadedPdfLayout: extractedDocument.uploadedPdfLayout } : {}),
+    formattedHtml: extractedDocument.formattedHtml,
+    resumeText: layoutText || extractedDocument.text
+  });
+}
+
 export async function resumeRoutes(fastify: FastifyInstance) {
   await fastify.register(multipart, {
     limits: {
@@ -171,6 +226,10 @@ export async function resumeRoutes(fastify: FastifyInstance) {
   fastify.post('/upload', {
     config: { rateLimit: resumeUploadRateLimit }
   }, scanUploadedResume);
+
+  fastify.post('/convert', {
+    config: { rateLimit: resumeUploadRateLimit }
+  }, convertUploadedResume);
 
   fastify.post('/analyze', {
     config: { rateLimit: resumeAiRateLimit }
