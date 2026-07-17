@@ -3132,14 +3132,17 @@
 /* Dashboard AI Copilot card */
 .resume-preview-sheet {
   width: min(100%, 210mm);
+  max-width: 100%;
   min-height: 297mm;
   margin-inline: auto;
   background: #fff !important;
+  box-sizing: border-box;
 }
 
 .resume-reference-header {
   padding: 8mm 12mm 4mm !important;
   text-align: center !important;
+  overflow-wrap: anywhere;
 }
 
 .resume-reference-header h2 {
@@ -3157,6 +3160,7 @@
   max-width: 186mm !important;
   margin-inline: auto !important;
   padding-top: 4mm !important;
+  overflow-wrap: anywhere;
 }
 
 .resume-preview-body > *,
@@ -3165,6 +3169,19 @@
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+}
+
+.resume-reference-header *,
+.resume-preview-body * {
+  min-width: 0;
+}
+
+.resume-preview-body p,
+.resume-preview-body a,
+.resume-preview-body span,
+.resume-preview-body div {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .resume-preview-body > * + *,
@@ -3181,6 +3198,20 @@
 @media (max-width: 768px) {
   .resume-preview-sheet {
     min-height: auto;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1320px) {
+  .resume-preview-sheet {
+    min-height: auto;
+  }
+
+  .resume-reference-header {
+    padding-inline: clamp(1.25rem, 3vw, 12mm) !important;
+  }
+
+  .resume-preview-body {
+    width: calc(100% - clamp(2.5rem, 8vw, 24mm)) !important;
   }
 }
 
