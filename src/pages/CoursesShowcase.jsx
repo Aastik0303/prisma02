@@ -1245,7 +1245,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE_URL}/catalog/courses`, { cache: 'no-store' })
+    fetch(`${API_BASE_URL}/catalog/courses`)
       .then(response => response.ok ? response.json() : Promise.reject())
       .then(data => {
         if (active) setPublishedCourses((data.courses || []).map(course => ({ ...course, id: course.slug })));

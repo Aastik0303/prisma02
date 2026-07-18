@@ -338,7 +338,7 @@ export default function ProjectHub() {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE_URL}/catalog/projects`, { cache: 'no-store' })
+    fetch(`${API_BASE_URL}/catalog/projects`)
       .then(response => response.ok ? response.json() : Promise.reject())
       .then(data => {
         if (!active) return;
