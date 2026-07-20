@@ -53,6 +53,8 @@ const initialCopilotMessages = [
     text: "Hello! I am your AI Career Copilot. I can audit your ATS keywords, suggest professional portfolio repositories, or run mock code assessments. What should we tackle today?"
   }
 ];
+const COPILOT_DASHBOARD_ITEM_LIMIT = 12;
+const COPILOT_PROJECT_TAG_LIMIT = 8;
 
 const readImageFile = (file) => new Promise((resolve, reject) => {
   if (!file) {
@@ -203,15 +205,15 @@ export default function StudentDashboard({
           internshipScore,
           freelanceScore,
           placementReadyScore,
-          tracks: (tracksData || []).map(track => ({
+          tracks: (tracksData || []).slice(0, COPILOT_DASHBOARD_ITEM_LIMIT).map(track => ({
             name: track.name,
             completedNodes: track.completedNodes || 0,
             totalNodes: track.totalNodes || 0
           })),
-          projects: userProjects.map(project => ({
+          projects: userProjects.slice(0, COPILOT_DASHBOARD_ITEM_LIMIT).map(project => ({
             title: project.title,
             status: project.status,
-            tags: project.tags
+            tags: (project.tags || []).slice(0, COPILOT_PROJECT_TAG_LIMIT)
           }))
         }
       })

@@ -19,6 +19,13 @@ const AGENT_RESUME_DOCX_PATH =
   process.env.AGENT_RESUME_DOCX_PATH ||
   'D:\\prisma_embedded_codes2\\prisma_embedded_codes2\\uploads\\resume.docx';
 
+const buildTargetSignal = (targetRole = '', jobDescription = '') => (
+  [targetRole, jobDescription ? `Job description:\n${jobDescription}` : '']
+    .map(value => value.trim())
+    .filter(Boolean)
+    .join('\n\n')
+);
+
 function resumeSavingDisabled() {
   throw new AppError(
     410,
@@ -238,7 +245,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     const result = await runResumeWorkflow({
       operation: 'analyze',
       resumeText: body.resumeText,
-      targetRole: body.targetRole
+      targetRole: buildTargetSignal(body.targetRole, body.jobDescription)
     });
     return reply.send({ resumeText: result.resumeText, analysis: result.analysis });
   });
@@ -250,7 +257,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     const result = await runResumeWorkflow({
       operation: 'fix',
       resumeText: body.resumeText,
-      targetRole: body.targetRole,
+      targetRole: buildTargetSignal(body.targetRole, body.jobDescription),
       instruction: body.instruction || (body.issueId ? `Fix issue ${body.issueId}` : '')
     });
     return reply.send({
@@ -280,7 +287,7 @@ export async function resumeRoutes(fastify: FastifyInstance) {
     const result = await runResumeWorkflow({
       operation: 'recheck',
       resumeText: body.resumeText,
-      targetRole: body.targetRole
+      targetRole: buildTargetSignal(body.targetRole, body.jobDescription)
     });
     return reply.send({ resumeText: result.resumeText, analysis: result.analysis });
   });

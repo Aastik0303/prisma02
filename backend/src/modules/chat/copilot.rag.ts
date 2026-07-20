@@ -42,6 +42,13 @@ const fallbackKnowledgeDocs: KnowledgeDoc[] = [
   }
 ];
 
+const DASHBOARD_ITEM_LIMIT = 12;
+const PROJECT_TAG_LIMIT = 8;
+
+const trimArray = (value: unknown, limit: number) => (
+  Array.isArray(value) ? value.slice(0, limit) : value
+);
+
 export const copilotRagBodySchema = z.object({
   message: z.string().trim().min(1, 'Message is required').max(1200),
   history: z.array(z.object({
@@ -59,16 +66,16 @@ export const copilotRagBodySchema = z.object({
     internshipScore: z.number().optional(),
     freelanceScore: z.number().optional(),
     placementReadyScore: z.number().optional(),
-    tracks: z.array(z.object({
+    tracks: z.preprocess(value => trimArray(value, DASHBOARD_ITEM_LIMIT), z.array(z.object({
       name: z.string().trim().max(160),
       completedNodes: z.number().optional(),
       totalNodes: z.number().optional()
-    })).max(12).optional(),
-    projects: z.array(z.object({
+    })).max(DASHBOARD_ITEM_LIMIT)).optional(),
+    projects: z.preprocess(value => trimArray(value, DASHBOARD_ITEM_LIMIT), z.array(z.object({
       title: z.string().trim().max(160),
       status: z.string().trim().max(80).optional(),
-      tags: z.array(z.string().trim().max(80)).max(8).optional()
-    })).max(12).optional()
+      tags: z.preprocess(value => trimArray(value, PROJECT_TAG_LIMIT), z.array(z.string().trim().max(80)).max(PROJECT_TAG_LIMIT)).optional()
+    })).max(DASHBOARD_ITEM_LIMIT)).optional()
   }).default({})
 });
 

@@ -7,6 +7,25 @@ import { COURSE_LEARNING_CONTENT, createLearningTrackFromContent } from '../data
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+const getCsrfToken = async () => {
+  const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
+    credentials: 'include'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to prepare secure course AI chat.');
+  }
+  return {
+    csrfToken: data.csrfToken,
+    csrfSessionId: data.csrfSessionId
+  };
+};
+
+const buildCsrfHeaders = ({ csrfToken, csrfSessionId }) => ({
+  'X-CSRF-Token': csrfToken,
+  ...(csrfSessionId ? { 'X-CSRF-Session-Id': csrfSessionId } : {})
+});
+
 // Mock high-fidelity slide deck contents for the demo PPT
 const coursePpts = {
   'web-dev': {
@@ -1312,6 +1331,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
       return 'Please sign in again so I can securely use the AI course assistant.';
     }
 
+    const csrf = await getCsrfToken();
     const recentHistory = courseChatMessages.slice(-6).map(msg => ({
       role: msg.sender === 'ai' ? 'assistant' : 'user',
       content: msg.text
@@ -1319,8 +1339,10 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
 
     const response = await fetch(`${API_BASE_URL}/chat/ai`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...buildCsrfHeaders(csrf),
         Authorization: `Bearer ${authToken}`
       },
       body: JSON.stringify({

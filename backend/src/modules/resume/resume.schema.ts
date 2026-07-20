@@ -143,7 +143,8 @@ export const resumeOptimizationOutputSchema = z.object({
 
 export const analyzeResumeBodySchema = z.object({
   resumeText: z.string().min(50).max(50_000),
-  targetRole: z.string().trim().max(120).default('')
+  targetRole: z.string().trim().max(120).default(''),
+  jobDescription: z.string().trim().max(12_000).default('')
 });
 
 export const fixResumeBodySchema = analyzeResumeBodySchema.extend({
@@ -151,9 +152,7 @@ export const fixResumeBodySchema = analyzeResumeBodySchema.extend({
   instruction: z.string().trim().max(2000).optional()
 });
 
-export const optimizeResumeBodySchema = analyzeResumeBodySchema.extend({
-  jobDescription: z.string().trim().max(12_000).default('')
-});
+export const optimizeResumeBodySchema = analyzeResumeBodySchema;
 
 export type ResumeAnalysis = z.infer<typeof resumeAnalysisSchema>;
 export type ResumeProblem = z.infer<typeof resumeProblemSchema>;

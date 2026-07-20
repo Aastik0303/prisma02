@@ -626,16 +626,15 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const triggerConfetti = () => { setConfetti(true); setTimeout(() => setConfetti(false), 1800); };
 
   // ── SCAN ──
-  const applyAnalysis = (analysis, analyzedText, options = {}) => {
-    const scoreFloor = Number.isFinite(options.scoreFloor) ? options.scoreFloor : undefined;
-    const nextScore = scoreFloor === undefined ? analysis.atsScore : Math.max(scoreFloor, analysis.atsScore);
+  const applyAnalysis = (analysis, analyzedText) => {
+    const nextScore = Math.max(0, Math.min(100, Math.round(Number(analysis.atsScore) || 0)));
     const nextAnalysis = { ...analysis, atsScore: nextScore };
     setResumeReview(nextAnalysis);
     setSelectedProblemId(nextAnalysis.problems?.[0]?.id || '');
     setCopiedProblemId('');
     setAtsScore(nextScore);
     setResumeScore?.(nextScore);
-    lastAnalyzedTextRef.current = `${targetRole}\u0000${analyzedText}`;
+    lastAnalyzedTextRef.current = `${targetRole}\u0000${jobDescription}\u0000${analyzedText}`;
   };
 
   const resetAtsReview = () => {
@@ -754,7 +753,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       setScanProgress(Math.max(progressStart, 55));
       const result = await resumeApiRequest('/analyze', {
         method: 'POST',
-        body: JSON.stringify({ resumeText: textToAnalyze, targetRole })
+        body: JSON.stringify({ resumeText: textToAnalyze, targetRole, jobDescription })
       });
       setScanProgress(100);
       applyAnalysis(result.analysis, textToAnalyze);
@@ -874,14 +873,14 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   const recheckResume = async (text = reviewText, silent = false) => {
-    if (text.trim().length < 50 || `${targetRole}\u0000${text}` === lastAnalyzedTextRef.current) return;
+    if (text.trim().length < 50 || `${targetRole}\u0000${jobDescription}\u0000${text}` === lastAnalyzedTextRef.current) return;
     const requestId = ++recheckRequestRef.current;
     if (!silent) setRechecking(true);
     setResumeError('');
     try {
       const result = await resumeApiRequest('/recheck', {
         method: 'POST',
-        body: JSON.stringify({ resumeText: text, targetRole })
+        body: JSON.stringify({ resumeText: text, targetRole, jobDescription })
       });
       if (requestId === recheckRequestRef.current) applyAnalysis(result.analysis, result.resumeText);
     } catch (error) {

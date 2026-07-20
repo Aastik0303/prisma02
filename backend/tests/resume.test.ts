@@ -5,6 +5,7 @@ import {
   sanitizeResumeText
 } from '../src/modules/resume/resume.extractor.js';
 import { renderResumeHtml } from '../src/modules/resume/resume.renderer.js';
+import { analyzeResumeBodySchema } from '../src/modules/resume/resume.schema.js';
 
 describe('resume upload security', () => {
   it('normalizes and removes unsafe control characters from extracted text', () => {
@@ -58,5 +59,15 @@ describe('resume upload security', () => {
     expect(html).toContain('Jane Doe');
     expect(html).toContain('Senior Frontend Engineer');
     expect(html).toContain('position: absolute');
+  });
+
+  it('accepts an optional job description for ATS matching', () => {
+    const parsed = analyzeResumeBodySchema.parse({
+      resumeText: 'Jane Doe\njane@example.com\n+1 555 123 4567\nSkills: React, TypeScript, Testing\nProjects: Built a dashboard for course progress tracking.',
+      targetRole: 'Frontend Developer',
+      jobDescription: 'Looking for React, TypeScript, accessibility, testing, and dashboard experience.'
+    });
+
+    expect(parsed.jobDescription).toContain('accessibility');
   });
 });

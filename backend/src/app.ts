@@ -72,6 +72,13 @@ const formatValidationMessage = (issues: any[] = []) => {
     return `${field} is too long. Please shorten that field and try again.`;
   }
 
+  if (firstIssue.code === 'too_big' && firstIssue.type === 'array') {
+    const maximum = Number(firstIssue.maximum);
+    return Number.isFinite(maximum)
+      ? `${field} has too many items. Please send at most ${maximum}.`
+      : `${field} has too many items. Please reduce that list and try again.`;
+  }
+
   if (firstIssue.code === 'too_small' && firstIssue.type === 'string') {
     return `${field} needs more content before it can be processed.`;
   }

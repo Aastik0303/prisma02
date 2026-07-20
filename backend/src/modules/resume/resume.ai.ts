@@ -27,7 +27,7 @@ Keep improved content faithful to the candidate's source material.`
   ],
   [
     'human',
-    `Target role: {targetRole}
+    `Target role and job description signal: {targetRole}
 
 <resume_data>
 {resumeText}
@@ -75,7 +75,7 @@ Valid severity values are: critical, warning, suggestion.`
   ],
   [
     'human',
-    `Target role: {targetRole}
+    `Target role and job description signal: {targetRole}
 
 <resume_data>
 {resumeText}
@@ -284,6 +284,32 @@ function parseResumeOptimizationResponse(content: unknown): ResumeOptimizationOu
 
 const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
+const importantShortKeywords = new Set([
+  'ai', 'ml', 'ui', 'ux', 'qa', 'js', 'ts', 'go', 'r', 'c', 'c++', 'c#'
+]);
+
+const genericRoleWords = new Set([
+  'intern', 'engineer', 'developer', 'analyst', 'manager', 'lead', 'senior',
+  'junior', 'role', 'job', 'description', 'candidate', 'required', 'preferred'
+]);
+
+const commonKeywordStopWords = new Set([
+  'and', 'the', 'for', 'with', 'you', 'are', 'will', 'our', 'this', 'that',
+  'from', 'into', 'using', 'your', 'have', 'has', 'must', 'should', 'about'
+]);
+
+const resumeScoreWeights = {
+  atsCompatibility: 0.17,
+  structure: 0.14,
+  grammar: 0.08,
+  skills: 0.12,
+  projects: 0.14,
+  experience: 0.14,
+  education: 0.07,
+  keywords: 0.10,
+  formatting: 0.04
+} as const;
+
 function keywordTokens(value: string) {
   return Array.from(new Set(
     value
@@ -291,8 +317,53 @@ function keywordTokens(value: string) {
       .replace(/[^a-z0-9+#.\s-]/g, ' ')
       .split(/\s+/)
       .map(token => token.trim())
-      .filter(token => token.length > 2)
+      .filter(token => token.length > 2 || importantShortKeywords.has(token))
   ));
+}
+
+function targetKeywordTokens(value: string) {
+  return keywordTokens(value)
+    .filter(token => !genericRoleWords.has(token) && !commonKeywordStopWords.has(token))
+    .slice(0, 40);
+}
+
+function countImpactMetrics(lines: string[]) {
+  const unitOrScalePattern = /\b\d+(?:\.\d+)?\s*(?:%|k\+?|m\+?|x|ms|sec|seconds|users|customers|students|teams|projects|tickets|requests|records|rows|hours|days|months|revenue|cost|accuracy|latency)\b/i;
+  const outcomeVerbPattern = /\b(reduced|increased|improved|optimized|saved|handled|served|processed|trained|deployed|achieved|cut|raised|lowered|accelerated|grew|scaled)\b.{0,90}\b\d+(?:\.\d+)?/i;
+
+  return lines.filter(line => unitOrScalePattern.test(line) || outcomeVerbPattern.test(line)).length;
+}
+
+function weightedCategoryScore(categoryScores: ResumeAnalysis['categoryScores']) {
+  const totalWeight = Object.values(resumeScoreWeights).reduce((sum, value) => sum + value, 0);
+  const weighted = Object.entries(resumeScoreWeights).reduce((sum, [key, weight]) => {
+    return sum + (categoryScores[key as keyof ResumeAnalysis['categoryScores']] || 0) * weight;
+  }, 0);
+  return clampScore(weighted / totalWeight);
+}
+
+function normalizeResumeAnalysis(analysis: ResumeAnalysis, resumeText: string): ResumeAnalysis {
+  const text = resumeText.trim();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const hasEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text);
+  const hasPhone = /(?:\+?\d[\d\s().-]{7,}\d)/.test(text);
+  const categoryScore = weightedCategoryScore(analysis.categoryScores);
+  const evidenceCap = Math.min(
+    !hasEmail || !hasPhone ? 74 : 100,
+    wordCount < 120 ? 62 : 100,
+    wordCount < 220 ? 78 : 100
+  );
+  const calibratedScore = clampScore(Math.min(analysis.atsScore, categoryScore + 12, evidenceCap));
+
+  if (calibratedScore === analysis.atsScore) {
+    return analysis;
+  }
+
+  return {
+    ...analysis,
+    atsScore: calibratedScore,
+    scoreExplanation: `Calibrated to ${calibratedScore}/100 from ATS category evidence, contact parsing, and resume length. ${analysis.scoreExplanation}`
+  };
 }
 
 function hasAny(text: string, terms: string[]) {
@@ -304,30 +375,41 @@ function firstMatch(text: string, pattern: RegExp) {
   return text.match(pattern)?.[0] || '';
 }
 
+function targetLabel(value: string) {
+  const firstLine = value
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line && !/^job description:?$/i.test(line));
+  return (firstLine || 'target role').slice(0, 120);
+}
+
 function createLocalResumeAnalysis(resumeText: string, targetRole: string): ResumeAnalysis {
   const text = resumeText.trim();
+  const roleLabel = targetLabel(targetRole);
   const lower = text.toLowerCase();
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const bulletLines = lines.filter(line => /^[-*\u2022]/.test(line));
   const words = keywordTokens(text);
   const wordCount = text.split(/\s+/).filter(Boolean).length;
-  const targetKeywords = keywordTokens(targetRole).filter(token => !['intern', 'engineer', 'developer', 'analyst'].includes(token));
-  const matchedKeywords = targetKeywords.filter(token => lower.includes(token));
-  const missingKeywords = targetKeywords.filter(token => !lower.includes(token)).slice(0, 12);
+  const resumeTokens = new Set(words);
+  const targetKeywords = targetKeywordTokens(targetRole);
+  const matchedKeywords = targetKeywords.filter(token => resumeTokens.has(token));
+  const missingKeywords = targetKeywords.filter(token => !resumeTokens.has(token)).slice(0, 12);
 
   const hasEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text);
   const hasPhone = /(?:\+?\d[\d\s().-]{7,}\d)/.test(text);
+  const contentLines = lines.filter(line => !/@|linkedin|github|portfolio|https?:\/\/|\+?\d[\d\s().-]{7,}\d/i.test(line));
   const hasLinks = hasAny(lower, ['linkedin', 'github', 'portfolio', 'http']);
   const hasSkills = hasAny(lower, ['skills', 'technologies', 'tools', 'languages']);
   const hasProjects = hasAny(lower, ['project', 'projects', 'github']);
   const hasExperience = hasAny(lower, ['experience', 'intern', 'developer', 'engineer', 'analyst', 'worked', 'built']);
   const hasEducation = hasAny(lower, ['education', 'degree', 'university', 'college', 'b.tech', 'btech', 'bachelor']);
-  const hasMetrics = /\b\d+[%+]?|\b\d{2,}\b/.test(text);
   const actionVerbMatches = Array.from(lower.matchAll(/\b(built|developed|implemented|designed|optimized|automated|integrated|trained|deployed|created|managed|analyzed|engineered|led|delivered|improved|reduced|increased|launched|architected|shipped|maintained|tested|debugged)\b/g)).length;
   const hasActionVerbs = actionVerbMatches >= 2;
   const longParagraphs = lines.filter(line => line.length > 180).length;
   const sectionCount = [hasSkills, hasProjects, hasExperience, hasEducation].filter(Boolean).length;
-  const metricMatches = Array.from(text.matchAll(/\b\d+(?:\.\d+)?\s*(?:%|\+|k|m|x|ms|sec|seconds|users|projects|teams|hours|days|months|years)?\b/gi)).length;
+  const metricMatches = countImpactMetrics(contentLines);
+  const hasMetrics = metricMatches > 0;
   const linkCount = (lower.match(/https?:\/\/|linkedin|github|portfolio/g) || []).length;
   const bulletRatio = lines.length ? bulletLines.length / lines.length : 0;
   const avgLineLength = lines.length ? lines.reduce((sum, line) => sum + line.length, 0) / lines.length : 0;
@@ -369,7 +451,7 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
   const education = clampScore(hasEducation ? 72 : 40);
   const keywords = clampScore(targetKeywords.length
     ? 35 + (matchedKeywords.length / targetKeywords.length) * 55 + Math.min(matchedKeywords.length, 5) * 2
-    : 48 + sectionCount * 5 + Math.min(words.length, 70) * 0.12);
+    : 42 + sectionCount * 4 + Math.min(words.length, 70) * 0.1);
   const formatting = clampScore(
     52
     + (bulletRatio > 0.12 ? 12 : 0)
@@ -411,7 +493,7 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
       severity: 'warning',
       why: 'Some keywords from the target role are missing, which can reduce ATS match quality.',
       suggestedFix: `Add truthful evidence for: ${missingKeywords.slice(0, 6).join(', ')}.`,
-      originalContent: targetRole || 'No target role provided.',
+      originalContent: roleLabel || 'No target role provided.',
       improvedContent: `Skills / Projects: ${missingKeywords.slice(0, 6).join(', ')}`
     });
   }
@@ -460,16 +542,16 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
       severity: 'suggestion',
       why: 'The resume has a solid base. A final job-description pass can improve shortlisting odds.',
       suggestedFix: 'Mirror the most important job keywords where your real experience supports them.',
-      originalContent: targetRole || 'Target role not specified.',
+      originalContent: roleLabel || 'Target role not specified.',
       improvedContent: 'Add role-specific skills and project evidence in the top half of the resume.'
     });
   }
 
-  return {
+  return normalizeResumeAnalysis({
     atsScore,
-    scoreExplanation: `Generated with the built-in ATS checker because the AI review service was unavailable. Scored from ${wordCount} words, ${sectionCount} core sections, ${bulletLines.length} bullets, ${metricMatches} measurable detail(s), and ${matchedKeywords.length}/${targetKeywords.length || 0} target keywords.`,
+    scoreExplanation: `Generated with the built-in ATS checker because the AI review service was unavailable. Scored from ${wordCount} words, ${sectionCount} core sections, ${bulletLines.length} bullets, ${metricMatches} impact metric(s), and ${matchedKeywords.length}/${targetKeywords.length || 0} target keywords.`,
     summary: targetRole
-      ? `Resume checked against ${targetRole}. Focus on parser-safe formatting, stronger bullets, and missing target keywords.`
+      ? `Resume checked against ${roleLabel}. Focus on parser-safe formatting, stronger bullets, and missing target keywords.`
       : 'Resume checked for ATS formatting, structure, contact parsing, skills, projects, education, and measurable impact.',
     categoryScores: {
       atsCompatibility,
@@ -490,7 +572,7 @@ function createLocalResumeAnalysis(resumeText: string, targetRole: string): Resu
     ].slice(0, 8),
     missingKeywords,
     problems: problems.slice(0, 20)
-  };
+  }, resumeText);
 }
 
 function createLocalResumeFix(input: {
@@ -760,7 +842,8 @@ export async function analyzeResumeWithGroq(
       name: 'resume_review',
       method: 'functionCalling'
     });
-    return await analysisPrompt.pipe(model).invoke(variables);
+    const analysis = await analysisPrompt.pipe(model).invoke(variables);
+    return normalizeResumeAnalysis(analysis, resumeText);
   } catch (toolError) {
     logAiFailure('review', 'functionCalling', toolError);
 
@@ -769,7 +852,8 @@ export async function analyzeResumeWithGroq(
         name: 'resume_review_fallback',
         method: 'jsonMode'
       });
-      return await analysisJsonPrompt.pipe(fallbackModel).invoke(variables);
+      const analysis = await analysisJsonPrompt.pipe(fallbackModel).invoke(variables);
+      return normalizeResumeAnalysis(analysis, resumeText);
     } catch (jsonError) {
       logAiFailure('review', 'jsonMode', jsonError);
       return createLocalResumeAnalysis(resumeText, targetRole);
