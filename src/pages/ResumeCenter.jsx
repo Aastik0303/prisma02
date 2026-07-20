@@ -1501,6 +1501,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   const activeTheme = TEMPLATE_THEMES[activeTemplate.theme] || TEMPLATE_THEMES.modern;
   const activeLayout = RESUME_LAYOUTS.find(l => l.id === selectedLayout) || RESUME_LAYOUTS[0];
   const activePattern = LAYOUT_PATTERNS[activeLayout.pattern] || LAYOUT_PATTERNS.stack;
+  const hasScannerResume = Boolean(uploadedFileName || scanText.trim());
+  const isCompactScanner = activeTab === 'scanner' && !hasScannerResume;
 
   const tabs = [
     { id: 'builder', label: 'Builder', icon: Layout, desc: 'Craft & preview' },
@@ -1567,7 +1569,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FC] relative overflow-hidden">
+    <div className={`relative overflow-hidden bg-[#F8F7FC] ${isCompactScanner ? '' : 'min-h-screen'}`}>
       <ParticleField />
       <Confetti active={confetti} />
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-indigo-300/10 rounded-full blur-[120px] pointer-events-none" />
@@ -1611,7 +1613,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
       </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-8">
+      <div className={`relative z-10 mx-auto max-w-7xl px-6 pt-10 ${isCompactScanner ? 'pb-3' : 'pb-8'}`}>
         <AnimatePresence mode="wait">
 
           {/* ══════════════════════ BUILDER TAB ══════════════════════ */}
@@ -2136,8 +2138,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
           {/* ══════════════════════ SCANNER TAB ══════════════════════ */}
           {activeTab === 'scanner' && (
             <motion.div key="ai-review" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-              <div className="grid xl:grid-cols-5 gap-6">
-                <div className="xl:col-span-2 space-y-4">
+              <div className={hasScannerResume ? "grid gap-6 xl:grid-cols-5" : "mx-auto max-w-2xl"}>
+                <div className={hasScannerResume ? "space-y-4 xl:col-span-2" : "space-y-4"}>
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                       <div className="flex items-center gap-3">
@@ -2278,7 +2280,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                  {hasScannerResume && <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <h3 className="font-black text-slate-900 text-sm mb-4 flex items-center gap-2"><ScanLine className="w-4 h-4 text-indigo-500" /> ATS Score</h3>
                     <div className="flex items-center gap-5">
                       <div className="relative h-28 w-28 shrink-0">
@@ -2296,7 +2298,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                         <p className="mt-1 text-xs leading-5 text-slate-500">{resumeReview?.scoreExplanation || 'Upload a resume or paste text to receive an evidence-based score.'}</p>
                       </div>
                     </div>
-                  </div>
+                  </div>}
 
                   {resumeReview && (
                     <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
@@ -2321,9 +2323,33 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       )}
                     </div>
                   )}
+
+                  {hasScannerResume && (
+                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                      <h3 className="font-black text-slate-900 text-sm mb-4">Strengths</h3>
+                      <div className="space-y-2">
+                        {resumeReview ? resumeReview.strengths.slice(0, 5).map(strength => (
+                          <div key={strength} className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+                            <CheckCircle2 className="w-4 h-4 shrink-0" /><span>{strength}</span>
+                          </div>
+                        )) : (
+                          <>
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current document</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700 truncate">{uploadedFileName || 'Waiting for resume'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{uploadedPdfUrl ? 'Uploaded template' : 'Preview blocks'}</p>
+                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length ? `${uploadedPdfLayout.blocks.length} preview lines` : uploadedPdfUrl ? 'Original PDF visible' : '0 preview lines'}</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="xl:col-span-3 space-y-4">
+                {hasScannerResume && <div className="xl:col-span-3 space-y-4">
                   <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3">
@@ -2578,29 +2604,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                      <h3 className="font-black text-slate-900 text-sm mb-4">Strengths</h3>
-                      <div className="space-y-2">
-                        {resumeReview ? resumeReview.strengths.slice(0, 5).map(strength => (
-                          <div key={strength} className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
-                            <CheckCircle2 className="w-4 h-4 shrink-0" /><span>{strength}</span>
-                          </div>
-                        )) : (
-                          <>
-                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current document</p>
-                              <p className="mt-1 text-xs font-bold text-slate-700 truncate">{uploadedFileName || 'Waiting for resume'}</p>
-                            </div>
-                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{uploadedPdfUrl ? 'Uploaded template' : 'Preview blocks'}</p>
-                              <p className="mt-1 text-xs font-bold text-slate-700">{uploadedPdfLayout?.blocks?.length ? `${uploadedPdfLayout.blocks.length} preview lines` : uploadedPdfUrl ? 'Original PDF visible' : '0 preview lines'}</p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                </div>
+                </div>}
               </div>
             </motion.div>
           )}

@@ -312,7 +312,7 @@ function StoryViewer({ startId, onClose, onViewed }) {
         </div>
 
         <div className="relative flex items-center gap-3 px-4 pt-3">
-          <img src={person.avatar} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-white/40" />
+          <img src={person.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1 truncate text-sm font-bold text-white">
               {person.name}
@@ -392,7 +392,7 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
     <article className="overflow-hidden rounded-3xl border backdrop-blur-xl transition hover:border-white/15" style={{ background: SURFACE, borderColor: HAIRLINE }}>
       <div className="flex items-center justify-between gap-3 px-4 pt-4">
         <button type="button" onClick={() => onOpenProfile(author.id)} className="flex min-w-0 items-center gap-3">
-          <StreakRing user={author} size={44} onOpen={() => onOpenProfile(author.id)} ringOnly />
+          <img src={author.avatar} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
           <div className="min-w-0 text-left">
             <span className="flex items-center gap-1">
               <span className="truncate text-sm font-bold text-white">{author.name}</span>
@@ -611,7 +611,6 @@ function CommentsSheet({ post, viewer, onClose, onAddComment }) {
 /* ================================ Composer Modal =============================== */
 function ComposerModal({ viewer, onClose, onPublish }) {
   const [text, setText] = useState("");
-  const [tag, setTag] = useState("Discussion");
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState("");
 
@@ -621,7 +620,7 @@ function ComposerModal({ viewer, onClose, onPublish }) {
     setSharing(true);
     setError("");
     try {
-      await onPublish({ content: clean, tag });
+      await onPublish({ content: clean });
       onClose();
     } catch (publishError) {
       setError(publishError?.message || "Unable to share your post. Please try again.");
@@ -663,22 +662,6 @@ function ComposerModal({ viewer, onClose, onPublish }) {
               placeholder="Ship something? Stuck on a bug? Tell the community..."
               className="min-h-24 flex-1 resize-none bg-transparent text-sm font-medium leading-6 text-white outline-none placeholder:text-white/30"
             />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {Object.keys(tagTone).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setTag(option)}
-                className={`h-8 rounded-full px-3 text-[11px] font-bold transition ${
-                  tag === option ? "text-white" : "bg-white/5 text-white/50 hover:bg-white/10"
-                }`}
-                style={tag === option ? { background: GRADIENT } : undefined}
-              >
-                {option}
-              </button>
-            ))}
           </div>
 
           {error && <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-500/20">{error}</p>}
@@ -742,7 +725,7 @@ function ChatPanel({ thread, messages, viewer, onClose, onSend }) {
               <ArrowLeft className="h-4 w-4" />
             </button>
             <span className="relative">
-              <img src={thread.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover ring-2 ring-white/40" />
+              <img src={thread.avatar} alt="" className="h-11 w-11 rounded-2xl object-cover" />
               {thread.online && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />}
             </span>
             <div className="min-w-0 flex-1">
@@ -1025,8 +1008,8 @@ function SearchPage({ viewer, follows, onToggleFollow, onOpenChat, onOpenProfile
           const relationship = follows[person.id] || "none";
           return (
             <div key={person.id} className="rounded-2xl border p-3 text-center" style={{ borderColor: HAIRLINE, background: SURFACE }}>
-              <button type="button" onClick={() => onOpenProfile(person.id)} className="mx-auto block">
-                <StreakRing user={person} size={64} onOpen={() => onOpenProfile(person.id)} />
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="mx-auto block overflow-hidden rounded-full">
+                <img src={person.avatar} alt="" className="h-16 w-16 object-cover" />
               </button>
               <button type="button" onClick={() => onOpenProfile(person.id)} className="mt-2 block w-full truncate text-xs font-black text-white">
                 {person.name}
@@ -1146,7 +1129,7 @@ function BottomNav({ viewer, active, onChange, onCompose, incomingCount }) {
         );
       })}
       <button type="button" onClick={() => onChange("profile")} className="relative flex h-11 w-11 items-center justify-center" aria-label="Your profile">
-        <span className={`h-7 w-7 overflow-hidden rounded-full ring-2 transition ${active === "profile" ? "ring-white" : "ring-transparent"}`}>
+        <span className={`h-7 w-7 overflow-hidden rounded-full transition ${active === "profile" ? "opacity-100" : "opacity-75"}`}>
           <img src={viewer.avatar} alt="" className="h-full w-full object-cover" />
         </span>
       </button>
@@ -1171,7 +1154,7 @@ function TopBar({ viewer, onOpenActivity, onOpenChatList, incomingCount, unreadT
             <Send className="h-5 w-5" />
             {!!unreadThreads && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
           </button>
-          <img src={viewer.avatar} alt="" className="ml-1 h-9 w-9 rounded-full object-cover ring-2 ring-white/10 xl:hidden" />
+          <img src={viewer.avatar} alt="" className="ml-1 h-9 w-9 rounded-full object-cover xl:hidden" />
         </div>
       </div>
     </header>
@@ -1202,7 +1185,7 @@ function LeftRail({ viewer, active, onChange, onCompose }) {
             style={isActive ? { background: SURFACE, color: "white" } : { color: "rgba(255,255,255,0.55)" }}
           >
             {item.id === "profile" ? (
-              <img src={viewer.avatar} alt="" className={`h-6 w-6 rounded-full object-cover ring-2 ${isActive ? "ring-white" : "ring-transparent"}`} />
+              <img src={viewer.avatar} alt="" className={`h-6 w-6 rounded-full object-cover ${isActive ? "opacity-100" : "opacity-75"}`} />
             ) : (
               <item.icon className="h-5 w-5" />
             )}
@@ -1243,7 +1226,7 @@ function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActiv
           <Send className="h-5 w-5 -rotate-12" />
           {!!unreadThreads && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
         </button>
-        <button type="button" onClick={() => onOpenProfile(viewer.id)} className="ml-1 overflow-hidden rounded-full ring-2 ring-white/20" aria-label="Your profile">
+        <button type="button" onClick={() => onOpenProfile(viewer.id)} className="ml-1 overflow-hidden rounded-full" aria-label="Your profile">
           <img src={viewer.avatar} alt="" className="h-10 w-10 object-cover" />
         </button>
       </div>
@@ -1255,7 +1238,9 @@ function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActiv
           {leaders.map((person, i) => (
             <div key={person.id} className="flex w-full items-center gap-3 rounded-xl px-1.5 py-1 transition hover:bg-white/5">
               <span className="peer-mono w-4 text-[11px] font-bold text-white/30">{i + 1}</span>
-              <StreakRing user={person} size={38} onOpen={() => onOpenProfile(person.id)} ringOnly />
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="shrink-0 overflow-hidden rounded-full">
+                <img src={person.avatar} alt="" className="h-[38px] w-[38px] object-cover" />
+              </button>
               <button type="button" onClick={() => onOpenProfile(person.id)} className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-xs font-bold text-white">{person.name.split(" ")[0]}</span>
                 <span className="block truncate text-[10px] font-medium text-white/40">{person.role}</span>
@@ -1273,7 +1258,9 @@ function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActiv
         <div className="mt-4 space-y-3">
           {suggested.map((person) => (
             <div key={person.id} className="flex items-center gap-3">
-              <StreakRing user={person} size={40} onOpen={() => onOpenProfile(person.id)} ringOnly />
+              <button type="button" onClick={() => onOpenProfile(person.id)} className="shrink-0 overflow-hidden rounded-full">
+                <img src={person.avatar} alt="" className="h-10 w-10 object-cover" />
+              </button>
               <div className="min-w-0 flex-1">
                 <button type="button" onClick={() => onOpenProfile(person.id)} className="block truncate text-xs font-bold text-white text-left">
                   {person.name}
@@ -1604,7 +1591,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     } : p));
   };
 
-  const publishPost = async ({ content, tag }) => {
+  const publishPost = async ({ content }) => {
     if (!authToken) throw new Error("Please sign in again before sharing a post.");
     const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf-token`, { credentials: "include" });
     const csrf = await csrfResponse.json().catch(() => ({}));
@@ -1618,7 +1605,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           "X-CSRF-Token": csrf.csrfToken,
           ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}),
         },
-        body: JSON.stringify({ content, tag }),
+        body: JSON.stringify({ content }),
       });
     let response = await sendPost(authToken);
     let data = await response.json().catch(() => ({}));
