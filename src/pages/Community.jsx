@@ -22,6 +22,7 @@ import {
   Plus,
   Search,
   Send,
+  Share2,
   Smile,
   Sparkles,
   TrendingUp,
@@ -434,8 +435,8 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
             <MessageCircle className="h-6 w-6" />
             <span className="text-[10px] font-bold leading-none text-white/45">{commentCount.toLocaleString()}</span>
           </button>
-          <button type="button" onClick={() => onShare(post.id, author)} className="flex min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/70 transition hover:bg-white/5 active:scale-90" aria-label="Share post via chat">
-            <Send className="h-6 w-6" />
+          <button type="button" onClick={() => onShare(post.id)} className="flex min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/70 transition hover:bg-white/5 active:scale-90" aria-label="Share post">
+            <Share2 className="h-6 w-6" />
             <span className="text-[10px] font-bold leading-none text-white/45">{shareCount.toLocaleString()}</span>
           </button>
         </div>
@@ -489,6 +490,58 @@ function LikesSheet({ state, onClose, onOpenProfile }) {
               <Heart className="h-4 w-4 text-rose-400" fill="currentColor" />
             </button>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShareSheet({ post, people, onClose, onSelect }) {
+  const [query, setQuery] = useState("");
+  const [sharingId, setSharingId] = useState(null);
+  const filteredPeople = people.filter((person) => {
+    const searchText = `${person.name || ""} ${person.handle || ""} ${person.role || ""}`.toLowerCase();
+    return searchText.includes(query.trim().toLowerCase());
+  });
+
+  const selectPerson = async (person) => {
+    if (sharingId) return;
+    setSharingId(person.id);
+    await onSelect(post, person);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[58] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div className="peer-sheet-in flex max-h-[76vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border backdrop-blur-2xl sm:rounded-3xl" style={{ background: SURFACE, borderColor: HAIRLINE }} onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <h2 className="peer-display text-base font-bold text-white">Share with</h2>
+            <p className="mt-0.5 text-[11px] font-medium text-white/40">People you follow</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/50 transition hover:bg-white/10 hover:text-white" aria-label="Close share list">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-4 py-3">
+          <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ borderColor: HAIRLINE, background: SURFACE_2 }}>
+            <Search className="h-4 w-4 shrink-0 text-white/35" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search following..." className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-white/30" autoFocus />
+          </label>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 pb-4 peer-scroll">
+          {filteredPeople.map((person) => (
+            <button key={person.id} type="button" onClick={() => selectPerson(person)} disabled={Boolean(sharingId)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/5 disabled:opacity-60">
+              <img src={person.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-white">{person.name}</p>
+                <p className="truncate text-[11px] text-white/40">{person.handle || person.role}</p>
+              </div>
+              {sharingId === person.id ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" /> : <Send className="h-4 w-4 text-white/35" />}
+            </button>
+          ))}
+          {people.length === 0 && <p className="px-5 py-10 text-center text-xs font-semibold text-white/40">Follow people to share posts with them.</p>}
+          {people.length > 0 && filteredPeople.length === 0 && <p className="px-5 py-10 text-center text-xs font-semibold text-white/40">No followed users match your search.</p>}
         </div>
       </div>
     </div>
@@ -1332,6 +1385,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [activities, setActivities] = useState([]);
   const [profileStats, setProfileStats] = useState({});
   const [likesSheet, setLikesSheet] = useState(null);
+  const [sharePostId, setSharePostId] = useState(null);
   const [storyClock, setStoryClock] = useState(() => Date.now());
   const [watchedStoriesByViewer, setWatchedStoriesByViewer] = useState(() => {
     try {
@@ -1531,15 +1585,16 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
 
   const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
 
-  const sharePost = async (postId, author) => {
+  const sharePost = async (post, recipient) => {
     try {
-      const result = await mutateWithCsrf(`/community/posts/${postId}/share`);
-      setPosts((items) => items.map((post) => post.id === postId ? {
-        ...post,
+      await openChat(recipient);
+      await sendMessage(recipient.id, `Shared post by ${post.author}: ${post.content}`);
+      const result = await mutateWithCsrf(`/community/posts/${post.id}/share`);
+      setPosts((items) => items.map((item) => item.id === post.id ? {
+        ...item,
         shares: Number(result.shares || 0),
-        stats: { ...post.stats, shares: Number(result.shares || 0) },
-      } : post));
-      openChat(author);
+        stats: { ...item.stats, shares: Number(result.shares || 0) },
+      } : item));
     } catch {
       // Leave the count unchanged when the server cannot record the share.
     }
@@ -1685,7 +1740,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                     onToggleSave={toggleSave}
                     onOpenComments={setCommentsPostId}
                     onOpenProfile={setProfileId}
-                    onShare={sharePost}
+                    onShare={setSharePostId}
                     onOpenLikes={openLikes}
                   />
                 ))}
@@ -1713,6 +1768,14 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         <CommentsSheet post={posts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
       )}
       {likesSheet && <LikesSheet state={likesSheet} onClose={() => setLikesSheet(null)} onOpenProfile={setProfileId} />}
+      {sharePostId && (
+        <ShareSheet
+          post={posts.find((post) => post.id === sharePostId)}
+          people={people.filter((person) => follows[person.id] === "following")}
+          onClose={() => setSharePostId(null)}
+          onSelect={sharePost}
+        />
+      )}
       {composerOpen && <ComposerModal viewer={viewer} onClose={() => setComposerOpen(false)} onPublish={publishPost} />}
       {profileId && (
         <ProfileView
