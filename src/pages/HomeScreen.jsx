@@ -597,15 +597,34 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
             </span>
           </button>
 
-          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
-            <a href="#launch-gates" className="border-b-2 border-indigo-500 pb-2 text-indigo-600">Roadmaps</a>
-            <a href="#contact" className="pb-2 transition-colors hover:text-indigo-600">Contracts</a>
-            <a href="#launch-gates" className="pb-2 transition-colors hover:text-indigo-600">Projects</a>
+          <nav className="hidden items-center gap-1 rounded-xl border border-indigo-100/80 bg-white/80 p-1.5 text-sm font-semibold text-slate-600 shadow-sm shadow-indigo-950/5 backdrop-blur md:flex">
+            <a
+              href="#launch-gates"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-50 px-4 text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100"
+            >
+              <Compass className="h-4 w-4" />
+              Roadmaps
+            </a>
+            <a
+              href="#contact"
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 transition-all hover:bg-teal-50 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+            >
+              <Mail className="h-4 w-4" />
+              Contact
+            </a>
+            <a
+              href="#launch-gates"
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 transition-all hover:bg-violet-50 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-100"
+            >
+              <FolderGit2 className="h-4 w-4" />
+              Projects
+            </a>
             <button
               type="button"
               onClick={onSignIn}
-              className="rounded-full bg-indigo-600 px-7 py-3 text-xs font-extrabold text-white shadow-lg shadow-indigo-500/25 transition-transform hover:-translate-y-0.5"
+              className="group ml-1 inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-5 text-xs font-extrabold text-white shadow-lg shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-xl hover:shadow-indigo-500/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
             >
+              <Sparkles className="h-4 w-4 transition-transform group-hover:rotate-12" />
               Dashboard
             </button>
           </nav>
@@ -639,18 +658,29 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
               transition={{ duration: 0.65, delay: 0.3 }}
               className="mt-10 flex flex-col gap-3 sm:flex-row"
             >
-              <button
-                type="button"
-                onClick={onStartJourney}
-                className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-indigo-600 px-8 text-sm font-extrabold text-white shadow-xl shadow-indigo-500/25 transition-transform hover:-translate-y-0.5"
-              >
-                Start Your Journey
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </button>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={onStartJourney}
+                  className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-indigo-600 px-8 text-sm font-extrabold text-white shadow-xl shadow-indigo-500/25 transition-transform hover:-translate-y-0.5"
+                >
+                  Start Your Journey
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </button>
+                <a
+                  href="https://aastik0303.github.io/freelance/#home"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl border border-teal-500 bg-teal-600 px-8 text-sm font-extrabold text-white shadow-lg shadow-teal-600/20 transition-all hover:-translate-y-0.5 hover:border-teal-400 hover:bg-teal-500 hover:shadow-xl hover:shadow-teal-600/25 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+                >
+                  Get our custom services
+                  <Globe className="h-5 w-5 transition-transform group-hover:scale-110" />
+                </a>
+              </div>
               <button
                 type="button"
                 onClick={onSignIn}
-                className="inline-flex h-14 items-center justify-center rounded-xl border border-slate-300 bg-white px-8 text-sm font-extrabold text-indigo-600 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+                className="inline-flex h-14 items-center justify-center rounded-xl border border-indigo-200 bg-white px-8 text-sm font-extrabold text-indigo-700 shadow-lg shadow-indigo-900/10 transition-all hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-800 hover:shadow-xl hover:shadow-indigo-500/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
               >
                 Continue
               </button>
