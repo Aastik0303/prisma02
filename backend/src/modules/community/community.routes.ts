@@ -349,6 +349,21 @@ export async function communityRoutes(fastify: FastifyInstance) {
     return reply.status(200).send(result);
   });
 
+  fastify.post('/posts/:id/share', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const post = await fastify.prisma.communityPost.findUnique({ where: { id: postId }, select: { id: true } });
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+
+    const updated = await fastify.prisma.communityPost.update({
+      where: { id: postId },
+      data: { sharesCount: { increment: 1 } },
+      select: { sharesCount: true }
+    });
+    return reply.status(200).send({ shares: updated.sharesCount });
+  });
+
   fastify.post('/posts/:id/comments', {
     preHandler: [requireAuth]
   }, async (request, reply) => {
@@ -415,7 +430,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
           imageUrl: body.imageUrl?.trim() || null,
           skills: Array.isArray(body.skills)
             ? body.skills.map(skill => String(skill).trim()).filter(Boolean).slice(0, 6)
-            : ['Community', 'Learning']
+            : []
         },
         include: {
           author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } }

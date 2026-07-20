@@ -181,13 +181,6 @@ let MOCK_STORIES = [
   { id: "p-rahul", title: "Auth service", update: "Refresh tokens now rotate on reuse.", image: img("photo-1555066931-4365d14bab8c", 800, 1000) },
 ];
 
-const tagTone = {
-  "Project Win": { chip: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30", dot: "bg-violet-400" },
-  "Need Advice": { chip: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30", dot: "bg-amber-400" },
-  Showcase: { chip: "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30", dot: "bg-cyan-400" },
-  Discussion: { chip: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30", dot: "bg-rose-400" },
-};
-
 /* ---------------------------------- helpers -------------------------------- */
 let uidCounter = 1000;
 const uid = (prefix = "id") => `${prefix}-${uidCounter++}-${Date.now().toString(36)}`;
@@ -351,13 +344,13 @@ function StoryViewer({ startId, onClose, onViewed }) {
 }
 
 /* ================================ Post Card =================================== */
-function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onOpenChat, onOpenLikes }) {
+function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
   const author = byId(post.authorId);
   const [burst, setBurst] = useState(false);
   const likePressTimer = useRef(null);
   const longPressTriggered = useRef(false);
-  const tone = tagTone[post.tag] || tagTone.Discussion;
   const commentCount = Number(post.stats?.comments ?? post.comments.length);
+  const shareCount = Number(post.shares ?? post.stats?.shares ?? 0);
   const isAuthor = post.authorId === viewer.id;
 
   useEffect(() => () => window.clearTimeout(likePressTimer.current), []);
@@ -409,18 +402,7 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
       </div>
 
       <div className="px-4 pb-1 pt-3">
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${tone.chip}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
-          {post.tag}
-        </span>
-        <p className="mt-3 text-[13px] leading-6 text-white/85">{post.content}</p>
-        {post.tags?.length > 0 && (
-          <p className="peer-mono mt-2 flex flex-wrap gap-x-2 text-[12px] font-medium" style={{ color: "#FF9F5A" }}>
-            {post.tags.map((t) => (
-              <span key={t}>#{t}</span>
-            ))}
-          </p>
-        )}
+        <p className="text-[13px] leading-6 text-white/85">{post.content}</p>
       </div>
 
       {post.image && (
@@ -432,7 +414,7 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
         </div>
       )}
 
-      <div className="flex items-center justify-between px-3 pt-2">
+      <div className="flex items-center justify-between px-3 pb-3 pt-2">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -452,8 +434,9 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
             <MessageCircle className="h-6 w-6" />
             <span className="text-[10px] font-bold leading-none text-white/45">{commentCount.toLocaleString()}</span>
           </button>
-          <button type="button" onClick={() => onOpenChat(author)} className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90" aria-label="Share via chat">
+          <button type="button" onClick={() => onShare(post.id, author)} className="flex min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/70 transition hover:bg-white/5 active:scale-90" aria-label="Share post via chat">
             <Send className="h-6 w-6" />
+            <span className="text-[10px] font-bold leading-none text-white/45">{shareCount.toLocaleString()}</span>
           </button>
         </div>
         <button
@@ -466,21 +449,6 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
         </button>
       </div>
 
-      <div className="space-y-1 px-4 pb-4">
-        {post.comments.length > 0 && (
-          <button type="button" onClick={() => onOpenComments(post.id)} className="text-xs font-semibold text-white/40 hover:text-white/60">
-            View all comments
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onOpenComments(post.id)}
-          className="flex w-full items-center gap-2 pt-1 text-left text-xs font-medium text-white/30"
-        >
-          <img src={viewer.avatar} alt="" className="h-6 w-6 rounded-full object-cover" />
-          Add a comment...
-        </button>
-      </div>
     </article>
   );
 }
@@ -1322,6 +1290,7 @@ const normalizeRegisteredUser = (user) => ({
 const normalizeCommunityPost = (post) => ({
   ...post,
   likes: Number(post.likes ?? post.stats?.likes ?? 0),
+  shares: Number(post.shares ?? post.stats?.shares ?? 0),
   comments: Array.isArray(post.comments) ? post.comments : [],
   tags: Array.isArray(post.tags) ? post.tags : (Array.isArray(post.skills) ? post.skills : []),
   liked: Boolean(post.liked),
@@ -1562,6 +1531,20 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
 
   const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
 
+  const sharePost = async (postId, author) => {
+    try {
+      const result = await mutateWithCsrf(`/community/posts/${postId}/share`);
+      setPosts((items) => items.map((post) => post.id === postId ? {
+        ...post,
+        shares: Number(result.shares || 0),
+        stats: { ...post.stats, shares: Number(result.shares || 0) },
+      } : post));
+      openChat(author);
+    } catch {
+      // Leave the count unchanged when the server cannot record the share.
+    }
+  };
+
   const openLikes = async (postId) => {
     setLikesSheet({ postId, loading: true, users: [], error: "" });
     const send = (token) => fetch(`${API_BASE_URL}/community/posts/${postId}/likes`, {
@@ -1702,7 +1685,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                     onToggleSave={toggleSave}
                     onOpenComments={setCommentsPostId}
                     onOpenProfile={setProfileId}
-                    onOpenChat={openChat}
+                    onShare={sharePost}
                     onOpenLikes={openLikes}
                   />
                 ))}
