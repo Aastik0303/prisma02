@@ -548,7 +548,7 @@ function ShareSheet({ post, people, onClose, onSelect }) {
   );
 }
 
-function SavedPostsSheet({ posts, loading, viewer, onClose, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
+function SavedPostsSheet({ posts, loading, error, viewer, onClose, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
   return (
     <div className="fixed inset-0 z-[57] flex justify-end bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div className="peer-sheet-in flex h-full w-full max-w-xl flex-col overflow-hidden border-l backdrop-blur-2xl" style={{ background: INK, borderColor: HAIRLINE }} onClick={(event) => event.stopPropagation()}>
@@ -561,10 +561,11 @@ function SavedPostsSheet({ posts, loading, viewer, onClose, onToggleLike, onTogg
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto p-4 peer-scroll">
           {loading && <p className="py-16 text-center text-xs font-semibold text-white/40">Loading saved posts...</p>}
-          {!loading && posts.map((post) => (
+          {!loading && error && <p className="mx-3 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-xs font-semibold text-rose-300">{error}</p>}
+          {!loading && !error && posts.map((post) => (
             <PostCard key={post.id} post={post} viewer={viewer} onToggleLike={onToggleLike} onToggleSave={onToggleSave} onOpenComments={onOpenComments} onOpenProfile={onOpenProfile} onShare={onShare} onOpenLikes={onOpenLikes} />
           ))}
-          {!loading && posts.length === 0 && (
+          {!loading && !error && posts.length === 0 && (
             <div className="py-16 text-center">
               <Bookmark className="mx-auto h-8 w-8 text-white/20" />
               <p className="mt-3 text-sm font-bold text-white/55">No saved posts yet</p>
@@ -1425,6 +1426,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [sharePostId, setSharePostId] = useState(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [savedError, setSavedError] = useState("");
   const [savedPosts, setSavedPosts] = useState([]);
   const [storyClock, setStoryClock] = useState(() => Date.now());
   const [watchedStoriesByViewer, setWatchedStoriesByViewer] = useState(() => {
@@ -1594,14 +1596,18 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   };
 
   const mutateWithCsrf = async (path, body, method = "POST") => {
-    if (!authToken) throw new Error("Please sign in again.");
+    let requestToken = authToken;
+    if (!requestToken && onRefreshAuth) {
+      requestToken = await onRefreshAuth().catch(() => "");
+    }
+    if (!requestToken) throw new Error("Please sign in again.");
     const csrf = await getCommunityCsrf();
     const send = (token) => fetch(`${API_BASE_URL}${path}`, {
       method, credentials: "include",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-CSRF-Token": csrf.csrfToken, ...(csrf.csrfSessionId ? { "X-CSRF-Session-Id": csrf.csrfSessionId } : {}) },
       body: JSON.stringify(body || {}),
     });
-    let response = await send(authToken);
+    let response = await send(requestToken);
     if (response.status === 401 && onRefreshAuth) {
       const token = await onRefreshAuth();
       if (token) response = await send(token);
@@ -1630,27 +1636,40 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     const previous = posts.find((post) => post.id === postId) || savedPosts.find((post) => post.id === postId);
     if (!previous) return;
     const optimisticSaved = !previous.saved;
+    setSavedError("");
     setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: optimisticSaved } : post));
     if (!optimisticSaved) setSavedPosts((items) => items.filter((post) => post.id !== postId));
     try {
       const result = await mutateWithCsrf(`/community/posts/${postId}/save`);
       setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: Boolean(result.saved) } : post));
       if (!result.saved) setSavedPosts((items) => items.filter((post) => post.id !== postId));
-    } catch {
+    } catch (error) {
       setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: previous.saved } : post));
       if (previous.saved) setSavedPosts((items) => items.some((post) => post.id === postId) ? items : [previous, ...items]);
+      setSavedError(error?.message || "Unable to save this post. Please try again.");
     }
   };
 
   const openSavedPosts = async () => {
     setSavedOpen(true);
     setSavedLoading(true);
+    setSavedError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/community/saved-posts`, { credentials: "include", headers: { Authorization: `Bearer ${authToken}` } });
-      if (!response.ok) throw new Error("Unable to load saved posts.");
-      setSavedPosts((await response.json()).map(normalizeCommunityPost));
-    } catch {
+      let requestToken = authToken;
+      if (!requestToken && onRefreshAuth) requestToken = await onRefreshAuth().catch(() => "");
+      if (!requestToken) throw new Error("Please sign in again to view saved posts.");
+      const send = (token) => fetch(`${API_BASE_URL}/community/saved-posts`, { credentials: "include", headers: { Authorization: `Bearer ${token}` } });
+      let response = await send(requestToken);
+      if (response.status === 401 && onRefreshAuth) {
+        const refreshedToken = await onRefreshAuth().catch(() => "");
+        if (refreshedToken) response = await send(refreshedToken);
+      }
+      const data = await response.json().catch(() => []);
+      if (!response.ok) throw new Error(data.message || "Unable to load saved posts.");
+      setSavedPosts(data.map(normalizeCommunityPost));
+    } catch (error) {
       setSavedPosts([]);
+      setSavedError(error?.message || "Unable to load saved posts.");
     } finally {
       setSavedLoading(false);
     }
@@ -1840,7 +1859,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         <CommentsSheet post={posts.find((p) => p.id === commentsPostId) || savedPosts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
       )}
       {likesSheet && <LikesSheet state={likesSheet} onClose={() => setLikesSheet(null)} onOpenProfile={setProfileId} />}
-      {savedOpen && <SavedPostsSheet posts={savedPosts} loading={savedLoading} viewer={viewer} onClose={() => setSavedOpen(false)} onToggleLike={toggleLike} onToggleSave={toggleSave} onOpenComments={setCommentsPostId} onOpenProfile={setProfileId} onShare={setSharePostId} onOpenLikes={openLikes} />}
+      {savedOpen && <SavedPostsSheet posts={savedPosts} loading={savedLoading} error={savedError} viewer={viewer} onClose={() => setSavedOpen(false)} onToggleLike={toggleLike} onToggleSave={toggleSave} onOpenComments={setCommentsPostId} onOpenProfile={setProfileId} onShare={setSharePostId} onOpenLikes={openLikes} />}
       {sharePostId && (
         <ShareSheet
           post={posts.find((post) => post.id === sharePostId)}
