@@ -271,7 +271,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
         outgoingRequestId: outgoingRequest?.id || null,
         incomingRequestId: incomingRequest?.id || null
       },
-      posts: posts.map(normalizePost),
+      posts: posts.map(post => ({ ...normalizePost(post), isOwner: post.authorId === viewerId })),
       projects,
       achievements: profileAchievements(metadata, postsCount, projects.length)
     });
@@ -304,7 +304,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       }
     });
 
-    return reply.status(200).send(posts.map(normalizePost));
+    return reply.status(200).send(posts.map(post => ({ ...normalizePost(post), isOwner: post.authorId === request.user!.id })));
   });
 
   fastify.get('/saved-posts', {
@@ -328,7 +328,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
         }
       }
     });
-    return reply.status(200).send(saves.map(item => normalizePost(item.post)));
+    return reply.status(200).send(saves.map(item => ({ ...normalizePost(item.post), isOwner: item.post.authorId === request.user!.id })));
   });
 
   fastify.get('/posts/:id/likes', {
@@ -528,7 +528,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       return { post, nextStreak };
     });
 
-    return reply.status(201).send({ ...normalizePost(result.post), authorStreak: result.nextStreak });
+    return reply.status(201).send({ ...normalizePost(result.post), isOwner: true, authorStreak: result.nextStreak });
   });
 
   fastify.get('/social', {

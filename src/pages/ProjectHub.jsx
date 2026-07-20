@@ -3,27 +3,26 @@ import {
   Code2, Layers, Cpu, Globe, Smartphone, Database, ShieldCheck,
   Sparkles, Eye, Download, Flame, ChevronRight, X, CheckCircle2, Search
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeGeOHiOENm93xgiXILD1BdlNeMv1uhRkT1S2-PXuwYvhme9w/viewform?usp=publish-editor';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 /* ---------------------------------------------------------------------
    DESIGN TOKENS
-   Ink navy ground + warm paper panels + amber (get) / teal (free) / 
-   violet (popular) as the three signal colors. Monospace for tags
-   and metadata, Space Grotesk for display, Inter for body.
+   Shared Home screen palette: soft lavender ground, white surfaces,
+   slate type, indigo primary actions, and teal/violet status accents.
 --------------------------------------------------------------------- */
 const TOKENS = {
-  ink: '#0F1320',
-  inkSoft: '#161B2E',
-  paper: '#F6F4EF',
-  paperDim: '#EAE7DE',
-  line: 'rgba(246,244,239,0.10)',
-  amber: '#E8A33D',
-  teal: '#3FA796',
-  violet: '#8B7CF0',
-  textDim: 'rgba(246,244,239,0.55)',
+  ink: '#EEF2FF',
+  inkSoft: '#FFFFFF',
+  paper: '#0F172A',
+  paperDim: '#EEF2FF',
+  line: 'rgba(99,102,241,0.16)',
+  amber: '#4F46E5',
+  teal: '#0D9488',
+  violet: '#7C3AED',
+  textDim: '#64748B',
 };
 
 /* ---------------------------------------------------------------------
@@ -146,8 +145,24 @@ const PROJECTS = [
 
 const TIER_COLOR = {
   Basic: TOKENS.teal,
-  Intermediate: TOKENS.amber,
+  Intermediate: '#D97706',
   Advanced: TOKENS.violet,
+};
+
+const TIER_SURFACE = {
+  Basic: '#CCFBF1',
+  Intermediate: '#FFEDD5',
+  Advanced: '#EDE9FE',
+};
+
+const CATEGORY_STYLE = {
+  frontend: { accent: '#4338CA', surface: '#DDE4FF' },
+  fullstack: { accent: '#0F766E', surface: '#CCFBF1' },
+  aiml: { accent: '#7E22CE', surface: '#EDE9FE' },
+  backend: { accent: '#0E7490', surface: '#CFFAFE' },
+  mobile: { accent: '#BE123C', surface: '#FFE4E6' },
+  embedded: { accent: '#C2410C', surface: '#FFEDD5' },
+  security: { accent: '#047857', surface: '#D1FAE5' },
 };
 
 /* ---------------------------------------------------------------------
@@ -170,13 +185,13 @@ function ProjectCard({ project, onSee, enrolled = false }) {
       ref={cardRef}
       onPointerMove={handlePointerMove}
       onPointerLeave={() => { if (cardRef.current) cardRef.current.style.transform = ''; }}
-      className="group relative flex flex-col justify-between rounded-2xl overflow-hidden border transition-all duration-300"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border shadow-sm shadow-indigo-950/5 transition-all duration-300 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/10"
       style={{
-        background: TOKENS.inkSoft,
-        borderColor: TOKENS.line,
+        background: TIER_SURFACE[project.tier],
+        borderColor: `${stripe}33`,
       }}
     >
-      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: 'radial-gradient(260px circle at var(--pointer-x, 50%) var(--pointer-y, 50%), rgba(232,163,61,.14), rgba(139,124,240,.07) 38%, transparent 72%)' }} />
+      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: 'radial-gradient(260px circle at var(--pointer-x, 50%) var(--pointer-y, 50%), rgba(79,70,229,.10), rgba(13,148,136,.05) 40%, transparent 72%)' }} />
       <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: stripe }} />
 
       <div className="p-5 pl-6">
@@ -201,7 +216,7 @@ function ProjectCard({ project, onSee, enrolled = false }) {
 
         <h3
           className="text-base font-bold leading-snug mb-2"
-          style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
         >
           {project.title}
         </h3>
@@ -215,22 +230,26 @@ function ProjectCard({ project, onSee, enrolled = false }) {
         style={{ borderColor: TOKENS.line }}
       >
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <motion.button
             onClick={() => onSee(project)}
+            whileHover={{ y: -2, scale: 1.03 }}
+            whileTap={{ scale: 0.94 }}
             className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-            style={{ color: TOKENS.paper, background: 'rgba(246,244,239,0.08)' }}
+            style={{ color: TOKENS.amber, background: 'rgba(79,70,229,0.08)' }}
           >
             <Eye className="w-3.5 h-3.5" /> See
-          </button>
-          <a
+          </motion.button>
+          <motion.a
             href={project.actionUrl || GOOGLE_FORM_URL}
             target="_blank"
             rel="noopener noreferrer"
+            whileHover={{ y: -2, scale: 1.03, boxShadow: '0 10px 24px rgba(79,70,229,.24)' }}
+            whileTap={{ scale: 0.94 }}
             className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
             style={{ color: TOKENS.ink, background: TOKENS.amber }}
           >
             {enrolled ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />} {enrolled ? 'Enrolled' : 'Get'}
-          </a>
+          </motion.a>
         </div>
       </div>
     </div>
@@ -249,7 +268,7 @@ function TierSection({ tier, projects, onSee, enrolledProjects = [] }) {
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
         <h3
           className="text-lg font-bold"
-          style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
         >
           {tier}
         </h3>
@@ -294,14 +313,14 @@ function DetailModal({ project, onClose }) {
                   {project.tier}
                 </span>
               </div>
-              <button onClick={onClose} style={{ color: TOKENS.textDim }}>
+              <motion.button onClick={onClose} whileHover={{ rotate: 90, scale: 1.08 }} whileTap={{ scale: 0.9 }} className="rounded-lg p-1 transition-colors hover:bg-indigo-50" style={{ color: TOKENS.textDim }}>
                 <X className="w-5 h-5" />
-              </button>
+              </motion.button>
             </div>
 
             <h2
               className="text-2xl font-bold mb-2"
-              style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
             >
               {project.title}
             </h2>
@@ -310,15 +329,17 @@ function DetailModal({ project, onClose }) {
             </p>
 
             <div className="flex items-center justify-end pt-4 border-t" style={{ borderColor: TOKENS.line }}>
-              <a
+              <motion.a
                 href={project.actionUrl || GOOGLE_FORM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
+                whileHover={{ y: -3, scale: 1.025, boxShadow: '0 12px 28px rgba(79,70,229,.26)' }}
+                whileTap={{ scale: 0.95 }}
                 className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl"
                 style={{ color: TOKENS.ink, background: TOKENS.amber }}
               >
                 <Download className="w-4 h-4" /> Get this project
-              </a>
+              </motion.a>
             </div>
           </div>
         </motion.div>
@@ -335,6 +356,17 @@ export default function ProjectHub() {
   const [seeProject, setSeeProject] = useState(null);
   const [publishedProjects, setPublishedProjects] = useState([]);
   const [projectSearch, setProjectSearch] = useState('');
+  const [mousePos, setMousePos] = useState({ x: -500, y: -500 });
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 28, restDelta: 0.001 });
+
+  useEffect(() => {
+    const finePointer = window.matchMedia('(pointer: fine)');
+    if (!finePointer.matches) return undefined;
+    const trackPointer = (event) => setMousePos({ x: event.clientX, y: event.clientY });
+    window.addEventListener('pointermove', trackPointer, { passive: true });
+    return () => window.removeEventListener('pointermove', trackPointer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -396,64 +428,75 @@ export default function ProjectHub() {
   }, [categoryProjects]);
 
   const activeCategoryData = CATEGORIES.find((c) => c.id === activeCategory);
+  const activeCategoryStyle = activeCategoryData ? CATEGORY_STYLE[activeCategoryData.id] : null;
   const hasProjectSearch = normalizedProjectSearch.length > 0;
   const projectMatchCount = searchedProjects.length;
 
   return (
-    <div className="min-h-screen w-full" style={{ background: TOKENS.ink }}>
+    <div className="relative min-h-screen w-full overflow-x-hidden" style={{ background: TOKENS.ink }}>
       <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
 
+      <motion.div className="fixed left-0 right-0 top-0 z-50 h-1 origin-left bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-500" style={{ scaleX }} />
+      <div
+        className="pointer-events-none fixed z-40 hidden h-[420px] w-[420px] rounded-full opacity-25 blur-[110px] transition-transform duration-100 md:block"
+        style={{ background: 'radial-gradient(circle, rgba(99,102,241,.42) 0%, rgba(13,148,136,.12) 42%, transparent 72%)', left: mousePos.x - 210, top: mousePos.y - 210 }}
+      />
+
       {/* ============ HERO ============ */}
-      <div className="px-6 pt-16 pb-10 max-w-6xl mx-auto">
-        <div className="flex items-center gap-2 mb-4 text-[11px] font-mono uppercase tracking-widest" style={{ color: TOKENS.amber }}>
+      <div className="relative border-b border-indigo-200 bg-gradient-to-r from-indigo-100 via-violet-100 to-cyan-100">
+      <div className="px-6 pt-16 pb-12 max-w-6xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="flex items-center gap-2 mb-4 text-[11px] font-mono uppercase tracking-widest" style={{ color: TOKENS.amber }}>
           <Code2 className="w-3.5 h-3.5" /> Project Catalog
-        </div>
-        <h1
+        </motion.div>
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.65, delay: 0.08 }}
           className="text-4xl sm:text-5xl font-bold leading-[1.05] mb-4"
-          style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
         >
-          Buildable projects,<br />sorted by what they'll teach you.
-        </h1>
-        <p className="text-sm sm:text-base max-w-xl leading-relaxed" style={{ color: TOKENS.textDim }}>
-          Pick a technology, then a difficulty. Explore each brief, understand what you will learn,
-          and start building when the challenge feels right.
-        </p>
+          Build Projects That Actually <span className="text-indigo-600">Get You Hired.</span>
+        </motion.h1>
+        <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.2 }} className="text-sm sm:text-base max-w-xl leading-relaxed" style={{ color: TOKENS.textDim }}>
+          Real-world projects with step-by-step guidance, production-level code, and skills recruiters actually look for.
+        </motion.p>
+      </div>
       </div>
 
-      <div className="px-6 max-w-6xl mx-auto mb-5">
+      <div className="px-6 max-w-6xl mx-auto mb-5 mt-6">
         <div
-          className="rounded-2xl border p-3"
-          style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}
+          className="rounded-2xl"
         >
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: TOKENS.textDim }} />
+          <label className="group relative block rounded-2xl shadow-lg shadow-indigo-500/10 transition-shadow focus-within:shadow-xl focus-within:shadow-indigo-500/20">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-500 transition-transform group-focus-within:scale-110" />
             <input
               type="search"
               value={projectSearch}
               onChange={(event) => setProjectSearch(event.target.value)}
               placeholder="Search projects by title, tech, category, or difficulty..."
-              className="w-full rounded-xl border bg-transparent px-10 py-3 text-sm font-semibold outline-none transition-colors"
-              style={{ borderColor: TOKENS.line, color: TOKENS.paper }}
+              className="h-16 w-full rounded-2xl border border-indigo-200 bg-white px-12 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-400 hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200/70"
             />
           </label>
           {hasProjectSearch && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-mono" style={{ color: TOKENS.textDim }}>
+            <div className="mt-3 flex flex-wrap items-center gap-2 px-1 text-[11px] font-mono" style={{ color: TOKENS.textDim }}>
               <span>
                 {projectMatchCount
                   ? `${projectMatchCount} project match${projectMatchCount === 1 ? '' : 'es'}`
                   : 'No projects match your search yet'}
               </span>
-              <button
+              <motion.button
                 type="button"
                 onClick={() => setProjectSearch('')}
+                whileHover={{ y: -2, scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
                 className="rounded-lg px-3 py-1 font-semibold transition-colors"
-                style={{ color: TOKENS.paper, background: 'rgba(246,244,239,0.08)' }}
+                style={{ color: TOKENS.amber, background: 'rgba(79,70,229,0.08)' }}
               >
                 Clear search
-              </button>
+              </motion.button>
             </div>
           )}
         </div>
@@ -463,30 +506,35 @@ export default function ProjectHub() {
       <div className="px-6 max-w-6xl mx-auto mb-4">
         <div className="flex gap-2 overflow-x-auto pb-2">
           {activeCategory && (
-            <button
+            <motion.button
               onClick={() => setActiveCategory(null)}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.95 }}
               className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border"
               style={{ borderColor: TOKENS.line, color: TOKENS.textDim }}
             >
               All categories
-            </button>
+            </motion.button>
           )}
           {searchedCategories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
+            const categoryStyle = CATEGORY_STYLE[cat.id];
             return (
-              <button
+              <motion.button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
+                whileHover={{ y: -3, scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
                 className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all"
                 style={{
-                  borderColor: isActive ? TOKENS.amber : TOKENS.line,
-                  background: isActive ? `${TOKENS.amber}1A` : 'transparent',
-                  color: isActive ? TOKENS.amber : TOKENS.paper,
+                  borderColor: isActive ? categoryStyle.accent : `${categoryStyle.accent}30`,
+                  background: isActive ? categoryStyle.accent : categoryStyle.surface,
+                  color: isActive ? '#FFFFFF' : categoryStyle.accent,
                 }}
               >
                 <Icon className="w-3.5 h-3.5" /> {cat.label}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -501,17 +549,26 @@ export default function ProjectHub() {
               {searchedCategories.map((cat) => {
                 const Icon = cat.icon;
                 const count = searchedProjects.filter((p) => p.category === cat.id).length;
+                const categoryStyle = CATEGORY_STYLE[cat.id];
                 return (
-                  <button
+                  <motion.button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className="group text-left p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_55px_rgba(139,124,240,0.16)]"
-                    style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.42, delay: searchedCategories.indexOf(cat) * 0.045 }}
+                    whileHover={{ y: -7, scale: 1.015 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="group relative overflow-hidden text-left p-5 rounded-2xl border transition-colors duration-300 hover:border-indigo-300 hover:shadow-[0_18px_55px_rgba(99,102,241,0.20)]"
+                    style={{ background: categoryStyle.surface, borderColor: `${categoryStyle.accent}45` }}
                   >
-                    <Icon className="w-5 h-5 mb-3" style={{ color: TOKENS.amber }} />
+                    <span className="absolute inset-x-0 top-0 h-1" style={{ background: categoryStyle.accent }} />
+                    <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl shadow-sm" style={{ color: categoryStyle.accent, background: '#FFFFFF', boxShadow: `0 8px 20px ${categoryStyle.accent}18` }}>
+                      <Icon className="h-5 w-5" />
+                    </span>
                     <h3
                       className="text-base font-bold mb-1.5"
-                      style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                      style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
                     >
                       {cat.label}
                     </h3>
@@ -522,9 +579,9 @@ export default function ProjectHub() {
                       <span className="text-[11px] font-mono" style={{ color: TOKENS.textDim }}>
                         {count} projects
                       </span>
-                      <ChevronRight className="w-4 h-4" style={{ color: TOKENS.amber }} />
+                      <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" style={{ color: categoryStyle.accent }} />
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -532,7 +589,7 @@ export default function ProjectHub() {
               <div className="rounded-2xl border p-8 text-center" style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}>
                 <h3
                   className="text-base font-bold"
-                  style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
                 >
                   No categories found
                 </h3>
@@ -543,12 +600,12 @@ export default function ProjectHub() {
             )}
 
             {/* Most Popular Projects (scroll-revealed section) */}
-            <div className="mb-4">
+            <div className="mb-4 rounded-2xl border border-violet-300 bg-gradient-to-r from-violet-100 via-fuchsia-100 to-indigo-100 p-5 shadow-lg shadow-violet-500/10 sm:p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Flame className="w-4 h-4" style={{ color: TOKENS.violet }} />
                 <h2
                   className="text-xl font-bold"
-                  style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
                 >
                   Most popular projects
                 </h2>
@@ -570,15 +627,15 @@ export default function ProjectHub() {
               {activeCategoryData && (
                 <>
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `${TOKENS.amber}1A` }}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+                    style={{ background: activeCategoryStyle.surface }}
                   >
-                    <activeCategoryData.icon className="w-5 h-5" style={{ color: TOKENS.amber }} />
+                    <activeCategoryData.icon className="w-5 h-5" style={{ color: activeCategoryStyle.accent }} />
                   </div>
                   <div>
                     <h2
                       className="text-2xl font-bold"
-                      style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                      style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
                     >
                       {activeCategoryData.label}
                     </h2>
@@ -597,7 +654,7 @@ export default function ProjectHub() {
               <div className="rounded-2xl border p-8 text-center" style={{ background: TOKENS.inkSoft, borderColor: TOKENS.line }}>
                 <h3
                   className="text-base font-bold"
-                  style={{ color: TOKENS.paper, fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ color: TOKENS.paper, fontFamily: "'Sora', sans-serif" }}
                 >
                   No projects found in this category
                 </h3>

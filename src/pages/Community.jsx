@@ -356,7 +356,7 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
   const longPressTriggered = useRef(false);
   const commentCount = Number(post.stats?.comments ?? post.comments.length);
   const shareCount = Number(post.shares ?? post.stats?.shares ?? 0);
-  const isAuthor = post.authorId === viewer.id;
+  const isAuthor = post.isOwner === true;
 
   useEffect(() => () => window.clearTimeout(likePressTimer.current), []);
 
@@ -1414,6 +1414,7 @@ const normalizeCommunityPost = (post) => ({
   tags: Array.isArray(post.tags) ? post.tags : (Array.isArray(post.skills) ? post.skills : []),
   liked: Boolean(post.liked),
   saved: Boolean(post.saved),
+  isOwner: post.isOwner === true,
 });
 
 export default function Community({ userData = {}, authToken = "", onRefreshAuth }) {
