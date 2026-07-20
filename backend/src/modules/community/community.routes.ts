@@ -53,6 +53,7 @@ const normalizePost = (post: any) => ({
     shares: post.sharesCount || 0
   },
   liked: Array.isArray(post.likes) && post.likes.length > 0,
+  saved: Array.isArray(post.saves) && post.saves.length > 0,
   comments: Array.isArray(post.comments) ? post.comments.map((comment: any) => ({
     id: comment.id,
     authorId: comment.authorId,
@@ -75,6 +76,12 @@ const previousUtcDayKey = (date = new Date()) => {
   const previous = new Date(date);
   previous.setUTCDate(previous.getUTCDate() - 1);
   return utcDayKey(previous);
+};
+
+const effectiveCommunityStreak = (metadata: any, now = new Date()) => {
+  const lastPostDate = String(metadataObject(metadata).lastCommunityPostDate || '');
+  if (lastPostDate !== utcDayKey(now) && lastPostDate !== previousUtcDayKey(now)) return 0;
+  return Math.max(0, Number(metadataObject(metadata).communityStreak || 0));
 };
 
 const normalizeProject = (project: any, index: number) => ({
@@ -243,7 +250,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({
       user: {
         ...normalizeUser(user),
-        communityStreak: Math.max(0, Number(metadata.communityStreak || 0)),
+        communityStreak: effectiveCommunityStreak(metadata),
         lastCommunityPostDate: metadata.lastCommunityPostDate || '',
         college: metadata.college || '',
         degree: metadata.degree || '',
@@ -288,6 +295,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
           }
         },
         likes: { where: { userId: request.user!.id }, select: { id: true } },
+        saves: { where: { userId: request.user!.id }, select: { id: true } },
         comments: {
           orderBy: { createdAt: 'asc' },
           take: 10,
@@ -297,6 +305,30 @@ export async function communityRoutes(fastify: FastifyInstance) {
     });
 
     return reply.status(200).send(posts.map(normalizePost));
+  });
+
+  fastify.get('/saved-posts', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const saves = await fastify.prisma.communitySave.findMany({
+      where: { userId: request.user!.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        post: {
+          include: {
+            author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } },
+            likes: { where: { userId: request.user!.id }, select: { id: true } },
+            saves: { where: { userId: request.user!.id }, select: { id: true } },
+            comments: {
+              orderBy: { createdAt: 'asc' },
+              take: 10,
+              include: { author: { select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true } } }
+            }
+          }
+        }
+      }
+    });
+    return reply.status(200).send(saves.map(item => normalizePost(item.post)));
   });
 
   fastify.get('/posts/:id/likes', {
@@ -362,6 +394,20 @@ export async function communityRoutes(fastify: FastifyInstance) {
       select: { sharesCount: true }
     });
     return reply.status(200).send({ shares: updated.sharesCount });
+  });
+
+  fastify.post('/posts/:id/save', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const userId = request.user!.id;
+    const post = await fastify.prisma.communityPost.findUnique({ where: { id: postId }, select: { id: true } });
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+
+    const existing = await fastify.prisma.communitySave.findUnique({ where: { postId_userId: { postId, userId } } });
+    if (existing) await fastify.prisma.communitySave.delete({ where: { id: existing.id } });
+    else await fastify.prisma.communitySave.create({ data: { postId, userId } });
+    return reply.status(200).send({ saved: !existing });
   });
 
   fastify.post('/posts/:id/comments', {
@@ -515,7 +561,7 @@ export async function communityRoutes(fastify: FastifyInstance) {
       activities,
       viewer: {
         username: metadataObject(viewer?.metadata).communityUsername || '',
-        communityStreak: Math.max(0, Number(metadataObject(viewer?.metadata).communityStreak || 0))
+        communityStreak: effectiveCommunityStreak(viewer?.metadata)
       }
     });
   });

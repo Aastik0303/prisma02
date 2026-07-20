@@ -548,6 +548,35 @@ function ShareSheet({ post, people, onClose, onSelect }) {
   );
 }
 
+function SavedPostsSheet({ posts, loading, viewer, onClose, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
+  return (
+    <div className="fixed inset-0 z-[57] flex justify-end bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="peer-sheet-in flex h-full w-full max-w-xl flex-col overflow-hidden border-l backdrop-blur-2xl" style={{ background: INK, borderColor: HAIRLINE }} onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: HAIRLINE }}>
+          <div>
+            <h2 className="peer-display text-base font-bold text-white">Saved posts</h2>
+            <p className="mt-0.5 text-[11px] font-medium text-white/40">Your private collection</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/50 transition hover:bg-white/10 hover:text-white" aria-label="Close saved posts"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 space-y-5 overflow-y-auto p-4 peer-scroll">
+          {loading && <p className="py-16 text-center text-xs font-semibold text-white/40">Loading saved posts...</p>}
+          {!loading && posts.map((post) => (
+            <PostCard key={post.id} post={post} viewer={viewer} onToggleLike={onToggleLike} onToggleSave={onToggleSave} onOpenComments={onOpenComments} onOpenProfile={onOpenProfile} onShare={onShare} onOpenLikes={onOpenLikes} />
+          ))}
+          {!loading && posts.length === 0 && (
+            <div className="py-16 text-center">
+              <Bookmark className="mx-auto h-8 w-8 text-white/20" />
+              <p className="mt-3 text-sm font-bold text-white/55">No saved posts yet</p>
+              <p className="mt-1 text-xs text-white/35">Posts you bookmark will appear here.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================================ Comments Sheet =============================== */
 function CommentsSheet({ post, viewer, onClose, onAddComment }) {
   const [draft, setDraft] = useState("");
@@ -1229,7 +1258,7 @@ function LeftRail({ viewer, active, onChange, onCompose }) {
 }
 
 /* ================================ Right Rail (desktop) =============================== */
-function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActivity, onOpenChatList, incomingCount, unreadThreads }) {
+function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenSaved, onOpenChatList, unreadThreads }) {
   const leaders = [viewer, ...MOCK_PEOPLE].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index).sort((a, b) => b.streak - a.streak).slice(0, 5);
   const suggested = MOCK_PEOPLE;
 
@@ -1239,9 +1268,8 @@ function RightRail({ viewer, follows, onToggleFollow, onOpenProfile, onOpenActiv
       style={{ borderColor: HAIRLINE, background: "rgba(11,10,22,0.55)", backdropFilter: "blur(20px)" }}
     >
       <div className="sticky top-0 z-20 flex w-fit shrink-0 self-end items-center gap-1.5 rounded-2xl border p-2 backdrop-blur-2xl" style={{ background: "rgba(18,14,34,0.92)", borderColor: HAIRLINE }}>
-        <button type="button" onClick={onOpenActivity} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="Activity">
-          <Bell className="h-5 w-5" />
-          {!!incomingCount && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />}
+        <button type="button" onClick={onOpenSaved} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="Saved posts">
+          <Bookmark className="h-5 w-5" />
         </button>
         <button type="button" onClick={onOpenChatList} className="relative flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white" aria-label="Messages">
           <Send className="h-5 w-5 -rotate-12" />
@@ -1328,13 +1356,22 @@ const getCommunityCsrf = async () => {
   return communityCsrfCache;
 };
 
+const effectiveStreak = (metadata = {}) => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const lastPostDate = String(metadata.lastCommunityPostDate || "");
+  if (lastPostDate !== today.toISOString().slice(0, 10) && lastPostDate !== yesterday.toISOString().slice(0, 10)) return 0;
+  return Math.max(0, Number(metadata.communityStreak || 0));
+};
+
 const normalizeRegisteredUser = (user) => ({
   id: user.id,
   name: user.fullName || user.name || "Registered learner",
   handle: user.username || user.metadata?.communityUsername ? `@${user.username || user.metadata.communityUsername}` : "",
   role: String(user.role || "Learner").replace(/_/g, " "),
   avatar: user.avatarUrl || user.avatar || DEFAULT_VIEWER.avatar,
-  streak: Number(user.metadata?.communityStreak || 0),
+  streak: effectiveStreak(user.metadata),
   verified: Boolean(user.emailVerified),
   private: false,
   online: false,
@@ -1347,7 +1384,7 @@ const normalizeCommunityPost = (post) => ({
   comments: Array.isArray(post.comments) ? post.comments : [],
   tags: Array.isArray(post.tags) ? post.tags : (Array.isArray(post.skills) ? post.skills : []),
   liked: Boolean(post.liked),
-  saved: false,
+  saved: Boolean(post.saved),
 });
 
 export default function Community({ userData = {}, authToken = "", onRefreshAuth }) {
@@ -1386,6 +1423,9 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [profileStats, setProfileStats] = useState({});
   const [likesSheet, setLikesSheet] = useState(null);
   const [sharePostId, setSharePostId] = useState(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedPosts, setSavedPosts] = useState([]);
   const [storyClock, setStoryClock] = useState(() => Date.now());
   const [watchedStoriesByViewer, setWatchedStoriesByViewer] = useState(() => {
     try {
@@ -1575,15 +1615,46 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     const previous = posts.find((post) => post.id === postId);
     if (!previous) return;
     setPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, p.likes + (p.liked ? -1 : 1)) } : p));
+    setSavedPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: !p.liked, likes: Math.max(0, p.likes + (p.liked ? -1 : 1)) } : p));
     try {
       const result = await mutateWithCsrf(`/community/posts/${postId}/like`);
       setPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: result.liked, likes: result.likes } : p));
+      setSavedPosts((items) => items.map((p) => p.id === postId ? { ...p, liked: result.liked, likes: result.likes } : p));
     } catch {
       setPosts((items) => items.map((p) => p.id === postId ? previous : p));
+      setSavedPosts((items) => items.map((p) => p.id === postId ? previous : p));
     }
   };
 
-  const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
+  const toggleSave = async (postId) => {
+    const previous = posts.find((post) => post.id === postId) || savedPosts.find((post) => post.id === postId);
+    if (!previous) return;
+    const optimisticSaved = !previous.saved;
+    setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: optimisticSaved } : post));
+    if (!optimisticSaved) setSavedPosts((items) => items.filter((post) => post.id !== postId));
+    try {
+      const result = await mutateWithCsrf(`/community/posts/${postId}/save`);
+      setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: Boolean(result.saved) } : post));
+      if (!result.saved) setSavedPosts((items) => items.filter((post) => post.id !== postId));
+    } catch {
+      setPosts((items) => items.map((post) => post.id === postId ? { ...post, saved: previous.saved } : post));
+      if (previous.saved) setSavedPosts((items) => items.some((post) => post.id === postId) ? items : [previous, ...items]);
+    }
+  };
+
+  const openSavedPosts = async () => {
+    setSavedOpen(true);
+    setSavedLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/community/saved-posts`, { credentials: "include", headers: { Authorization: `Bearer ${authToken}` } });
+      if (!response.ok) throw new Error("Unable to load saved posts.");
+      setSavedPosts((await response.json()).map(normalizeCommunityPost));
+    } catch {
+      setSavedPosts([]);
+    } finally {
+      setSavedLoading(false);
+    }
+  };
 
   const sharePost = async (post, recipient) => {
     try {
@@ -1595,6 +1666,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         shares: Number(result.shares || 0),
         stats: { ...item.stats, shares: Number(result.shares || 0) },
       } : item));
+      setSavedPosts((items) => items.map((item) => item.id === post.id ? { ...item, shares: Number(result.shares || 0), stats: { ...item.stats, shares: Number(result.shares || 0) } } : item));
     } catch {
       // Leave the count unchanged when the server cannot record the share.
     }
@@ -1721,7 +1793,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
       <GlobalStyle />
 
       <LeftRail viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} />
-      <RightRail viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenProfile={setProfileId} onOpenActivity={() => setActivityOpen(true)} onOpenChatList={() => setChatListOpen(true)} incomingCount={incoming.length} unreadThreads={threadList.length} />
+      <RightRail viewer={viewer} follows={follows} onToggleFollow={toggleFollow} onOpenProfile={setProfileId} onOpenSaved={openSavedPosts} onOpenChatList={() => setChatListOpen(true)} unreadThreads={threadList.length} />
 
       <div className="lg:pl-[264px] xl:pr-[320px]">
         <TopBar viewer={viewer} onOpenActivity={() => setActivityOpen(true)} onOpenChatList={() => setChatListOpen(true)} incomingCount={incoming.length} unreadThreads={threadList.length} />
@@ -1765,9 +1837,10 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         <StoryViewer startId={storyId} onClose={() => setStoryId(null)} onViewed={markStoryWatched} />
       )}
       {commentsPostId && (
-        <CommentsSheet post={posts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
+        <CommentsSheet post={posts.find((p) => p.id === commentsPostId) || savedPosts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
       )}
       {likesSheet && <LikesSheet state={likesSheet} onClose={() => setLikesSheet(null)} onOpenProfile={setProfileId} />}
+      {savedOpen && <SavedPostsSheet posts={savedPosts} loading={savedLoading} viewer={viewer} onClose={() => setSavedOpen(false)} onToggleLike={toggleLike} onToggleSave={toggleSave} onOpenComments={setCommentsPostId} onOpenProfile={setProfileId} onShare={setSharePostId} onOpenLikes={openLikes} />}
       {sharePostId && (
         <ShareSheet
           post={posts.find((post) => post.id === sharePostId)}

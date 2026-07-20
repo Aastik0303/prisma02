@@ -69,6 +69,7 @@ model User {
   communityPosts     CommunityPost[] @relation("CommunityPosts")
   communityLikes     CommunityLike[]
   communityComments  CommunityComment[]
+  communitySaves     CommunitySave[]
 
   @@map("users")
 }
@@ -380,6 +381,7 @@ model CommunityPost {
   author User @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
   likes CommunityLike[]
   comments CommunityComment[]
+  saves CommunitySave[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
@@ -413,4 +415,18 @@ model CommunityComment {
   @@index([postId, createdAt])
   @@index([authorId, createdAt])
   @@map("community_comments")
+}
+
+model CommunitySave {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @db.Uuid @map("post_id")
+  userId    String   @db.Uuid @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@map("community_saves")
 }
