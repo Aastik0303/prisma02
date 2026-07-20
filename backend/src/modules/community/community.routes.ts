@@ -410,6 +410,44 @@ export async function communityRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({ saved: !existing });
   });
 
+  fastify.delete('/posts/:id', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const userId = request.user!.id;
+    const post = await fastify.prisma.communityPost.findUnique({ where: { id: postId }, select: { authorId: true } });
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+    if (post.authorId !== userId) return reply.status(403).send({ message: 'You can only delete your own posts.' });
+
+    const streak = await fastify.prisma.$transaction(async prisma => {
+      await prisma.communityPost.delete({ where: { id: postId } });
+      const [user, remainingPosts] = await Promise.all([
+        prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { metadata: true } }),
+        prisma.communityPost.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } })
+      ]);
+      const postingDays = [...new Set(remainingPosts.map(item => utcDayKey(item.createdAt)))];
+      const latestDay = postingDays[0] || '';
+      const active = latestDay === utcDayKey() || latestDay === previousUtcDayKey();
+      let nextStreak = 0;
+      if (active) {
+        const expected = new Date(`${latestDay}T00:00:00.000Z`);
+        for (const day of postingDays) {
+          if (day !== utcDayKey(expected)) break;
+          nextStreak += 1;
+          expected.setUTCDate(expected.getUTCDate() - 1);
+        }
+      }
+      const metadata = metadataObject(user.metadata);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { metadata: { ...metadata, communityStreak: nextStreak, lastCommunityPostDate: latestDay } }
+      });
+      return nextStreak;
+    });
+
+    return reply.status(200).send({ deleted: true, streak });
+  });
+
   fastify.post('/posts/:id/comments', {
     preHandler: [requireAuth]
   }, async (request, reply) => {

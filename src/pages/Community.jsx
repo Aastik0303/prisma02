@@ -26,6 +26,7 @@ import {
   Smile,
   Sparkles,
   TrendingUp,
+  Trash2,
   UserPlus,
   Users,
   Video,
@@ -345,9 +346,12 @@ function StoryViewer({ startId, onClose, onViewed }) {
 }
 
 /* ================================ Post Card =================================== */
-function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
+function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes, onDeletePost }) {
   const author = byId(post.authorId);
   const [burst, setBurst] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const likePressTimer = useRef(null);
   const longPressTriggered = useRef(false);
   const commentCount = Number(post.stats?.comments ?? post.comments.length);
@@ -382,6 +386,18 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
     onToggleLike(post.id);
   };
 
+  const removePost = async () => {
+    if (deleting || !window.confirm("Delete this post permanently?")) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await onDeletePost(post.id);
+    } catch (error) {
+      setDeleteError(error?.message || "Unable to delete this post.");
+      setDeleting(false);
+    }
+  };
+
   return (
     <article className="overflow-hidden rounded-3xl border backdrop-blur-xl transition hover:border-white/15" style={{ background: SURFACE, borderColor: HAIRLINE }}>
       <div className="flex items-center justify-between gap-3 px-4 pt-4">
@@ -397,9 +413,21 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
             </p>
           </div>
         </button>
-        <button type="button" className="rounded-full p-2 text-white/40 transition hover:bg-white/5 hover:text-white/80" aria-label="More options">
-          <MoreHorizontal className="h-4.5 w-4.5" />
-        </button>
+        {isAuthor && (
+          <div className="relative">
+            <button type="button" onClick={() => { setMenuOpen((open) => !open); setDeleteError(""); }} className="rounded-full p-2 text-white/40 transition hover:bg-white/5 hover:text-white/80" aria-label="Post options" aria-expanded={menuOpen}>
+              <MoreHorizontal className="h-4.5 w-4.5" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border p-1.5 shadow-2xl" style={{ background: "rgba(18,14,34,0.98)", borderColor: HAIRLINE }}>
+                <button type="button" onClick={removePost} disabled={deleting} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-50">
+                  <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete post"}
+                </button>
+                {deleteError && <p className="px-3 pb-2 pt-1 text-[10px] font-semibold leading-4 text-rose-300">{deleteError}</p>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="px-4 pb-1 pt-3">
@@ -548,7 +576,7 @@ function ShareSheet({ post, people, onClose, onSelect }) {
   );
 }
 
-function SavedPostsSheet({ posts, loading, error, viewer, onClose, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes }) {
+function SavedPostsSheet({ posts, loading, error, viewer, onClose, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onShare, onOpenLikes, onDeletePost }) {
   return (
     <div className="fixed inset-0 z-[57] flex justify-end bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div className="peer-sheet-in flex h-full w-full max-w-xl flex-col overflow-hidden border-l backdrop-blur-2xl" style={{ background: INK, borderColor: HAIRLINE }} onClick={(event) => event.stopPropagation()}>
@@ -563,7 +591,7 @@ function SavedPostsSheet({ posts, loading, error, viewer, onClose, onToggleLike,
           {loading && <p className="py-16 text-center text-xs font-semibold text-white/40">Loading saved posts...</p>}
           {!loading && error && <p className="mx-3 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-xs font-semibold text-rose-300">{error}</p>}
           {!loading && !error && posts.map((post) => (
-            <PostCard key={post.id} post={post} viewer={viewer} onToggleLike={onToggleLike} onToggleSave={onToggleSave} onOpenComments={onOpenComments} onOpenProfile={onOpenProfile} onShare={onShare} onOpenLikes={onOpenLikes} />
+            <PostCard key={post.id} post={post} viewer={viewer} onToggleLike={onToggleLike} onToggleSave={onToggleSave} onOpenComments={onOpenComments} onOpenProfile={onOpenProfile} onShare={onShare} onOpenLikes={onOpenLikes} onDeletePost={onDeletePost} />
           ))}
           {!loading && !error && posts.length === 0 && (
             <div className="py-16 text-center">
@@ -1650,6 +1678,14 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     }
   };
 
+  const deletePost = async (postId) => {
+    const result = await mutateWithCsrf(`/community/posts/${postId}`, undefined, "DELETE");
+    setPosts((items) => items.filter((post) => post.id !== postId));
+    setSavedPosts((items) => items.filter((post) => post.id !== postId));
+    setCommentsPostId((current) => current === postId ? null : current);
+    setCommunityStreak(Math.max(0, Number(result.streak || 0)));
+  };
+
   const openSavedPosts = async () => {
     setSavedOpen(true);
     setSavedLoading(true);
@@ -1833,6 +1869,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                     onOpenProfile={setProfileId}
                     onShare={setSharePostId}
                     onOpenLikes={openLikes}
+                    onDeletePost={deletePost}
                   />
                 ))}
                 {posts.length === 0 && <p className="py-16 text-center text-xs font-bold text-white/30">Nothing here yet — be the first to post.</p>}
@@ -1859,7 +1896,7 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         <CommentsSheet post={posts.find((p) => p.id === commentsPostId) || savedPosts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
       )}
       {likesSheet && <LikesSheet state={likesSheet} onClose={() => setLikesSheet(null)} onOpenProfile={setProfileId} />}
-      {savedOpen && <SavedPostsSheet posts={savedPosts} loading={savedLoading} error={savedError} viewer={viewer} onClose={() => setSavedOpen(false)} onToggleLike={toggleLike} onToggleSave={toggleSave} onOpenComments={setCommentsPostId} onOpenProfile={setProfileId} onShare={setSharePostId} onOpenLikes={openLikes} />}
+      {savedOpen && <SavedPostsSheet posts={savedPosts} loading={savedLoading} error={savedError} viewer={viewer} onClose={() => setSavedOpen(false)} onToggleLike={toggleLike} onToggleSave={toggleSave} onOpenComments={setCommentsPostId} onOpenProfile={setProfileId} onShare={setSharePostId} onOpenLikes={openLikes} onDeletePost={deletePost} />}
       {sharePostId && (
         <ShareSheet
           post={posts.find((post) => post.id === sharePostId)}
