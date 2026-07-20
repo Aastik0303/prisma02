@@ -299,6 +299,37 @@ export async function communityRoutes(fastify: FastifyInstance) {
     return reply.status(200).send(posts.map(normalizePost));
   });
 
+  fastify.get('/posts/:id/likes', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const { id: postId } = request.params as { id: string };
+    const post = await fastify.prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { authorId: true }
+    });
+
+    if (!post) return reply.status(404).send({ message: 'Post not found.' });
+    if (post.authorId !== request.user!.id) {
+      return reply.status(403).send({ message: 'Only the post author can view who liked this post.' });
+    }
+
+    const likes = await fastify.prisma.communityLike.findMany({
+      where: { postId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        createdAt: true,
+        user: {
+          select: { id: true, fullName: true, email: true, role: true, avatarUrl: true, metadata: true }
+        }
+      }
+    });
+
+    return reply.status(200).send(likes.map(like => ({
+      ...normalizeUser(like.user),
+      likedAt: like.createdAt
+    })));
+  });
+
   fastify.post('/posts/:id/like', {
     preHandler: [requireAuth]
   }, async (request, reply) => {

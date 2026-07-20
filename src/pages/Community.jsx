@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -197,8 +197,9 @@ function streakPct(streak) {
 }
 
 /* ================================ Streak Ring =============================== */
-function StreakRing({ user, size = 56, onOpen, dashed = false, ringOnly = false }) {
+function StreakRing({ user, size = 56, onOpen, dashed = false, ringOnly = false, storyWatched }) {
   const pct = streakPct(user?.streak || 0);
+  const isStoryRing = typeof storyWatched === "boolean";
   return (
     <button
       type="button"
@@ -212,7 +213,9 @@ function StreakRing({ user, size = 56, onOpen, dashed = false, ringOnly = false 
         style={
           dashed
             ? { border: "2px dashed rgba(255,255,255,0.25)" }
-            : { background: `conic-gradient(from -90deg, #FF6B4A ${pct}%, rgba(255,255,255,0.14) ${pct}%)` }
+            : isStoryRing
+              ? { background: storyWatched ? "rgba(255,255,255,0.14)" : GRADIENT }
+              : { background: `conic-gradient(from -90deg, #FF6B4A ${pct}%, rgba(255,255,255,0.14) ${pct}%)` }
         }
       />
       <div className="absolute inset-[3px] rounded-full p-[2px]" style={{ background: INK }}>
@@ -226,7 +229,7 @@ function StreakRing({ user, size = 56, onOpen, dashed = false, ringOnly = false 
 }
 
 /* ================================ Story Rail ================================ */
-function StoryRail({ viewer, onOpenStory, onOpenComposer }) {
+function StoryRail({ viewer, watchedStoryIds, onOpenStory, onOpenComposer }) {
   return (
     <div className="flex gap-4 overflow-x-auto px-4 py-4 peer-scroll sm:px-0">
       <div className="flex shrink-0 flex-col items-center gap-1.5">
@@ -245,11 +248,11 @@ function StoryRail({ viewer, onOpenStory, onOpenComposer }) {
         <span className="text-[10px] font-semibold text-white/50">Your streak</span>
       </div>
       {MOCK_STORIES.map((story) => {
-        const person = byId(story.id);
+        const person = byId(story.authorId || story.id);
         if (!person) return null;
         return (
           <div key={story.id} className="flex shrink-0 flex-col items-center gap-1.5">
-            <StreakRing user={person} onOpen={() => onOpenStory(story.id)} />
+            <StreakRing user={person} storyWatched={watchedStoryIds.has(story.id)} onOpen={() => onOpenStory(story.id)} />
             <span className="max-w-[64px] truncate text-[10px] font-semibold text-white/60">{person.name.split(" ")[0]}</span>
           </div>
         );
@@ -259,14 +262,18 @@ function StoryRail({ viewer, onOpenStory, onOpenComposer }) {
 }
 
 /* ================================ Story Viewer =============================== */
-function StoryViewer({ startId, onClose }) {
+function StoryViewer({ startId, onClose, onViewed }) {
   const order = MOCK_STORIES.map((s) => s.id);
   const [index, setIndex] = useState(Math.max(0, order.indexOf(startId)));
   const [progress, setProgress] = useState(0);
   const timerRef = useRef(null);
 
   const story = MOCK_STORIES[index];
-  const person = byId(story.id);
+  const person = byId(story.authorId || story.id);
+
+  useEffect(() => {
+    if (story?.id) onViewed(story.id);
+  }, [onViewed, story?.id]);
 
   useEffect(() => {
     setProgress(0);
@@ -343,42 +350,42 @@ function StoryViewer({ startId, onClose }) {
   );
 }
 
-/* ================================ Filter Chips =============================== */
-const FILTERS = ["For You", "Projects", "Doubts", "Showcase", "Jobs"];
-
-function FilterChips({ active, onChange }) {
-  return (
-    <div className="flex gap-2 overflow-x-auto px-4 pb-1 peer-scroll sm:px-0">
-      {FILTERS.map((filter) => {
-        const isActive = active === filter;
-        return (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => onChange(filter)}
-            className={`h-9 shrink-0 rounded-full px-4 text-xs font-bold transition ${
-              isActive ? "text-white shadow-lg shadow-black/30" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
-            }`}
-            style={isActive ? { background: GRADIENT } : undefined}
-          >
-            {filter}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ================================ Post Card =================================== */
-function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onOpenChat }) {
+function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, onOpenProfile, onOpenChat, onOpenLikes }) {
   const author = byId(post.authorId);
   const [burst, setBurst] = useState(false);
+  const likePressTimer = useRef(null);
+  const longPressTriggered = useRef(false);
   const tone = tagTone[post.tag] || tagTone.Discussion;
+  const commentCount = Number(post.stats?.comments ?? post.comments.length);
+  const isAuthor = post.authorId === viewer.id;
+
+  useEffect(() => () => window.clearTimeout(likePressTimer.current), []);
 
   const handleDoubleTap = () => {
     if (!post.liked) onToggleLike(post.id);
     setBurst(true);
     setTimeout(() => setBurst(false), 800);
+  };
+
+  const startLikePress = () => {
+    longPressTriggered.current = false;
+    if (!isAuthor) return;
+    window.clearTimeout(likePressTimer.current);
+    likePressTimer.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      onOpenLikes(post.id);
+    }, 2000);
+  };
+
+  const endLikePress = () => window.clearTimeout(likePressTimer.current);
+
+  const handleLikeClick = () => {
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
+    onToggleLike(post.id);
   };
 
   return (
@@ -429,14 +436,21 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => onToggleLike(post.id)}
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 transition active:scale-90"
-            aria-label="Like post"
+            onPointerDown={startLikePress}
+            onPointerUp={endLikePress}
+            onPointerLeave={endLikePress}
+            onPointerCancel={endLikePress}
+            onContextMenu={(event) => isAuthor && event.preventDefault()}
+            onClick={handleLikeClick}
+            className="flex min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 transition hover:bg-white/5 active:scale-90"
+            aria-label={isAuthor ? "Like post. Hold for two seconds to view likes." : "Like post"}
           >
             <Heart className={`h-6 w-6 transition ${post.liked ? "text-rose-500" : "text-white/70"}`} fill={post.liked ? "currentColor" : "none"} />
+            <span className={`text-[10px] font-bold leading-none ${post.liked ? "text-rose-400" : "text-white/45"}`}>{post.likes.toLocaleString()}</span>
           </button>
-          <button type="button" onClick={() => onOpenComments(post.id)} className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90" aria-label="Comment">
+          <button type="button" onClick={() => onOpenComments(post.id)} className="flex min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/70 transition hover:bg-white/5 active:scale-90" aria-label="Comment">
             <MessageCircle className="h-6 w-6" />
+            <span className="text-[10px] font-bold leading-none text-white/45">{commentCount.toLocaleString()}</span>
           </button>
           <button type="button" onClick={() => onOpenChat(author)} className="flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-white/70 transition active:scale-90" aria-label="Share via chat">
             <Send className="h-6 w-6" />
@@ -453,10 +467,9 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
       </div>
 
       <div className="space-y-1 px-4 pb-4">
-        <p className="text-xs font-black text-white">{post.likes.toLocaleString()} reactions</p>
         {post.comments.length > 0 && (
           <button type="button" onClick={() => onOpenComments(post.id)} className="text-xs font-semibold text-white/40 hover:text-white/60">
-            View all {post.comments.length} comments
+            View all comments
           </button>
         )}
         <button
@@ -469,6 +482,48 @@ function PostCard({ post, viewer, onToggleLike, onToggleSave, onOpenComments, on
         </button>
       </div>
     </article>
+  );
+}
+
+function LikesSheet({ state, onClose, onOpenProfile }) {
+  return (
+    <div className="fixed inset-0 z-[58] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div
+        className="peer-sheet-in max-h-[72vh] w-full max-w-md overflow-hidden rounded-t-3xl border backdrop-blur-2xl sm:rounded-3xl"
+        style={{ background: SURFACE, borderColor: HAIRLINE }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <h2 className="peer-display text-base font-bold text-white">Liked by</h2>
+            <p className="mt-0.5 text-[11px] font-medium text-white/40">People who liked your post</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/50 transition hover:bg-white/10 hover:text-white" aria-label="Close likes">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[58vh] overflow-y-auto p-3 peer-scroll">
+          {state.loading && <p className="py-10 text-center text-xs font-semibold text-white/40">Loading likes...</p>}
+          {!state.loading && state.error && <p className="px-3 py-10 text-center text-xs font-semibold text-rose-300">{state.error}</p>}
+          {!state.loading && !state.error && state.users.length === 0 && <p className="py-10 text-center text-xs font-semibold text-white/40">No likes yet.</p>}
+          {!state.loading && !state.error && state.users.map((person) => (
+            <button
+              key={person.id}
+              type="button"
+              onClick={() => { onClose(); onOpenProfile(person.id); }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/5"
+            >
+              <img src={person.avatarUrl || person.avatar} alt="" className="h-11 w-11 rounded-full object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-white">{person.fullName || person.name}</p>
+                <p className="truncate text-[11px] capitalize text-white/40">{person.username ? `@${person.username}` : person.role}</p>
+              </div>
+              <Heart className="h-4 w-4 text-rose-400" fill="currentColor" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1252,6 +1307,8 @@ const DEFAULT_VIEWER = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const WATCHED_STORIES_KEY = "prisma:watched-community-stories";
 let communityCsrfCache = null;
 
 const getCommunityCsrf = async () => {
@@ -1303,7 +1360,6 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [people, setPeople] = useState([]);
   const [posts, setPosts] = useState([]);
   const [tab, setTab] = useState("home");
-  const [filter, setFilter] = useState("For You");
   const [storyId, setStoryId] = useState(null);
   const [commentsPostId, setCommentsPostId] = useState(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -1319,6 +1375,35 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   const [incoming, setIncoming] = useState([]);
   const [activities, setActivities] = useState([]);
   const [profileStats, setProfileStats] = useState({});
+  const [likesSheet, setLikesSheet] = useState(null);
+  const [storyClock, setStoryClock] = useState(() => Date.now());
+  const [watchedStoriesByViewer, setWatchedStoriesByViewer] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(WATCHED_STORIES_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const watchedStoryIds = useMemo(
+    () => new Set(watchedStoriesByViewer[viewer.id] || []),
+    [viewer.id, watchedStoriesByViewer]
+  );
+
+  const markStoryWatched = useCallback((storyId) => {
+    setWatchedStoriesByViewer((current) => {
+      const watched = new Set(current[viewer.id] || []);
+      if (watched.has(storyId)) return current;
+      watched.add(storyId);
+      const next = { ...current, [viewer.id]: [...watched] };
+      localStorage.setItem(WATCHED_STORIES_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [viewer.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStoryClock(Date.now()), 30 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!authToken) return;
@@ -1412,20 +1497,14 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
 
   MOCK_PEOPLE = people;
   CURRENT_VIEWER = viewer;
-  MOCK_STORIES = posts.slice(0, 12).flatMap((post) => {
+  MOCK_STORIES = posts.filter((post) => {
+    const createdAt = new Date(post.createdAt).getTime();
+    return Number.isFinite(createdAt) && storyClock - createdAt < STORY_LIFETIME_MS;
+  }).slice(0, 12).flatMap((post) => {
     const person = people.find((candidate) => candidate.id === post.authorId);
     if (!person) return [];
-    return [{ id: person.id, title: post.tag || "Build update", update: post.content, image: post.image || person.avatar }];
-  }).filter((story, index, stories) => stories.findIndex((item) => item.id === story.id) === index);
-
-  const filteredPosts = useMemo(() => {
-    if (filter === "For You") return posts;
-    if (filter === "Projects") return posts.filter((p) => p.tag === "Project Win" || p.tag === "Showcase");
-    if (filter === "Doubts") return posts.filter((p) => p.tag === "Need Advice");
-    if (filter === "Showcase") return posts.filter((p) => p.tag === "Showcase");
-    if (filter === "Jobs") return posts.filter((p) => p.tag === "Discussion");
-    return posts;
-  }, [filter, posts]);
+    return [{ id: post.id, authorId: person.id, title: post.tag || "Build update", update: post.content, image: post.image || person.avatar }];
+  }).filter((story, index, stories) => stories.findIndex((item) => item.authorId === story.authorId) === index);
 
   const saveUsername = async (rawUsername) => {
     const username = String(rawUsername || "").trim().replace(/^@+/, "").toLowerCase();
@@ -1496,9 +1575,33 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
 
   const toggleSave = (postId) => setPosts((items) => items.map((p) => (p.id === postId ? { ...p, saved: !p.saved } : p)));
 
+  const openLikes = async (postId) => {
+    setLikesSheet({ postId, loading: true, users: [], error: "" });
+    const send = (token) => fetch(`${API_BASE_URL}/community/posts/${postId}/likes`, {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    try {
+      let response = await send(authToken);
+      if (response.status === 401 && onRefreshAuth) {
+        const refreshedToken = await onRefreshAuth();
+        if (refreshedToken) response = await send(refreshedToken);
+      }
+      const data = await response.json().catch(() => []);
+      if (!response.ok) throw new Error(data.message || "Unable to load likes.");
+      setLikesSheet((current) => current?.postId === postId ? { ...current, loading: false, users: data } : current);
+    } catch (error) {
+      setLikesSheet((current) => current?.postId === postId ? { ...current, loading: false, error: error.message || "Unable to load likes." } : current);
+    }
+  };
+
   const addComment = async (postId, text) => {
     const comment = await mutateWithCsrf(`/community/posts/${postId}/comments`, { content: text });
-    setPosts((items) => items.map((p) => p.id === postId ? { ...p, comments: [...p.comments, comment] } : p));
+    setPosts((items) => items.map((p) => p.id === postId ? {
+      ...p,
+      comments: [...p.comments, comment],
+      stats: { ...p.stats, comments: Number(p.stats?.comments ?? p.comments.length) + 1 },
+    } : p));
   };
 
   const publishPost = async ({ content, tag }) => {
@@ -1601,10 +1704,9 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         <main className="mx-auto w-full max-w-3xl px-0 pt-2 sm:px-6 lg:px-10 lg:pt-8">
           {tab === "home" && (
             <div className="space-y-5">
-              <StoryRail viewer={viewer} onOpenStory={setStoryId} onOpenComposer={() => setComposerOpen(true)} />
-              <FilterChips active={filter} onChange={setFilter} />
+              <StoryRail viewer={viewer} watchedStoryIds={watchedStoryIds} onOpenStory={setStoryId} onOpenComposer={() => setComposerOpen(true)} />
               <div className="space-y-6 px-4 pb-4 sm:px-0">
-                {filteredPosts.map((post) => (
+                {posts.map((post) => (
                   <PostCard
                     key={post.id}
                     post={post}
@@ -1614,9 +1716,10 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
                     onOpenComments={setCommentsPostId}
                     onOpenProfile={setProfileId}
                     onOpenChat={openChat}
+                    onOpenLikes={openLikes}
                   />
                 ))}
-                {filteredPosts.length === 0 && <p className="py-16 text-center text-xs font-bold text-white/30">Nothing here yet — be the first to post.</p>}
+                {posts.length === 0 && <p className="py-16 text-center text-xs font-bold text-white/30">Nothing here yet — be the first to post.</p>}
               </div>
             </div>
           )}
@@ -1633,10 +1736,13 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
 
       <BottomNav viewer={viewer} active={tab} onChange={setTab} onCompose={() => setComposerOpen(true)} incomingCount={incoming.length} />
 
-      {storyId && <StoryViewer startId={storyId} onClose={() => setStoryId(null)} />}
+      {storyId && MOCK_STORIES.some((story) => story.id === storyId) && (
+        <StoryViewer startId={storyId} onClose={() => setStoryId(null)} onViewed={markStoryWatched} />
+      )}
       {commentsPostId && (
         <CommentsSheet post={posts.find((p) => p.id === commentsPostId)} viewer={viewer} onClose={() => setCommentsPostId(null)} onAddComment={addComment} />
       )}
+      {likesSheet && <LikesSheet state={likesSheet} onClose={() => setLikesSheet(null)} onOpenProfile={setProfileId} />}
       {composerOpen && <ComposerModal viewer={viewer} onClose={() => setComposerOpen(false)} onPublish={publishPost} />}
       {profileId && (
         <ProfileView

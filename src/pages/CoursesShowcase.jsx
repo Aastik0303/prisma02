@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  CheckCircle2, ChevronRight, Sparkles, X, BookOpen, MessageSquare, Send, Search
+  CheckCircle2, ChevronRight, Sparkles, X, BookOpen, MessageSquare, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { COURSE_LEARNING_CONTENT, createLearningTrackFromContent } from '../data/mockData';
@@ -1014,9 +1014,6 @@ const buildCourseDocument = course => {
 export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, setTracksData, onEnrollTrack, authToken }) {
   const [activePptCourse, setActivePptCourse] = useState(null); // 'web-dev' | 'ai-ml' | 'embedded' | null
   const [publishedCourses, setPublishedCourses] = useState([]);
-  const [courseSearch, setCourseSearch] = useState('');
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
-  const [activeDifficultyFilter, setActiveDifficultyFilter] = useState('all');
   const [expandedSyllabusCards, setExpandedSyllabusCards] = useState({});
   const [showCourseChat, setShowCourseChat] = useState(false);
   const [courseChatInput, setCourseChatInput] = useState('');
@@ -1287,43 +1284,11 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
     !enrolledCourseIds.has(course.id)
   );
 
-  const normalizedCourseSearch = courseSearch.trim().toLowerCase();
-  const courseMatchesSearch = (course) => {
-    if (!normalizedCourseSearch) return true;
-    return [
-      course.title,
-      course.subtitle,
-      course.description,
-      course.duration,
-      course.badge,
-      ...(course.syllabus || [])
-    ]
-      .filter(Boolean)
-      .some(value => String(value).toLowerCase().includes(normalizedCourseSearch));
-  };
-  const courseMatchesFilters = (course) => (
-    (activeCategoryFilter === 'all' || course.category === activeCategoryFilter)
-    && (activeDifficultyFilter === 'all' || course.difficulty === activeDifficultyFilter)
-  );
-  const courseMatchesDiscovery = (course) => courseMatchesSearch(course) && courseMatchesFilters(course);
-  const filteredPurchasedCourses = purchasedCourses.filter(courseMatchesDiscovery);
-  const filteredExploreCourses = exploreCourses.filter(courseMatchesDiscovery);
-  const hasCourseSearch = normalizedCourseSearch.length > 0;
-  const hasActiveCourseFilters = activeCategoryFilter !== 'all' || activeDifficultyFilter !== 'all';
-  const hasCourseMatches = filteredPurchasedCourses.length + filteredExploreCourses.length > 0;
-  const matchedCourseCount = filteredPurchasedCourses.length + filteredExploreCourses.length;
-
   const toggleSyllabusCard = (courseId) => {
     setExpandedSyllabusCards(previous => ({
       ...previous,
       [courseId]: !previous[courseId]
     }));
-  };
-
-  const clearCourseDiscoveryFilters = () => {
-    setCourseSearch('');
-    setActiveCategoryFilter('all');
-    setActiveDifficultyFilter('all');
   };
 
   const sendCourseChatMessage = async (message, course = activeCourse || purchasedCourses[0] || exploreCourses[0]) => {
@@ -1461,78 +1426,6 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
 
   return (
     <div className="relative mx-auto max-w-[1600px] space-y-6 overflow-hidden px-3 py-4 sm:px-5">
-      <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-950/35">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-500">Search Courses</span>
-            <h1 className="mt-1 text-xl font-extrabold text-slate-950 dark:text-white">Find the right learning path</h1>
-          </div>
-          <label className="relative w-full md:max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={courseSearch}
-              onChange={(event) => setCourseSearch(event.target.value)}
-              placeholder="Search React, embedded, Python, DevOps..."
-              className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-3 text-sm font-semibold text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-indigo-500"
-            />
-          </label>
-        </div>
-        <div className="mt-4 space-y-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categoryFilters.map(filter => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setActiveCategoryFilter(filter.id)}
-                className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-extrabold transition-colors ${
-                  activeCategoryFilter === filter.id
-                    ? 'border-cyan-400 bg-cyan-500 text-white shadow-sm shadow-cyan-500/20'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-cyan-500/50 dark:hover:text-cyan-200'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {difficultyFilters.map(filter => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setActiveDifficultyFilter(filter.id)}
-                className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-extrabold transition-colors ${
-                  activeDifficultyFilter === filter.id
-                    ? 'border-indigo-400 bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-indigo-500/50 dark:hover:text-indigo-200'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {(hasCourseSearch || hasActiveCourseFilters) && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>
-              {hasCourseMatches
-                ? `${matchedCourseCount} course match${matchedCourseCount === 1 ? '' : 'es'}`
-                : 'No courses match these filters yet'}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-              {courseMetaLabel(categoryFilters, activeCategoryFilter)} / {courseMetaLabel(difficultyFilters, activeDifficultyFilter)}
-            </span>
-            <button
-              type="button"
-              onClick={clearCourseDiscoveryFilters}
-              className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Clear
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* My Courses */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -1549,7 +1442,7 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
       </div>
 
       {/* Grid: Course packages */}
-      {!purchasedCourses.length && !hasCourseSearch && (
+      {!purchasedCourses.length && (
         <div className="rounded-2xl border border-dashed border-indigo-300/70 bg-indigo-50/70 p-5 text-center dark:border-indigo-500/30 dark:bg-indigo-500/10">
           <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white text-indigo-600 shadow-sm dark:bg-slate-950 dark:text-indigo-300">
             <BookOpen className="h-6 w-6" />
@@ -1560,14 +1453,8 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           </p>
         </div>
       )}
-      {purchasedCourses.length > 0 && !filteredPurchasedCourses.length && (hasCourseSearch || hasActiveCourseFilters) && (
-        <div className="rounded-[24px] border border-dashed border-slate-300/70 bg-white/70 p-6 text-center dark:border-slate-700/70 dark:bg-slate-950/30">
-          <h3 className="text-sm font-extrabold text-slate-950 dark:text-white">No enrolled courses match this view</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Try another skill, category, or level.</p>
-        </div>
-      )}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
-        {filteredPurchasedCourses.map(course => {
+      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 2xl:grid-cols-3">
+        {purchasedCourses.map(course => {
           // Read dynamic progress from props
           const matchingTrack = tracksData?.find(t => t.id === course.id);
           const completedCount = matchingTrack ? matchingTrack.completedNodes : 0;
@@ -1702,8 +1589,8 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
-        {filteredExploreCourses.map(course => {
+      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 2xl:grid-cols-3">
+        {exploreCourses.map(course => {
           const theme = getCourseTheme(course);
 
           return (
@@ -1791,12 +1678,6 @@ export default function CoursesShowcase({ setPage, setActiveTrack, tracksData, s
           );
         })}
       </div>
-      {!filteredExploreCourses.length && (hasCourseSearch || hasActiveCourseFilters) && (
-        <div className="rounded-[24px] border border-dashed border-cyan-300/70 bg-cyan-50/70 p-6 text-center dark:border-cyan-500/30 dark:bg-cyan-500/10">
-          <h3 className="text-sm font-extrabold text-slate-950 dark:text-white">No explore courses found</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Clear filters to browse the full catalog.</p>
-        </div>
-      )}
 
       <div className="fixed bottom-6 right-6 z-40">
         <button

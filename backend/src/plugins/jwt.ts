@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'crypto';
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import * as jose from 'jose';
 import fp from 'fastify-plugin';
@@ -38,22 +38,6 @@ export class JwtService {
   private privateKeyLoaded = false;
   private algorithm = 'RS256';
 
-  private async importKeyMaterial(key: string, type: 'PRIVATE' | 'PUBLIC') {
-    const normalized = normalizeKeyMaterial(key, type);
-
-    if (normalized.includes('-----BEGIN')) {
-      if (type === 'PRIVATE') {
-        return jose.importPKCS8(normalized, 'RS256');
-      }
-      return jose.importSPKI(normalized, 'RS256');
-    }
-
-    if (type === 'PRIVATE') {
-      return jose.importPKCS8(normalized, 'RS256');
-    }
-    return jose.importSPKI(normalized, 'RS256');
-  }
-
   private async createFallbackKeys() {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
@@ -76,8 +60,27 @@ export class JwtService {
     if (this.privateKeyLoaded) return;
 
     try {
-      this.privateKey = await this.importKeyMaterial(this.privateKeyBase64, 'PRIVATE');
-      this.publicKey = await this.importKeyMaterial(this.publicKeyBase64, 'PUBLIC');
+      const privateKey = createPrivateKey(normalizeKeyMaterial(this.privateKeyBase64, 'PRIVATE'));
+      const publicKey = createPublicKey(normalizeKeyMaterial(this.publicKeyBase64, 'PUBLIC'));
+
+      if (privateKey.asymmetricKeyType !== publicKey.asymmetricKeyType) {
+        throw new Error('JWT private and public key types do not match');
+      }
+
+      if (privateKey.asymmetricKeyType === 'rsa') {
+        this.algorithm = 'RS256';
+      } else if (
+        privateKey.asymmetricKeyType === 'ec'
+        && privateKey.asymmetricKeyDetails?.namedCurve === 'prime256v1'
+        && publicKey.asymmetricKeyDetails?.namedCurve === 'prime256v1'
+      ) {
+        this.algorithm = 'ES256';
+      } else {
+        throw new Error(`Unsupported JWT key type: ${privateKey.asymmetricKeyType ?? 'unknown'}`);
+      }
+
+      this.privateKey = privateKey;
+      this.publicKey = publicKey;
       this.privateKeyLoaded = true;
     } catch (error: any) {
       if (process.env.NODE_ENV === 'development') {
