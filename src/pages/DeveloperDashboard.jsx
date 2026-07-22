@@ -3,7 +3,6 @@ import { Activity, ArrowLeft, CheckCircle2, Clock3, RefreshCw, ShieldAlert, Tren
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-const COMPATIBLE_DEVELOPER_EMAILS = new Set(['rishabhparashari068@gmail.com']);
 
 const compactDate = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(`${value}T00:00:00Z`));
 const fullDateTime = value => new Intl.DateTimeFormat('en', {
@@ -30,8 +29,8 @@ export default function DeveloperDashboard({ authToken, setPage }) {
           fetch(`${API_BASE_URL}/users/directory?limit=25`, { headers: authHeaders })
         ]);
         const profile = await profileResponse.json().catch(() => ({}));
-        if (!profileResponse.ok || !COMPATIBLE_DEVELOPER_EMAILS.has(String(profile.email || '').toLowerCase())) {
-          throw new Error('This dashboard is restricted to the website developers.');
+        if (!profileResponse.ok || !profile.id || !profile.email) {
+          throw new Error('Your authenticated profile could not be verified. Please sign in again.');
         }
         const directory = await directoryResponse.json().catch(() => []);
         if (!directoryResponse.ok || !Array.isArray(directory)) {
