@@ -18,6 +18,9 @@ async function developerAuth(path, body) {
     body: JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
+  if (response.status === 404) {
+    throw new Error('Developer authentication is temporarily unavailable. The backend service needs to finish deploying.');
+  }
   if (!response.ok) throw new Error(data.message || 'Request failed.');
   return data;
 }
@@ -34,6 +37,10 @@ export default function DeveloperPortal() {
     setLoading(true); setError('');
     const response = await fetch(`${API}/users/developers/stats`, { headers: { Authorization: `Bearer ${currentToken}` } });
     const data = await response.json().catch(() => ({}));
+    if (response.status === 404) {
+      sessionStorage.removeItem(TOKEN_KEY); setToken('');
+      throw new Error('Developer analytics is temporarily unavailable. The backend service needs to finish deploying.');
+    }
     if (!response.ok) {
       sessionStorage.removeItem(TOKEN_KEY); setToken('');
       throw new Error(data.message || 'Developer session expired. Please sign in again.');
