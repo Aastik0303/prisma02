@@ -1543,7 +1543,7 @@ export default function App() {
           onDeveloperAccess={() => {
             sessionStorage.setItem('pec_post_auth_page', 'developers');
             setAuthError('');
-            navigateTo('signup');
+            navigateTo('login');
           }}
         />
       );
