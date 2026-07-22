@@ -159,7 +159,7 @@ export class AuthController {
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
       ...crossSiteCookieOptions,
-      path: '/api/v1/auth/refresh',
+      path: '/api/v1/auth',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
 
@@ -190,7 +190,6 @@ export class AuthController {
         fullName: user.fullName
       },
       accessToken,
-      refreshToken: session.refreshToken, // Body fallback
       expiresIn: session.expiresIn
     });
   }
@@ -207,16 +206,14 @@ export class AuthController {
     }
 
     // Revoke Refresh Token from Cookie or request body
-    const reqCookieToken = request.cookies?.refreshToken;
-    const reqBodyToken = (request.body as any)?.refreshToken;
-    const refreshToken = reqCookieToken || reqBodyToken;
+    const refreshToken = request.cookies?.refreshToken;
 
     if (refreshToken) {
       await this.authService.revokeSession(refreshToken);
     }
 
     // Clear client cookies
-    reply.clearCookie('refreshToken', { path: '/api/v1/auth/refresh' });
+    reply.clearCookie('refreshToken', { path: '/api/v1/auth' });
 
     if (request.user) {
       await logAuditEvent({
@@ -231,9 +228,7 @@ export class AuthController {
   }
 
   async refresh(request: FastifyRequest, reply: FastifyReply) {
-    const reqCookieToken = request.cookies?.refreshToken;
-    const reqBodyToken = (request.body as any)?.refreshToken;
-    const refreshToken = reqCookieToken || reqBodyToken;
+    const refreshToken = request.cookies?.refreshToken;
 
     if (!refreshToken) {
       return reply.status(400).send({
@@ -262,13 +257,12 @@ export class AuthController {
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
       ...crossSiteCookieOptions,
-      path: '/api/v1/auth/refresh',
+      path: '/api/v1/auth',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
 
     return reply.status(200).send({
       accessToken,
-      refreshToken: session.refreshToken,
       expiresIn: session.expiresIn
     });
   }
@@ -620,7 +614,7 @@ export class AuthController {
     reply.setCookie('refreshToken', session.refreshToken, {
       httpOnly: true,
       ...crossSiteCookieOptions,
-      path: '/api/v1/auth/refresh',
+      path: '/api/v1/auth',
       maxAge: config.JWT_REFRESH_EXPIRY
     });
 
@@ -652,7 +646,6 @@ export class AuthController {
         fullName: user.fullName
       },
       accessToken,
-      refreshToken: session.refreshToken,
       expiresIn: session.expiresIn
     });
   }

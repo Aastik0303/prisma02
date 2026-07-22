@@ -80,7 +80,7 @@ const formatValidationMessage = (issues: any[] = []) => {
   }
 
   if (firstIssue.code === 'too_small' && firstIssue.type === 'string') {
-    return `${field} needs more content before it can be processed.`;
+    return firstIssue.message || `${field} needs more content before it can be processed.`;
   }
 
   return firstIssue.message || 'Input validation failed.';

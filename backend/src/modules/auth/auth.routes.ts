@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import crypto from 'crypto';
 import { AuthController } from './auth.controller.js';
 import { requireAuth } from './auth.middleware.js';
 import { 
@@ -151,13 +150,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         httpOnly: true,
         secure: fastify.config.NODE_ENV === 'production',
         sameSite: 'strict',
-        path: '/api/v1/auth/refresh',
+        path: '/api/v1/auth',
         maxAge: fastify.config.JWT_REFRESH_EXPIRY
       });
-
-      // Generate Access Token JWT
-      const jwtJti = crypto.randomUUID();
-      const jwtToken = await fastify.jwtService.signAccessToken(user.id, user.email, user.role, jwtJti);
 
       await logAuditEvent({
         userId: user.id,
@@ -167,8 +162,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         metadata: { provider: 'google' }
       });
 
-      // Redirect back to frontend dashboard with tokens
-      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?accessToken=${jwtToken}&refreshToken=${session.refreshToken}`;
+      // The refresh token stays in the HttpOnly cookie. The frontend exchanges
+      // that cookie for a short-lived access token after this safe redirect.
+      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?oauth=success`;
       return reply.redirect(redirectUrl);
 
     } catch (err: any) {
@@ -280,13 +276,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         httpOnly: true,
         secure: fastify.config.NODE_ENV === 'production',
         sameSite: 'strict',
-        path: '/api/v1/auth/refresh',
+        path: '/api/v1/auth',
         maxAge: fastify.config.JWT_REFRESH_EXPIRY
       });
-
-      // Generate Access Token JWT
-      const jwtJti = crypto.randomUUID();
-      const jwtToken = await fastify.jwtService.signAccessToken(user.id, user.email, user.role, jwtJti);
 
       await logAuditEvent({
         userId: user.id,
@@ -296,8 +288,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         metadata: { provider: 'github' }
       });
 
-      // Redirect back to frontend dashboard with tokens
-      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?accessToken=${jwtToken}&refreshToken=${session.refreshToken}`;
+      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?oauth=success`;
       return reply.redirect(redirectUrl);
 
     } catch (err: any) {

@@ -472,7 +472,6 @@ export default function App() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
   const [authToken, setAuthToken] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
 
   // MFA States
   const [mfaChallengeToken, setMfaChallengeToken] = useState(null);
@@ -714,12 +713,10 @@ export default function App() {
     return normalizedWorkspace;
   };
 
-  const persistRegisteredSession = ({ email, accessToken = authToken, refreshTokenValue = refreshToken }) => {
+  const persistRegisteredSession = ({ email }) => {
     if (!email) return;
     localStorage.setItem(authSessionKey, JSON.stringify({
       email,
-      accessToken,
-      refreshToken: refreshTokenValue,
       savedAt: new Date().toISOString()
     }));
   };
@@ -779,18 +776,12 @@ export default function App() {
   }, []);
 
   const refreshCommunityAuth = useCallback(async () => {
-    const refreshed = await authRequest('/auth/refresh', { refreshToken });
+    const refreshed = await authRequest('/auth/refresh', {});
     const nextAccessToken = refreshed.accessToken || '';
-    const nextRefreshToken = refreshed.refreshToken || refreshToken;
     setAuthToken(nextAccessToken);
-    setRefreshToken(nextRefreshToken);
-    persistRegisteredSession({
-      email: userData.email,
-      accessToken: nextAccessToken,
-      refreshTokenValue: nextRefreshToken
-    });
+    persistRegisteredSession({ email: userData.email });
     return nextAccessToken;
-  }, [refreshToken, userData.email]);
+  }, [userData.email]);
 
   const handleSaveUserProfile = async (profileData) => {
     const nextUserData = { ...userData, ...profileData };
@@ -1056,8 +1047,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const oauthError = params.get('error');
-    const oauthAccessToken = params.get('accessToken');
-    const oauthRefreshToken = params.get('refreshToken');
+    const oauthSuccess = params.get('oauth') === 'success';
 
     if (oauthError) {
       queueMicrotask(() => {
@@ -1068,11 +1058,13 @@ export default function App() {
       return;
     }
 
-    if (oauthAccessToken && oauthRefreshToken) {
+    if (oauthSuccess) {
       queueMicrotask(async () => {
         setAuthLoading(true);
         setAuthError('');
         try {
+          const refreshed = await authRequest('/auth/refresh', {});
+          const oauthAccessToken = refreshed.accessToken || '';
           const response = await fetch(`${API_BASE_URL}/users/me`, {
             headers: {
               Authorization: `Bearer ${oauthAccessToken}`
@@ -1087,12 +1079,7 @@ export default function App() {
           applyWorkspace(workspace);
           persistWorkspace(workspace, { token: oauthAccessToken });
           setAuthToken(oauthAccessToken);
-          setRefreshToken(oauthRefreshToken);
-          persistRegisteredSession({
-            email: workspace.userData.email,
-            accessToken: oauthAccessToken,
-            refreshTokenValue: oauthRefreshToken
-          });
+          persistRegisteredSession({ email: workspace.userData.email });
           setIsSignedIn(true);
           setPage('dashboard');
           setActiveModal(null);
@@ -1130,7 +1117,7 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('accessToken') && params.get('refreshToken')) {
+    if (params.get('oauth') === 'success') {
       return;
     }
 
@@ -1140,24 +1127,9 @@ export default function App() {
         const session = JSON.parse(savedSession);
         const savedWorkspace = session.email ? localStorage.getItem(workspaceKey(session.email)) : null;
 
-        if (savedWorkspace && session.accessToken) {
-          const workspace = JSON.parse(savedWorkspace);
-          applyWorkspace(workspace);
-          setAuthToken(session.accessToken);
-          setRefreshToken(session.refreshToken || '');
-          setIsSignedIn(true);
-          const requestedPage = pageFromLocation();
-          const restoredPage = protectedPages.has(requestedPage) ? requestedPage : 'dashboard';
-          setPage(restoredPage);
-          window.history.replaceState({ page: restoredPage }, document.title, pathForPage(restoredPage));
-          setAuthResolved(true);
-        }
-
         queueMicrotask(async () => {
           try {
-            const refreshed = await authRequest('/auth/refresh', {
-              refreshToken: session.refreshToken || ''
-            });
+            const refreshed = await authRequest('/auth/refresh', {});
             let workspace;
 
             if (savedWorkspace) {
@@ -1177,12 +1149,7 @@ export default function App() {
             applyWorkspace(workspace);
             persistWorkspace(workspace, { token: refreshed.accessToken || '' });
             setAuthToken(refreshed.accessToken || '');
-            setRefreshToken(refreshed.refreshToken || '');
-            persistRegisteredSession({
-              email: session.email,
-              accessToken: refreshed.accessToken || '',
-              refreshTokenValue: refreshed.refreshToken || ''
-            });
+            persistRegisteredSession({ email: session.email });
             setIsSignedIn(true);
             const requestedPage = pageFromLocation();
             const restoredPage = protectedPages.has(requestedPage) ? requestedPage : 'dashboard';
@@ -1192,7 +1159,6 @@ export default function App() {
           } catch {
             localStorage.removeItem(authSessionKey);
             setAuthToken('');
-            setRefreshToken('');
             setIsSignedIn(false);
             setAuthResolved(true);
           }
@@ -1254,11 +1220,9 @@ export default function App() {
       applyWorkspace(workspace);
       persistWorkspace(workspace, { token: authData.accessToken || '' });
       setAuthToken(authData.accessToken || '');
-      setRefreshToken(authData.refreshToken || '');
       persistRegisteredSession({
         email: workspace.userData.email,
         accessToken: authData.accessToken || '',
-        refreshTokenValue: authData.refreshToken || ''
       });
       setIsSignedIn(true);
       setPage('dashboard');
@@ -1302,11 +1266,9 @@ export default function App() {
       applyWorkspace(workspace);
       persistWorkspace(workspace, { token: authData.accessToken || '' });
       setAuthToken(authData.accessToken || '');
-      setRefreshToken(authData.refreshToken || '');
       persistRegisteredSession({
         email: workspace.userData.email,
         accessToken: authData.accessToken || '',
-        refreshTokenValue: authData.refreshToken || ''
       });
       setIsSignedIn(true);
       setPage('dashboard');
@@ -1514,7 +1476,7 @@ export default function App() {
   const handleSignOut = async () => {
     if (authToken) {
       try {
-        await authRequest('/auth/logout', { refreshToken }, authToken);
+        await authRequest('/auth/logout', {}, authToken);
       } catch {
         // The local session should still be cleared even if the server session has expired.
       }
@@ -1524,7 +1486,6 @@ export default function App() {
     applyWorkspace(guestWorkspace);
     setIsSignedIn(false);
     setAuthToken('');
-    setRefreshToken('');
     setAuthResolved(true);
     localStorage.removeItem(authSessionKey);
     setAccountMenuOpen(false);

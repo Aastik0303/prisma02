@@ -330,7 +330,7 @@ describe('Authentication & Authorization System API Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
+      expect(response.body).not.toHaveProperty('refreshToken');
       expect(response.body.user.email).toBe('test@example.com');
       
       // Cookie is set
@@ -592,31 +592,34 @@ describe('Authentication & Authorization System API Tests', () => {
           password: 'Password123!'
         });
 
-      const firstRefreshToken = loginRes.body.refreshToken;
+      const firstRefreshCookie = (loginRes.headers['set-cookie'] || [])
+        .find((cookie: string) => cookie.startsWith('refreshToken='))
+        ?.split(';')[0];
+      expect(firstRefreshCookie).toBeTruthy();
       
       // 2. First Refresh (rotates tokens successfully)
       const refreshRes = await request(serverInstance)
         .post('/api/v1/auth/refresh')
-        .set('Cookie', sessionCookie)
+        .set('Cookie', [sessionCookie, firstRefreshCookie!])
         .set('x-csrf-token', csrfToken)
-        .send({
-          refreshToken: firstRefreshToken
-        });
+        .send({});
 
       expect(refreshRes.status).toBe(200);
       expect(refreshRes.body).toHaveProperty('accessToken');
       
-      const secondRefreshToken = refreshRes.body.refreshToken;
-      expect(secondRefreshToken).not.toBe(firstRefreshToken);
+      expect(refreshRes.body).not.toHaveProperty('refreshToken');
+      const secondRefreshCookie = (refreshRes.headers['set-cookie'] || [])
+        .find((cookie: string) => cookie.startsWith('refreshToken='))
+        ?.split(';')[0];
+      expect(secondRefreshCookie).toBeTruthy();
+      expect(secondRefreshCookie).not.toBe(firstRefreshCookie);
 
       // 3. Reuse old refresh token (theft detection)
       const reuseRes = await request(serverInstance)
         .post('/api/v1/auth/refresh')
-        .set('Cookie', sessionCookie)
+        .set('Cookie', [sessionCookie, firstRefreshCookie!])
         .set('x-csrf-token', csrfToken)
-        .send({
-          refreshToken: firstRefreshToken
-        });
+        .send({});
 
       expect(reuseRes.status).toBe(401);
       expect(reuseRes.body.code).toBe('TOKEN_EXPIRED');
@@ -624,11 +627,9 @@ describe('Authentication & Authorization System API Tests', () => {
       // 4. Verify new token has also been revoked as family was invalidated
       const siblingRes = await request(serverInstance)
         .post('/api/v1/auth/refresh')
-        .set('Cookie', sessionCookie)
+        .set('Cookie', [sessionCookie, secondRefreshCookie!])
         .set('x-csrf-token', csrfToken)
-        .send({
-          refreshToken: secondRefreshToken
-        });
+        .send({});
 
       expect(siblingRes.status).toBe(401);
       

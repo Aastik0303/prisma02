@@ -44,7 +44,6 @@ export default function AdminPanel() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [accessToken, setAccessToken] = useState('')
-  const [refreshToken, setRefreshToken] = useState('')
   const [currentAdmin, setCurrentAdmin] = useState(null)
   const [users, setUsers] = useState([])
   const [summary, setSummary] = useState(null)
@@ -128,7 +127,6 @@ export default function AdminPanel() {
   }
 
   const refreshAdminSession = async () => {
-    if (!refreshToken) throw new Error('Admin session expired. Sign in again.')
     const csrf = await getCsrfToken()
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
@@ -137,12 +135,11 @@ export default function AdminPanel() {
         'Content-Type': 'application/json',
         ...buildCsrfHeaders(csrf)
       },
-      body: JSON.stringify({ refreshToken })
+      body: JSON.stringify({})
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error('Admin session expired. Sign in again.')
     setAccessToken(data.accessToken || '')
-    setRefreshToken(data.refreshToken || '')
     return data.accessToken
   }
 
@@ -346,11 +343,9 @@ export default function AdminPanel() {
       const token = data.accessToken || ''
       await Promise.all([fetchUsers(token), fetchCatalog(token)])
       setAccessToken(token)
-      setRefreshToken(data.refreshToken || '')
       setCurrentAdmin(data.user || null)
     } catch (loginError) {
       setAccessToken('')
-      setRefreshToken('')
       setCurrentAdmin(null)
       setUsers([])
       setSummary(null)

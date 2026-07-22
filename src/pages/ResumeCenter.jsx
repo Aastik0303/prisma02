@@ -916,11 +916,21 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
     })
     .join('');
 
-  const cleanEditorHtml = (html = '') => html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '')
-    .replace(/javascript:/gi, '');
+  const cleanEditorHtml = (html = '') => {
+    if (typeof DOMParser === 'undefined') return escapeHtml(String(html));
+    const allowedTags = new Set(['P', 'BR', 'DIV', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'SPAN']);
+    const documentNode = new DOMParser().parseFromString(`<body>${String(html)}</body>`, 'text/html');
+
+    for (const element of [...documentNode.body.querySelectorAll('*')]) {
+      if (!allowedTags.has(element.tagName)) {
+        element.replaceWith(...element.childNodes);
+        continue;
+      }
+      for (const attribute of [...element.attributes]) element.removeAttribute(attribute.name);
+    }
+
+    return documentNode.body.innerHTML;
+  };
 
   const sortPdfBlocks = (layout = uploadedPdfLayout) => [...(layout?.blocks || [])]
     .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
@@ -2465,7 +2475,7 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
                               <div
                                 ref={scannerEditorRef}
                                 aria-label="Resume document preview"
-                                dangerouslySetInnerHTML={{ __html: scannerEditorHtml || textToEditorHtml(scanText) }}
+                                dangerouslySetInnerHTML={{ __html: cleanEditorHtml(scannerEditorHtml || textToEditorHtml(scanText)) }}
                                 className="resume-rich-editor min-h-[1040px] bg-white px-8 py-8 sm:px-12 sm:py-10 font-sans text-[13px] leading-6 text-slate-900 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:border-b [&_h2]:border-slate-900 [&_h2]:pb-1 [&_h2]:text-sm [&_h2]:font-black [&_h2]:uppercase [&_h3]:mb-1.5 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-bold [&_p]:mb-1.5 [&_ul]:mb-2 [&_ul]:ml-5 [&_ul]:list-disc [&_ol]:mb-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-black"
                               />
                             ) : (
