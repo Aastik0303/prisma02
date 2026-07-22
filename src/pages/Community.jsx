@@ -1375,6 +1375,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const WATCHED_STORIES_KEY = "prisma:watched-community-stories";
 let communityCsrfCache = null;
+const communityViewCache = new Map();
 
 const getCommunityCsrf = async () => {
   if (communityCsrfCache?.expiresAt > Date.now()) return communityCsrfCache;
@@ -1433,8 +1434,10 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
     [communityStreak, communityUsername, userData]
   );
 
-  const [people, setPeople] = useState([]);
-  const [posts, setPosts] = useState([]);
+  const cacheKey = userData.backendUserId || userData.id || "me";
+  const cachedView = communityViewCache.get(cacheKey);
+  const [people, setPeople] = useState(() => cachedView?.people || []);
+  const [posts, setPosts] = useState(() => cachedView?.posts || []);
   const [tab, setTab] = useState("home");
   const [storyId, setStoryId] = useState(null);
   const [commentsPostId, setCommentsPostId] = useState(null);
@@ -1489,15 +1492,16 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
   useEffect(() => {
     if (!authToken) return;
     const headers = { Authorization: `Bearer ${authToken}` };
-    Promise.all([
-      fetch(`${API_BASE_URL}/users/directory?limit=40`, { credentials: "include", headers }),
-      fetch(`${API_BASE_URL}/community/posts`, { credentials: "include", headers }),
-      fetch(`${API_BASE_URL}/community/social`, { credentials: "include", headers }),
-    ]).then(async ([usersResponse, postsResponse, socialResponse]) => {
-      if (usersResponse.ok) setPeople((await usersResponse.json()).map(normalizeRegisteredUser));
+    const controller = new AbortController();
+    const options = { credentials: "include", headers, signal: controller.signal };
+
+    // The feed is the critical path. Do not make it wait for directory and
+    // activity queries, which can be substantially slower on larger accounts.
+    fetch(`${API_BASE_URL}/community/posts`, options).then(async (postsResponse) => {
       if (postsResponse.ok) {
         const registeredPosts = (await postsResponse.json()).map(normalizeCommunityPost);
         setPosts(registeredPosts);
+        communityViewCache.set(cacheKey, { ...(communityViewCache.get(cacheKey) || {}), posts: registeredPosts });
         setProfileStats((current) => ({
           ...current,
           [viewer.id]: { ...(current[viewer.id] || {}), postsCount: registeredPosts.filter((post) => post.authorId === viewer.id).length },
@@ -1506,10 +1510,26 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
           const authors = registeredPosts
             .filter((post) => post.authorId && post.authorId !== viewer.id)
             .map((post) => normalizeRegisteredUser({ id: post.authorId, fullName: post.author, role: post.role, avatarUrl: post.avatar, username: post.authorUsername }));
-          return [...current, ...authors].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
+          const next = [...current, ...authors].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
+          communityViewCache.set(cacheKey, { ...(communityViewCache.get(cacheKey) || {}), people: next });
+          return next;
         });
       }
-      if (socialResponse.ok) {
+    }).catch(() => {});
+
+    const loadSecondaryData = () => {
+      fetch(`${API_BASE_URL}/users/directory?limit=40`, options).then(async (usersResponse) => {
+        if (!usersResponse.ok) return;
+        const directory = (await usersResponse.json()).map(normalizeRegisteredUser);
+        setPeople((current) => {
+          const next = [...directory, ...current].filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
+          communityViewCache.set(cacheKey, { ...(communityViewCache.get(cacheKey) || {}), people: next });
+          return next;
+        });
+      }).catch(() => {});
+
+      fetch(`${API_BASE_URL}/community/social`, options).then(async (socialResponse) => {
+        if (!socialResponse.ok) return;
         const social = await socialResponse.json();
         setCommunityStreak(Math.max(0, Number(social.viewer?.communityStreak || 0)));
         setCommunityUsername(String(social.viewer?.username || ""));
@@ -1527,9 +1547,23 @@ export default function Community({ userData = {}, authToken = "", onRefreshAuth
         ]));
         setIncoming(social.incomingRequests || []);
         setActivities(social.activities || []);
-      }
-    }).catch(() => {});
-  }, [authToken, viewer.id]);
+      }).catch(() => {});
+    };
+
+    let idleId;
+    let timerId;
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(loadSecondaryData, { timeout: 700 });
+    } else {
+      timerId = window.setTimeout(loadSecondaryData, 0);
+    }
+
+    return () => {
+      controller.abort();
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+      if (timerId !== undefined) window.clearTimeout(timerId);
+    };
+  }, [authToken, cacheKey, viewer.id]);
 
   useEffect(() => {
     if (!authToken || !profileId) return;
