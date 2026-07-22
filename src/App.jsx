@@ -616,8 +616,35 @@ export default function App() {
     }
   }, [authResolved, isSignedIn, navigateTo]);
 
-  // Pages are prefetched from navigation hover/focus. Eagerly downloading every
-  // section here made the first screen compete with several large JS chunks.
+  // Warm feature chunks after the signed-in screen is interactive. Loading them
+  // sequentially during idle time avoids competing with the dashboard while
+  // ensuring the first click on a section does not pay download/parse latency.
+  useEffect(() => {
+    if (!isSignedIn) return undefined;
+
+    let cancelled = false;
+    let idleId;
+    let timerId;
+    const pages = ['community', 'projects', 'learning', 'roadmap', 'mentorship', 'resume'];
+    const warmNextPage = async () => {
+      for (const pageId of pages) {
+        if (cancelled) return;
+        await preloadPage(pageId).catch(() => {});
+      }
+    };
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(warmNextPage, { timeout: 1500 });
+    } else {
+      timerId = window.setTimeout(warmNextPage, 600);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+      if (timerId !== undefined) window.clearTimeout(timerId);
+    };
+  }, [isSignedIn]);
 
   const buildWorkspaceMetadata = (workspace) => {
     const compactWorkspace = compactWorkspaceForStorage(workspace);
