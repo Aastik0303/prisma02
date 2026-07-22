@@ -11,6 +11,19 @@ import {
 } from '../../plugins/rateLimit.js';
 import { encrypt } from '../../utils/crypto.js';
 import { logAuditEvent } from '../../utils/audit.js';
+import { config } from '../../config/config.js';
+
+const requireDeveloperEmail = async (request: any, reply: any) => {
+  const email = String(request.body?.email || '').trim().toLowerCase();
+  if (!email || !config.DEVELOPER_EMAILS.includes(email)) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      code: 'DEVELOPER_EMAIL_REQUIRED',
+      message: 'This email is not approved for developer access.'
+    });
+  }
+};
 
 export async function authRoutes(fastify: FastifyInstance) {
   const authController = new AuthController(fastify.authService);
@@ -22,12 +35,22 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, authController.register.bind(authController));
 
+  fastify.post('/developer-register', {
+    preHandler: [requireDeveloperEmail],
+    config: { rateLimit: registerIpRateLimit }
+  }, authController.register.bind(authController));
+
   // POST /api/v1/auth/login
   fastify.post('/login', {
     config: {
       // Run both IP and Email rate limiting checks
       rateLimit: loginIpRateLimit
     }
+  }, authController.login.bind(authController));
+
+  fastify.post('/developer-login', {
+    preHandler: [requireDeveloperEmail],
+    config: { rateLimit: loginIpRateLimit }
   }, authController.login.bind(authController));
 
   // POST /api/v1/auth/logout

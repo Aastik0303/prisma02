@@ -15,8 +15,7 @@ const pageLoaders = {
   projects: () => import('./pages/ProjectHub'),
   resume: () => import('./pages/ResumeCenter'),
   mentorship: () => import('./pages/Mentorship'),
-  community: () => import('./pages/Community'),
-  developers: () => import('./pages/DeveloperDashboard')
+  community: () => import('./pages/Community')
 };
 
 const preloadPage = (pageId) => pageLoaders[pageId]?.();
@@ -29,7 +28,6 @@ const ProjectHub = lazy(pageLoaders.projects);
 const ResumeCenter = lazy(pageLoaders.resume);
 const Mentorship = lazy(pageLoaders.mentorship);
 const Community = lazy(pageLoaders.community);
-const DeveloperDashboard = lazy(pageLoaders.developers);
 
 // Import Global Mock Data
 import { 
@@ -297,11 +295,10 @@ const pagePathMap = {
   projects: '/projects',
   resume: '/resume',
   mentorship: '/mentorship',
-  community: '/community',
-  developers: '/developers'
+  community: '/community'
 };
 
-const protectedPages = new Set(['dashboard', 'learning', 'roadmap', 'projects', 'resume', 'mentorship', 'community', 'developers']);
+const protectedPages = new Set(['dashboard', 'learning', 'roadmap', 'projects', 'resume', 'mentorship', 'community']);
 
 const pageFromLocation = () => {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -310,12 +307,6 @@ const pageFromLocation = () => {
 };
 
 const pathForPage = (pageId) => pagePathMap[pageId] || pagePathMap.dashboard;
-
-const takePostAuthPage = () => {
-  const requested = sessionStorage.getItem('pec_post_auth_page');
-  sessionStorage.removeItem('pec_post_auth_page');
-  return requested === 'developers' ? 'developers' : 'dashboard';
-};
 
 const getCsrfToken = async ({ forceRefresh = false } = {}) => {
   if (!forceRefresh && csrfCache && csrfCache.expiresAt > Date.now()) {
@@ -548,7 +539,6 @@ export default function App() {
     preloadPage(routePage);
 
     if (protectedPages.has(targetPage) && !isSignedIn) {
-      if (targetPage === 'developers') sessionStorage.setItem('pec_post_auth_page', 'developers');
       startTransition(() => setPage('home'));
       setActiveModal('signin');
       window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
@@ -581,7 +571,6 @@ export default function App() {
       const nextPage = pageFromLocation();
       preloadPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage);
       if (protectedPages.has(nextPage) && !isSignedIn) {
-        if (nextPage === 'developers') sessionStorage.setItem('pec_post_auth_page', 'developers');
         startTransition(() => setPage('home'));
         setActiveModal('signin');
         window.history.replaceState({ page: 'login' }, '', pathForPage('login'));
@@ -615,7 +604,6 @@ export default function App() {
     }
 
     if (!isSignedIn && protectedPages.has(currentPage)) {
-      if (currentPage === 'developers') sessionStorage.setItem('pec_post_auth_page', 'developers');
       navigateTo('login', { replace: true });
       return;
     }
@@ -1092,11 +1080,10 @@ export default function App() {
           setAuthToken(oauthAccessToken);
           persistRegisteredSession({ email: workspace.userData.email });
           setIsSignedIn(true);
-          const destination = takePostAuthPage();
-          setPage(destination);
+          setPage('dashboard');
           setActiveModal(null);
           setAuthSuccess(false);
-          window.history.replaceState({ page: destination }, document.title, pathForPage(destination));
+          window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
           setAuthResolved(true);
         } catch (error) {
           setAuthError(error.message || 'Google sign in failed. Please try again.');
@@ -1237,9 +1224,8 @@ export default function App() {
         accessToken: authData.accessToken || '',
       });
       setIsSignedIn(true);
-      const destination = takePostAuthPage();
-      setPage(destination);
-      window.history.replaceState({ page: destination }, document.title, pathForPage(destination));
+      setPage('dashboard');
+      window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
       setAuthResolved(true);
       setAuthLoading(false);
       setAuthSuccess(true);
@@ -1284,9 +1270,8 @@ export default function App() {
         accessToken: authData.accessToken || '',
       });
       setIsSignedIn(true);
-      const destination = takePostAuthPage();
-      setPage(destination);
-      window.history.replaceState({ page: destination }, document.title, pathForPage(destination));
+      setPage('dashboard');
+      window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
       setAuthResolved(true);
       setAuthLoading(false);
       setAuthSuccess(true);
@@ -1540,11 +1525,6 @@ export default function App() {
         <HomeScreen
           onStartJourney={() => { setAuthError(''); navigateTo('signup'); }}
           onSignIn={() => { setAuthError(''); navigateTo('login'); }}
-          onDeveloperAccess={() => {
-            sessionStorage.setItem('pec_post_auth_page', 'developers');
-            setAuthError('');
-            navigateTo('login');
-          }}
         />
       );
     }
@@ -1623,8 +1603,6 @@ export default function App() {
             onSocialUpdate={mergeCommunitySocialIntoProfile}
           />
         );
-      case 'developers':
-        return <DeveloperDashboard authToken={authToken} setPage={navigateTo} />;
       default:
         return (
           <StudentDashboard 
@@ -2101,20 +2079,6 @@ export default function App() {
                     <>Enter Candidate Console</>
                   )}
                 </button>
-
-                <div className="border-t border-slate-200 pt-4 text-center dark:border-slate-800">
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">New developer or learner?</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthError('');
-                      setActiveModal('signup');
-                    }}
-                    className="mt-2 text-xs font-extrabold text-indigo-500 hover:text-indigo-600 hover:underline"
-                  >
-                    Create a new account
-                  </button>
-                </div>
               </form>
             )}
           </div>
