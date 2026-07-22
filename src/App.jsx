@@ -1543,7 +1543,7 @@ export default function App() {
           onDeveloperAccess={() => {
             sessionStorage.setItem('pec_post_auth_page', 'developers');
             setAuthError('');
-            navigateTo('login');
+            navigateTo('signup');
           }}
         />
       );
@@ -2101,6 +2101,20 @@ export default function App() {
                     <>Enter Candidate Console</>
                   )}
                 </button>
+
+                <div className="border-t border-slate-200 pt-4 text-center dark:border-slate-800">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">New developer or learner?</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError('');
+                      setActiveModal('signup');
+                    }}
+                    className="mt-2 text-xs font-extrabold text-indigo-500 hover:text-indigo-600 hover:underline"
+                  >
+                    Create a new account
+                  </button>
+                </div>
               </form>
             )}
           </div>
