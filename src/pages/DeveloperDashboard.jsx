@@ -3,6 +3,7 @@ import { Activity, ArrowLeft, CheckCircle2, Clock3, RefreshCw, ShieldAlert, Tren
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const COMPATIBLE_DEVELOPER_EMAILS = new Set(['rishabhparashari068@gmail.com']);
 
 const compactDate = value => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(`${value}T00:00:00Z`));
 const fullDateTime = value => new Intl.DateTimeFormat('en', {
@@ -22,6 +23,58 @@ export default function DeveloperDashboard({ authToken, setPage }) {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       const body = await response.json().catch(() => ({}));
+      if (response.status === 404) {
+        const authHeaders = { Authorization: `Bearer ${authToken}` };
+        const [profileResponse, directoryResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/users/me`, { headers: authHeaders }),
+          fetch(`${API_BASE_URL}/users/directory?limit=25`, { headers: authHeaders })
+        ]);
+        const profile = await profileResponse.json().catch(() => ({}));
+        if (!profileResponse.ok || !COMPATIBLE_DEVELOPER_EMAILS.has(String(profile.email || '').toLowerCase())) {
+          throw new Error('This dashboard is restricted to the website developers.');
+        }
+        const directory = await directoryResponse.json().catch(() => []);
+        if (!directoryResponse.ok || !Array.isArray(directory)) {
+          throw new Error('The registration directory is unavailable.');
+        }
+
+        const users = [profile, ...directory.filter(user => user.id !== profile.id)];
+        const now = new Date();
+        const start = new Date(now);
+        start.setUTCHours(0, 0, 0, 0);
+        start.setUTCDate(start.getUTCDate() - 29);
+        const dailyCounts = new Map();
+        users.forEach(user => {
+          if (!user.createdAt) return;
+          const key = new Date(user.createdAt).toISOString().slice(0, 10);
+          dailyCounts.set(key, (dailyCounts.get(key) || 0) + 1);
+        });
+        let cumulative = users.filter(user => user.createdAt && new Date(user.createdAt) < start).length;
+        const registrations = Array.from({ length: 30 }, (_, index) => {
+          const date = new Date(start);
+          date.setUTCDate(start.getUTCDate() + index);
+          const key = date.toISOString().slice(0, 10);
+          const count = dailyCounts.get(key) || 0;
+          cumulative += count;
+          return { date: key, count, total: cumulative };
+        });
+        const sevenDaysAgo = now.getTime() - (7 * 86400000);
+        const thirtyDaysAgo = now.getTime() - (30 * 86400000);
+        setData({
+          generatedAt: now.toISOString(),
+          timezone: 'UTC',
+          compatibilityMode: true,
+          totals: {
+            totalUsers: users.length,
+            verifiedUsers: users.filter(user => user.emailVerified).length,
+            activeUsers: users.filter(user => user.lastLoginAt && new Date(user.lastLoginAt).getTime() >= thirtyDaysAgo).length,
+            joinedLast7Days: users.filter(user => user.createdAt && new Date(user.createdAt).getTime() >= sevenDaysAgo).length,
+            joinedLast30Days: users.filter(user => user.createdAt && new Date(user.createdAt).getTime() >= thirtyDaysAgo).length
+          },
+          registrations
+        });
+        return;
+      }
       if (!response.ok) throw new Error(body.message || 'Unable to load developer statistics.');
       setData(body);
     } catch (requestError) {
@@ -80,6 +133,12 @@ export default function DeveloperDashboard({ authToken, setPage }) {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, tone }) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className={`grid h-10 w-10 place-items-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></div><strong className="mt-5 block text-3xl font-black">{value.toLocaleString()}</strong><span className="mt-1 block text-sm font-semibold text-slate-500">{label}</span></article>)}
       </section>
+
+      {data.compatibilityMode && (
+        <p className="mt-5 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+          Showing the latest accounts available from the current backend. Full totals will appear automatically after the Railway backend update completes.
+        </p>
+      )}
 
       <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
