@@ -266,7 +266,6 @@ const createWorkspace = (name = 'New Learner', email = '') => {
       followers: 0,
       following: 0,
       projects: [],
-      apiKey: `pec_live_${Math.random().toString(36).slice(2, 11)}_key`
     },
     xp: 0,
     streak: 0,
@@ -1809,25 +1808,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-105/50 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-[10px] font-bold">
-                    <span className="text-slate-450 flex items-center gap-1"><Key className="w-3.5 h-3.5 text-indigo-500" /> Platform API Key</span>
-                    <span className="text-indigo-500 font-extrabold uppercase">Live Token</span>
-                  </div>
-                  <pre className="text-[10px] text-slate-655 dark:text-slate-350 select-all font-mono leading-none break-all">
-                    {userData.apiKey}
-                  </pre>
-                </div>
-                
-                <div className="p-3.5 bg-slate-105/50 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-xl text-[10px] leading-relaxed flex gap-2">
-                  <ShieldAlert className="w-5 h-5 text-indigo-550 shrink-0" />
-                  <div>
-                    <strong className="text-slate-800 dark:text-white">Showcase profile mode:</strong>
-                    <p className="mt-0.5 text-slate-500 dark:text-slate-400">All registered badges, resume ATS scans, and roadmap milestones are securely mapped in-memory inside this browser console session.</p>
-                  </div>
-                </div>
-
-                {/* MFA Configurations Section */}
+                {false && (
                 <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
                   <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider">
                     <span className="text-slate-450 flex items-center gap-1">
@@ -1911,7 +1892,8 @@ export default function App() {
                       {mfaConfigError && <span className="text-[9px] text-rose-500 font-semibold block">{mfaConfigError}</span>}
                     </div>
                   )}
-              </div>
+                </div>
+                )}
             </div>
           </div>
         </div>
