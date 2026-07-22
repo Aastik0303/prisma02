@@ -3,6 +3,7 @@ import { UsersService } from './users.service.js';
 import { requireAuth, requireRole } from '../auth/auth.middleware.js';
 import { verifyTotp } from '../auth/auth.service.js';
 import crypto from 'crypto';
+import { config } from '../../config/config.js';
 
 function generateBase32Secret(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -15,6 +16,66 @@ function generateBase32Secret(): string {
 
 export async function usersRoutes(fastify: FastifyInstance) {
   const usersService = new UsersService(fastify.prisma);
+
+  // GET /api/v1/users/developers/stats
+  // This allowlist is deliberately checked server-side; hiding a frontend link is not access control.
+  fastify.get('/developers/stats', {
+    preHandler: [requireAuth]
+  }, async (request, reply) => {
+    const developerEmails = new Set(config.DEVELOPER_EMAILS);
+    if (developerEmails.size === 0 || !developerEmails.has(request.user!.email.toLowerCase())) {
+      return reply.status(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        code: 'DEVELOPER_ACCESS_REQUIRED',
+        message: 'This dashboard is restricted to the three website developers.'
+      });
+    }
+
+    const now = new Date();
+    const start = new Date(now);
+    start.setUTCHours(0, 0, 0, 0);
+    start.setUTCDate(start.getUTCDate() - 29);
+    const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+    const [totalUsers, verifiedUsers, activeUsers, joinedLast7Days, joinedLast30Days, recentRegistrations] = await Promise.all([
+      fastify.prisma.user.count(),
+      fastify.prisma.user.count({ where: { emailVerified: true } }),
+      fastify.prisma.user.count({ where: { lastLoginAt: { gte: thirtyDaysAgo } } }),
+      fastify.prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+      fastify.prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      fastify.prisma.user.findMany({
+        where: { createdAt: { gte: start } },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true }
+      })
+    ]);
+
+    const dailyCounts = new Map<string, number>();
+    for (const user of recentRegistrations) {
+      const key = user.createdAt.toISOString().slice(0, 10);
+      dailyCounts.set(key, (dailyCounts.get(key) || 0) + 1);
+    }
+
+    const registrations = [];
+    let cumulative = totalUsers - recentRegistrations.length;
+    for (let index = 0; index < 30; index += 1) {
+      const date = new Date(start);
+      date.setUTCDate(start.getUTCDate() + index);
+      const key = date.toISOString().slice(0, 10);
+      const count = dailyCounts.get(key) || 0;
+      cumulative += count;
+      registrations.push({ date: key, count, total: cumulative });
+    }
+
+    return reply.status(200).send({
+      generatedAt: now.toISOString(),
+      timezone: 'UTC',
+      totals: { totalUsers, verifiedUsers, activeUsers, joinedLast7Days, joinedLast30Days },
+      registrations
+    });
+  });
 
   // GET /api/v1/users/me
   fastify.get('/me', {

@@ -357,7 +357,7 @@ const CodeTypewriter = () => {
    "Start Your Journey" opens the Sign Up flow.
    "View Dashboard" opens the Sign In flow.
    ═══════════════════════════════════════════════════════════════ */
-export default function HomeScreen({ onStartJourney, onSignIn }) {
+export default function HomeScreen({ onStartJourney, onSignIn, onDeveloperAccess }) {
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -1136,6 +1136,9 @@ export default function HomeScreen({ onStartJourney, onSignIn }) {
                 <span className="text-lg font-black text-white">Prisma Embedded Codes</span>
               </div>
               <p className="text-sm text-slate-500">Building the future of technical education, one engineer at a time.</p>
+              <button type="button" onClick={onDeveloperAccess} className="mt-7 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-bold text-slate-500 transition-colors hover:border-indigo-400/40 hover:text-indigo-300">
+                <Code2 className="h-3.5 w-3.5" /> For developers
+              </button>
               <p className="text-xs text-slate-600 mt-4">© 2025 Prisma Embedded Codes. All rights reserved.</p>
             </div>
           </ScrollReveal>
