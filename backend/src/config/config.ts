@@ -57,7 +57,7 @@ const configSchema = z.object({
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_FULL_NAME: z.string().min(1).default('System Administrator'),
-  DEVELOPER_EMAILS: z.string().default('').transform(value => value
+  DEVELOPER_EMAILS: z.string().default('rishabhparashari068@gmail.com').transform(value => value
     .split(',')
     .map(email => email.trim().toLowerCase())
     .filter(Boolean)
