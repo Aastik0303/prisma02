@@ -10,7 +10,7 @@ const backendRoot = path.resolve(__dirname, '../..');
 dotenv.config({ path: path.join(backendRoot, '.env') });
 
 const runtimeNodeEnv = process.env.NODE_ENV ?? 'development';
-if (runtimeNodeEnv !== 'production') {
+if (runtimeNodeEnv !== 'production' && runtimeNodeEnv !== 'test') {
   dotenv.config({ path: path.join(backendRoot, '.env.local'), override: true });
 }
 

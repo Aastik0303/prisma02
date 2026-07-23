@@ -25,6 +25,11 @@ const requireDeveloperEmail = async (request: any, reply: any) => {
   }
 };
 
+const crossSiteCookieOptions = (fastify: FastifyInstance) => ({
+  secure: fastify.config.NODE_ENV === 'production',
+  sameSite: fastify.config.NODE_ENV === 'production' ? 'none' as const : 'strict' as const
+});
+
 export async function authRoutes(fastify: FastifyInstance) {
   const authController = new AuthController(fastify.authService);
 
@@ -171,8 +176,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Set cookie
       reply.setCookie('refreshToken', session.refreshToken, {
         httpOnly: true,
-        secure: fastify.config.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...crossSiteCookieOptions(fastify),
         path: '/api/v1/auth',
         maxAge: fastify.config.JWT_REFRESH_EXPIRY
       });
@@ -297,8 +301,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Set cookie
       reply.setCookie('refreshToken', session.refreshToken, {
         httpOnly: true,
-        secure: fastify.config.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...crossSiteCookieOptions(fastify),
         path: '/api/v1/auth',
         maxAge: fastify.config.JWT_REFRESH_EXPIRY
       });

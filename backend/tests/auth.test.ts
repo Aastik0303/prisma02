@@ -636,6 +636,34 @@ describe('Authentication & Authorization System API Tests', () => {
       // Check suspicious login email was dispatched
       expect(sentEmailsTestBox.some(e => e.type === 'suspicious_login')).toBe(true);
     });
+
+    it('should rotate using request body fallback when the refresh cookie is unavailable', async () => {
+      const loginRes = await request(serverInstance)
+        .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          email: 'test@example.com',
+          password: 'Password123!'
+        });
+
+      const refreshToken = (loginRes.headers['set-cookie'] || [])
+        .find((cookie: string) => cookie.startsWith('refreshToken='))
+        ?.split(';')[0]
+        ?.replace(/^refreshToken=/, '');
+
+      expect(refreshToken).toBeTruthy();
+
+      const refreshRes = await request(serverInstance)
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({ refreshToken });
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body).toHaveProperty('accessToken');
+      expect((refreshRes.headers['set-cookie'] || []).some((cookie: string) => cookie.startsWith('refreshToken='))).toBe(true);
+    });
   });
 
   describe('RBAC Authorization', () => {

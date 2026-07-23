@@ -205,8 +205,10 @@ export class AuthController {
       await request.server.redis.set(`blacklist:jti:${payload.jti}`, '1', 'EX', remainingSeconds);
     }
 
-    // Revoke Refresh Token from Cookie or request body
-    const refreshToken = request.cookies?.refreshToken;
+    // Revoke Refresh Token from Cookie or request body fallback.
+    const bodyRefreshToken = (request.body as any)?.refreshToken;
+    const refreshToken = request.cookies?.refreshToken
+      || (typeof bodyRefreshToken === 'string' ? bodyRefreshToken : undefined);
 
     if (refreshToken) {
       await this.authService.revokeSession(refreshToken);
@@ -228,7 +230,9 @@ export class AuthController {
   }
 
   async refresh(request: FastifyRequest, reply: FastifyReply) {
-    const refreshToken = request.cookies?.refreshToken;
+    const bodyRefreshToken = (request.body as any)?.refreshToken;
+    const refreshToken = request.cookies?.refreshToken
+      || (typeof bodyRefreshToken === 'string' ? bodyRefreshToken : undefined);
 
     if (!refreshToken) {
       return reply.status(400).send({

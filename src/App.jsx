@@ -404,6 +404,12 @@ const authRequest = async (path, body, accessToken) => {
   return data;
 };
 
+const isMissingRefreshTokenError = (error) => (
+  error?.code === 'VALIDATION_ERROR'
+  && error?.statusCode === 400
+  && /refresh token is missing/i.test(error?.message || '')
+);
+
 const getOAuthRedirectUrl = (provider) => {
   const apiBase = API_BASE_URL.replace(/\/+$/, '');
   return `${apiBase}/auth/oauth/${provider}`;
@@ -775,11 +781,21 @@ export default function App() {
   }, []);
 
   const refreshCommunityAuth = useCallback(async () => {
-    const refreshed = await authRequest('/auth/refresh', {});
-    const nextAccessToken = refreshed.accessToken || '';
-    setAuthToken(nextAccessToken);
-    persistRegisteredSession({ email: userData.email });
-    return nextAccessToken;
+    try {
+      const refreshed = await authRequest('/auth/refresh', {});
+      const nextAccessToken = refreshed.accessToken || '';
+      setAuthToken(nextAccessToken);
+      persistRegisteredSession({ email: userData.email });
+      return nextAccessToken;
+    } catch (error) {
+      if (isMissingRefreshTokenError(error)) {
+        localStorage.removeItem(authSessionKey);
+        setAuthToken('');
+        setIsSignedIn(false);
+        throw new Error('Your session has expired. Please sign in again.', { cause: error });
+      }
+      throw error;
+    }
   }, [userData.email]);
 
   const handleSaveUserProfile = async (profileData) => {
@@ -1086,7 +1102,13 @@ export default function App() {
           window.history.replaceState({ page: 'dashboard' }, document.title, pathForPage('dashboard'));
           setAuthResolved(true);
         } catch (error) {
-          setAuthError(error.message || 'Google sign in failed. Please try again.');
+          localStorage.removeItem(authSessionKey);
+          setAuthToken('');
+          setIsSignedIn(false);
+          setAuthError(isMissingRefreshTokenError(error)
+            ? 'Google sign in did not return a browser session. Please try again.'
+            : error.message || 'Google sign in failed. Please try again.'
+          );
           setActiveModal('signin');
           setAuthResolved(true);
         } finally {
@@ -1159,6 +1181,7 @@ export default function App() {
             localStorage.removeItem(authSessionKey);
             setAuthToken('');
             setIsSignedIn(false);
+            setAuthError('');
             setAuthResolved(true);
           }
         });
