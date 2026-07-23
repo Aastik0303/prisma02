@@ -564,16 +564,16 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   // Contact
   const [contactInfo, setContactInfo] = useState({
-    name: 'Aastik Srivastava', title: 'Full Stack & Embedded Systems Engineer',
-    email: 'aastik@prisma-embedded.codes', phone: '+91 98765 43210',
-    location: 'Bengaluru, India', portfolio: 'aastik.dev'
+    name: 'Riya Mehta', title: 'Full Stack & Embedded Systems Engineer',
+    email: 'riya.mehta@example.com', phone: '+91 98765 43210',
+    location: 'Bengaluru, India', portfolio: 'riyamehta.dev'
   });
 
   // Links (new section)
   const [links, setLinks] = useState([
-    { id: genId(), label: 'GitHub', url: 'https://github.com/aastik' },
-    { id: genId(), label: 'LinkedIn', url: 'https://linkedin.com/in/aastik' },
-    { id: genId(), label: 'LeetCode', url: 'https://leetcode.com/aastik' },
+    { id: genId(), label: 'GitHub', url: 'https://github.com/riyamehta' },
+    { id: genId(), label: 'LinkedIn', url: 'https://linkedin.com/in/riyamehta' },
+    { id: genId(), label: 'LeetCode', url: 'https://leetcode.com/riyamehta' },
   ]);
   const [newLinkLabel, setNewLinkLabel] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -588,8 +588,8 @@ export default function ResumeCenter({ atsScore, setAtsScore, setResumeScore }) 
 
   // Projects — now with date + url
   const [projects, setProjects] = useState([
-    { id: genId(), title: 'Dual-Core Drone Stabilizer RTOS', date: 'Jan 2024', url: 'https://github.com/aastik/drone-rtos', description: 'Architected real-time flight controller using FreeRTOS on STM32H7, achieving <2ms loop latency with DMA-accelerated sensor fusion.' },
-    { id: genId(), title: 'Next.js E-Commerce ISR Engine', date: 'Aug 2023', url: 'https://aastik.dev/ecommerce', description: 'Built sub-100ms product pages using Incremental Static Regeneration, handling 10K+ SKUs with edge caching.' }
+    { id: genId(), title: 'Dual-Core Drone Stabilizer RTOS', date: 'Jan 2024', url: 'https://github.com/riyamehta/drone-rtos', description: 'Architected real-time flight controller using FreeRTOS on STM32H7, achieving <2ms loop latency with DMA-accelerated sensor fusion.' },
+    { id: genId(), title: 'Next.js E-Commerce ISR Engine', date: 'Aug 2023', url: 'https://riyamehta.dev/ecommerce', description: 'Built sub-100ms product pages using Incremental Static Regeneration, handling 10K+ SKUs with edge caching.' }
   ]);
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [newProjectDate, setNewProjectDate] = useState('');
