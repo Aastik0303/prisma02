@@ -60,6 +60,25 @@ const normalizeOrigin = (value?: string | null) => {
 
 const isLocalOrigin = (value: string) => /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value);
 
+const publicOriginFromRequest = (request: FastifyRequest) => {
+  const forwardedProto = firstHeaderValue(request.headers['x-forwarded-proto'])?.split(',')[0]?.trim();
+  const forwardedHost = firstHeaderValue(request.headers['x-forwarded-host'])?.split(',')[0]?.trim();
+  if (forwardedHost) {
+    return normalizeOrigin(`${forwardedProto || 'https'}://${forwardedHost}`);
+  }
+
+  const origin = normalizeOrigin(firstHeaderValue(request.headers.origin));
+  if (origin) return origin;
+
+  const refererOrigin = normalizeOrigin(firstHeaderValue(request.headers.referer));
+  if (refererOrigin) return refererOrigin;
+
+  const host = request.hostname || request.headers.host;
+  if (!host) return '';
+
+  return normalizeOrigin(`${request.protocol || 'https'}://${host}`);
+};
+
 const formatValidationMessage = (issues: any[] = []) => {
   const firstIssue = issues[0];
   if (!firstIssue) return 'Input validation failed.';
@@ -87,17 +106,18 @@ const formatValidationMessage = (issues: any[] = []) => {
 };
 
 const oauthCallbackUri = (provider: 'google' | 'github') => (request: FastifyRequest) => {
+  const requestOrigin = publicOriginFromRequest(request);
+  if (requestOrigin) {
+    return `${requestOrigin}/api/v1/auth/oauth/${provider}/callback`;
+  }
+
   const configuredOrigin = normalizeOrigin(config.BACKEND_URL);
   if (configuredOrigin && (config.NODE_ENV !== 'production' || !isLocalOrigin(configuredOrigin))) {
     return `${configuredOrigin}/api/v1/auth/oauth/${provider}/callback`;
   }
 
-  const forwardedProto = firstHeaderValue(request.headers['x-forwarded-proto'])?.split(',')[0]?.trim();
-  const forwardedHost = firstHeaderValue(request.headers['x-forwarded-host'])?.split(',')[0]?.trim();
-  const host = forwardedHost || request.hostname || request.headers.host;
-  const protocol = forwardedProto || request.protocol || 'https';
-
-  return `${protocol}://${host}/api/v1/auth/oauth/${provider}/callback`;
+  const fallbackOrigin = normalizeOrigin(config.FRONTEND_URL) || configuredOrigin;
+  return `${fallbackOrigin}/api/v1/auth/oauth/${provider}/callback`;
 };
 
 export async function buildApp(opts = {}) {

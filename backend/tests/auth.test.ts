@@ -224,6 +224,21 @@ describe('Authentication & Authorization System API Tests', () => {
     });
   });
 
+  describe('OAuth redirects', () => {
+    it('should use the forwarded public host for the Google callback URL', async () => {
+      const response = await request(serverInstance)
+        .get('/api/v1/auth/oauth/google')
+        .set('x-forwarded-proto', 'https')
+        .set('x-forwarded-host', 'prismaembedded.codes');
+
+      expect(response.status).toBe(302);
+      const redirectUrl = new URL(response.headers.location);
+      expect(redirectUrl.searchParams.get('redirect_uri')).toBe(
+        'https://prismaembedded.codes/api/v1/auth/oauth/google/callback'
+      );
+    });
+  });
+
   describe('POST /api/v1/auth/register', () => {
     it('should register a new user successfully and dispatch verification email', async () => {
       const { csrfToken, sessionCookie } = await getCsrfContext();
