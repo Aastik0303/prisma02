@@ -9,7 +9,7 @@ import {
   verifyOtpRateLimit,
   csrfTokenRateLimit
 } from '../../plugins/rateLimit.js';
-import { encrypt } from '../../utils/crypto.js';
+import { encrypt, generateOpaqueToken } from '../../utils/crypto.js';
 import { logAuditEvent } from '../../utils/audit.js';
 import { config } from '../../config/config.js';
 
@@ -29,6 +29,64 @@ const crossSiteCookieOptions = (fastify: FastifyInstance) => ({
   secure: fastify.config.NODE_ENV === 'production',
   sameSite: fastify.config.NODE_ENV === 'production' ? 'none' as const : 'strict' as const
 });
+
+const firstHeaderValue = (value?: string | string[]) => (
+  Array.isArray(value) ? value[0] : value
+);
+
+const normalizeOrigin = (value?: string | null) => {
+  if (!value) return '';
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.replace(/\/+$/, '');
+  }
+};
+
+const requestPublicOrigin = (request: any) => {
+  const forwardedProto = firstHeaderValue(request.headers['x-forwarded-proto'])?.split(',')[0]?.trim();
+  const forwardedHost = firstHeaderValue(request.headers['x-forwarded-host'])?.split(',')[0]?.trim();
+  if (forwardedHost) return normalizeOrigin(`${forwardedProto || 'https'}://${forwardedHost}`);
+
+  const origin = normalizeOrigin(firstHeaderValue(request.headers.origin));
+  if (origin) return origin;
+
+  const refererOrigin = normalizeOrigin(firstHeaderValue(request.headers.referer));
+  if (refererOrigin) return refererOrigin;
+
+  const host = request.hostname || request.headers.host;
+  return host ? normalizeOrigin(`${request.protocol || 'https'}://${host}`) : '';
+};
+
+const redirectOriginForRequest = (fastify: FastifyInstance, request: any) => {
+  const allowedOrigins = new Set([
+    ...fastify.config.ALLOWED_ORIGINS.map(normalizeOrigin),
+    normalizeOrigin(fastify.config.FRONTEND_URL)
+  ].filter(Boolean));
+  const publicOrigin = requestPublicOrigin(request);
+
+  return allowedOrigins.has(publicOrigin)
+    ? publicOrigin
+    : normalizeOrigin(fastify.config.ALLOWED_ORIGINS[0] || fastify.config.FRONTEND_URL);
+};
+
+const oauthRedirectUrl = (
+  fastify: FastifyInstance,
+  request: any,
+  path: '/dashboard' | '/login',
+  params: Record<string, string>
+) => {
+  const redirectOrigin = redirectOriginForRequest(fastify, request);
+  const url = new URL(path, `${redirectOrigin}/`);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  return url.toString();
+};
+
+const createOAuthHandoff = async (fastify: FastifyInstance, refreshToken: string) => {
+  const handoffToken = generateOpaqueToken(32);
+  await fastify.redis.set(`oauth:handoff:${handoffToken}`, refreshToken, 'EX', 120);
+  return handoffToken;
+};
 
 export async function authRoutes(fastify: FastifyInstance) {
   const authController = new AuthController(fastify.authService);
@@ -191,12 +249,16 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       // The refresh token stays in the HttpOnly cookie. The frontend exchanges
       // that cookie for a short-lived access token after this safe redirect.
-      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?oauth=success`;
+      const handoffToken = await createOAuthHandoff(fastify, session.refreshToken);
+      const redirectUrl = oauthRedirectUrl(fastify, request, '/dashboard', {
+        oauth: 'success',
+        handoff: handoffToken
+      });
       return reply.redirect(redirectUrl);
 
     } catch (err: any) {
       fastify.log.error(err);
-      return reply.redirect(`${fastify.config.ALLOWED_ORIGINS[0]}/login?error=oauth_failed`);
+      return reply.redirect(oauthRedirectUrl(fastify, request, '/login', { error: 'oauth_failed' }));
     }
   });
 
@@ -314,12 +376,16 @@ export async function authRoutes(fastify: FastifyInstance) {
         metadata: { provider: 'github' }
       });
 
-      const redirectUrl = `${fastify.config.ALLOWED_ORIGINS[0]}/dashboard?oauth=success`;
+      const handoffToken = await createOAuthHandoff(fastify, session.refreshToken);
+      const redirectUrl = oauthRedirectUrl(fastify, request, '/dashboard', {
+        oauth: 'success',
+        handoff: handoffToken
+      });
       return reply.redirect(redirectUrl);
 
     } catch (err: any) {
       fastify.log.error(err);
-      return reply.redirect(`${fastify.config.ALLOWED_ORIGINS[0]}/login?error=oauth_failed`);
+      return reply.redirect(oauthRedirectUrl(fastify, request, '/login', { error: 'oauth_failed' }));
     }
   });
 }

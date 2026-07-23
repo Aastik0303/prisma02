@@ -679,6 +679,37 @@ describe('Authentication & Authorization System API Tests', () => {
       expect(refreshRes.body).toHaveProperty('accessToken');
       expect((refreshRes.headers['set-cookie'] || []).some((cookie: string) => cookie.startsWith('refreshToken='))).toBe(true);
     });
+
+    it('should rotate using a one-time OAuth handoff when redirect cookies are unavailable', async () => {
+      const loginRes = await request(serverInstance)
+        .post('/api/v1/auth/login')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          email: 'test@example.com',
+          password: 'Password123!'
+        });
+
+      const refreshToken = (loginRes.headers['set-cookie'] || [])
+        .find((cookie: string) => cookie.startsWith('refreshToken='))
+        ?.split(';')[0]
+        ?.replace(/^refreshToken=/, '');
+      const oauthHandoffToken = crypto.randomUUID();
+
+      expect(refreshToken).toBeTruthy();
+      await app.redis.set(`oauth:handoff:${oauthHandoffToken}`, refreshToken, 'EX', 120);
+
+      const refreshRes = await request(serverInstance)
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', sessionCookie)
+        .set('x-csrf-token', csrfToken)
+        .send({ oauthHandoffToken });
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body).toHaveProperty('accessToken');
+      expect((refreshRes.headers['set-cookie'] || []).some((cookie: string) => cookie.startsWith('refreshToken='))).toBe(true);
+      expect(await app.redis.get(`oauth:handoff:${oauthHandoffToken}`)).toBeNull();
+    });
   });
 
   describe('RBAC Authorization', () => {

@@ -1063,6 +1063,7 @@ export default function App() {
     const token = params.get('token');
     const oauthError = params.get('error');
     const oauthSuccess = params.get('oauth') === 'success';
+    const oauthHandoffToken = params.get('handoff') || '';
 
     if (oauthError) {
       queueMicrotask(() => {
@@ -1078,7 +1079,10 @@ export default function App() {
         setAuthLoading(true);
         setAuthError('');
         try {
-          const refreshed = await authRequest('/auth/refresh', {});
+          const refreshed = await authRequest(
+            '/auth/refresh',
+            oauthHandoffToken ? { oauthHandoffToken } : {}
+          );
           const oauthAccessToken = refreshed.accessToken || '';
           const response = await fetch(`${API_BASE_URL}/users/me`, {
             headers: {

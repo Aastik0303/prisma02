@@ -231,8 +231,20 @@ export class AuthController {
 
   async refresh(request: FastifyRequest, reply: FastifyReply) {
     const bodyRefreshToken = (request.body as any)?.refreshToken;
+    const bodyOAuthHandoffToken = (request.body as any)?.oauthHandoffToken;
+    let handoffRefreshToken: string | undefined;
+    if (typeof bodyOAuthHandoffToken === 'string' && bodyOAuthHandoffToken) {
+      const handoffKey = `oauth:handoff:${bodyOAuthHandoffToken}`;
+      const storedHandoff = await request.server.redis.get(handoffKey);
+      if (storedHandoff) {
+        handoffRefreshToken = storedHandoff;
+        await request.server.redis.del(handoffKey);
+      }
+    }
+
     const refreshToken = request.cookies?.refreshToken
-      || (typeof bodyRefreshToken === 'string' ? bodyRefreshToken : undefined);
+      || (typeof bodyRefreshToken === 'string' ? bodyRefreshToken : undefined)
+      || handoffRefreshToken;
 
     if (!refreshToken) {
       return reply.status(400).send({
