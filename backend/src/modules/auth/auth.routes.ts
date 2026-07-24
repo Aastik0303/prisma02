@@ -12,7 +12,6 @@ import {
 import { encrypt, generateOpaqueToken } from '../../utils/crypto.js';
 import { logAuditEvent } from '../../utils/audit.js';
 import { config } from '../../config/config.js';
-import { hasDeveloperCredential, verifyDeveloperCredential } from '../../utils/developerBootstrap.js';
 
 const requireDeveloperEmail = async (request: any, reply: any) => {
   const email = String(request.body?.email || '').trim().toLowerCase();
@@ -110,60 +109,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/developer-login', {
     preHandler: [requireDeveloperEmail],
     config: { rateLimit: loginIpRateLimit }
-  }, async (request: any, reply) => {
-    const email = String(request.body?.email || '').trim().toLowerCase();
-    const password = String(request.body?.password || '');
-    if (!hasDeveloperCredential(email)) {
-      return authController.login(request, reply);
-    }
-
-    const validCredential = await verifyDeveloperCredential(email, password);
-    const user = validCredential
-      ? await fastify.prisma.user.findUnique({ where: { email } })
-      : null;
-
-    if (!user) {
-      return reply.status(401).send({
-        statusCode: 401,
-        error: 'Unauthorized',
-        code: 'INVALID_DEVELOPER_CREDENTIALS',
-        message: 'Invalid developer email or password.'
-      });
-    }
-
-    const ip = request.ip;
-    const userAgent = request.headers['user-agent'] || 'unknown';
-    const session = await fastify.authService.createSession(user.id, undefined, { ip, userAgent });
-    const accessToken = await fastify.jwtService.signAccessToken(
-      user.id,
-      user.email,
-      user.role,
-      crypto.randomUUID()
-    );
-
-    reply.setCookie('refreshToken', session.refreshToken, {
-      httpOnly: true,
-      ...crossSiteCookieOptions(fastify),
-      path: '/api/v1/auth',
-      maxAge: config.JWT_REFRESH_EXPIRY
-    });
-
-    await fastify.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), lastLoginIp: ip }
-    });
-
-    return reply.status(200).send({
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        fullName: user.fullName
-      },
-      accessToken,
-      expiresIn: session.expiresIn
-    });
-  });
+  }, authController.login.bind(authController));
 
   // POST /api/v1/auth/logout
   fastify.post('/logout', {
