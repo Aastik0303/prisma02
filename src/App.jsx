@@ -538,6 +538,11 @@ export default function App() {
     setAuthError('');
     setAuthSuccess(false);
     setMfaChallengeToken(null);
+    const currentPage = pageFromLocation();
+    if (currentPage === 'login' || currentPage === 'signup') {
+      setPage('home');
+      window.history.replaceState({ page: 'home' }, document.title, pathForPage('home'));
+    }
   }, []);
 
   const navigateTo = useCallback((nextPage, { replace = false } = {}) => {
@@ -592,8 +597,14 @@ export default function App() {
         return;
       }
 
-      startTransition(() => setPage(nextPage === 'login' || nextPage === 'signup' ? 'home' : nextPage));
-      setActiveModal(nextPage === 'login' ? 'signin' : nextPage === 'signup' ? 'signup' : null);
+      if (nextPage === 'login' || nextPage === 'signup') {
+        startTransition(() => setPage('home'));
+        setActiveModal(null);
+        window.history.replaceState({ page: 'home' }, '', pathForPage('home'));
+      } else {
+        startTransition(() => setPage(nextPage));
+        setActiveModal(null);
+      }
       setMobileMenuOpen(false);
     };
 
@@ -611,13 +622,16 @@ export default function App() {
     }
 
     if (!isSignedIn && protectedPages.has(currentPage)) {
-      navigateTo('login', { replace: true });
+      setPage('home');
+      setActiveModal(null);
+      window.history.replaceState({ page: 'home' }, document.title, pathForPage('home'));
       return;
     }
 
     if (!isSignedIn && (currentPage === 'login' || currentPage === 'signup')) {
       setPage('home');
-      setActiveModal(currentPage === 'login' ? 'signin' : 'signup');
+      setActiveModal(null);
+      window.history.replaceState({ page: 'home' }, document.title, pathForPage('home'));
     }
   }, [authResolved, isSignedIn, navigateTo]);
 
