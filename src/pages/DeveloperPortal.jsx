@@ -53,7 +53,7 @@ export default function DeveloperPortal() {
   const submit = async event => {
     event.preventDefault(); setLoading(true); setError('');
     try {
-      const data = await developerAuth('developer-login', { email: form.email, password: form.password });
+      const data = await developerAuth('login', { email: form.email, password: form.password });
       if (data.requiresMfa) throw new Error('Complete MFA through the main account login before using the developer portal.');
       sessionStorage.setItem(TOKEN_KEY, data.accessToken);
       setToken(data.accessToken);
