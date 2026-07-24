@@ -26,7 +26,10 @@ export async function usersRoutes(fastify: FastifyInstance) {
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCDate(start.getUTCDate() - 29);
     const [users, totalUsers, verifiedUsers] = await Promise.all([
-      fastify.prisma.user.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true, lastLoginAt: true } }),
+      fastify.prisma.user.findMany({
+        where: { createdAt: { gte: start } },
+        select: { id: true, fullName: true, email: true, createdAt: true, lastLoginAt: true }
+      }),
       fastify.prisma.user.count(),
       fastify.prisma.user.count({ where: { emailVerified: true } })
     ]);
@@ -44,6 +47,7 @@ export async function usersRoutes(fastify: FastifyInstance) {
       total += count;
       return { date: key, count, total };
     });
+    const twoDaysAgo = now.getTime() - 2 * 86400000;
     const weekAgo = now.getTime() - 7 * 86400000;
     const monthAgo = now.getTime() - 30 * 86400000;
     return {
@@ -51,11 +55,21 @@ export async function usersRoutes(fastify: FastifyInstance) {
       totals: {
         totalUsers,
         verifiedUsers,
+        joinedLast2Days: users.filter(user => user.createdAt.getTime() >= twoDaysAgo).length,
         joinedLast7Days: users.filter(user => user.createdAt.getTime() >= weekAgo).length,
         joinedLast30Days: users.length,
         activeUsers: users.filter(user => user.lastLoginAt && user.lastLoginAt.getTime() >= monthAgo).length
       },
-      registrations
+      registrations,
+      recentUsers: users
+        .slice()
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map(user => ({
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          createdAt: user.createdAt
+        }))
     };
   });
 

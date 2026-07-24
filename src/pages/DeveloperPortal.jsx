@@ -87,7 +87,7 @@ export default function DeveloperPortal() {
   );
 
   const cards = [
-    ['Registered users', stats.totals.totalUsers, Users], ['New this week', stats.totals.joinedLast7Days, UserPlus],
+    ['Registered users', stats.totals.totalUsers, Users], ['New in last 2 days', stats.totals.joinedLast2Days, UserPlus],
     ['Active users', stats.totals.activeUsers, Activity], ['Verified users', stats.totals.verifiedUsers, CheckCircle2]
   ];
   return (
@@ -96,6 +96,29 @@ export default function DeveloperPortal() {
         <header className="mb-8 flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-[.25em] text-indigo-400">Private developer portal</p><h1 className="mt-2 text-3xl font-black">User analytics</h1></div><button onClick={() => { sessionStorage.removeItem(TOKEN_KEY); setToken(''); setStats(null); }} className="flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold"><LogOut className="h-4 w-4" /> Sign out</button></header>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([label, value, Icon]) => <article key={label} className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><Icon className="h-5 w-5 text-indigo-400" /><strong className="mt-5 block text-3xl">{value}</strong><span className="text-sm text-slate-400">{label}</span></article>)}</section>
         <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900 p-6"><h2 className="text-xl font-black">Registration growth</h2><p className="mt-1 text-sm text-slate-400">Last 30 days · updated {new Date(stats.generatedAt).toLocaleString()}</p><div className="mt-7 h-80"><ResponsiveContainer><AreaChart data={stats.registrations}><CartesianGrid stroke="#334155" strokeDasharray="3 3" /><XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} /><YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} /><Tooltip /><Area dataKey="total" stroke="#818cf8" fill="#6366f1" fillOpacity={0.25} strokeWidth={3} /></AreaChart></ResponsiveContainer></div></section>
+        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
+          <div className="border-b border-slate-800 p-6">
+            <h2 className="text-xl font-black">Recently registered users</h2>
+            <p className="mt-1 text-sm text-slate-400">Names and email IDs for registrations from the last 30 days.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="bg-slate-950/60 text-xs uppercase text-slate-500">
+                <tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Email ID</th><th className="px-6 py-3">Registered</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {stats.recentUsers?.map(user => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 font-bold text-white">{user.fullName || 'Name not provided'}</td>
+                    <td className="px-6 py-4 text-slate-300">{user.email}</td>
+                    <td className="px-6 py-4 text-slate-400">{new Date(user.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!stats.recentUsers?.length && <p className="p-8 text-center text-sm text-slate-500">No registrations in the last 30 days.</p>}
+          </div>
+        </section>
       </div>
     </main>
   );

@@ -42,6 +42,9 @@ const createMockPrismaClient = () => {
         if ('gt' in expected) {
           return actual && actual > expected.gt;
         }
+        if ('gte' in expected) {
+          return actual && actual >= expected.gte;
+        }
         if ('not' in expected) {
           return actual !== expected.not;
         }
@@ -58,7 +61,7 @@ const createMockPrismaClient = () => {
     if (!record || !select) return record;
 
     return Object.entries(select).reduce((selected: any, [key, enabled]) => {
-      if (enabled === true) {
+      if (enabled === true || (enabled && typeof enabled === 'object')) {
         selected[key] = record[key];
       }
       return selected;
