@@ -67,6 +67,7 @@ export default function DeveloperPortal() {
         <a href="/" className="mb-8 inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" /> Back to website</a>
         <div className="mb-7 grid h-12 w-12 place-items-center rounded-2xl bg-indigo-500/15 text-indigo-400"><Code2 /></div>
         <h1 className="text-2xl font-black">Developer sign in</h1>
+        <p className="mt-3 text-3xl font-black uppercase tracking-tight text-rose-400">Not for Users</p>
         <p className="mt-2 text-sm text-slate-400">Separate private access for the website development team.</p>
         <form onSubmit={submit} className="mt-7 space-y-4">
           <input required type="email" placeholder="Approved Gmail address" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />
