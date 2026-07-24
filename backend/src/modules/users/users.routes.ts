@@ -25,10 +25,14 @@ export async function usersRoutes(fastify: FastifyInstance) {
     const start = new Date(now);
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCDate(start.getUTCDate() - 29);
-    const [users, totalUsers, verifiedUsers] = await Promise.all([
+    const [users, allUsers, totalUsers, verifiedUsers] = await Promise.all([
       fastify.prisma.user.findMany({
         where: { createdAt: { gte: start } },
         select: { id: true, fullName: true, email: true, createdAt: true, lastLoginAt: true }
+      }),
+      fastify.prisma.user.findMany({
+        select: { id: true, fullName: true, email: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }
       }),
       fastify.prisma.user.count(),
       fastify.prisma.user.count({ where: { emailVerified: true } })
@@ -61,9 +65,7 @@ export async function usersRoutes(fastify: FastifyInstance) {
         activeUsers: users.filter(user => user.lastLoginAt && user.lastLoginAt.getTime() >= monthAgo).length
       },
       registrations,
-      recentUsers: users
-        .slice()
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      registeredUsers: allUsers
         .map(user => ({
           id: user.id,
           fullName: user.fullName,

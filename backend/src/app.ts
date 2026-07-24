@@ -25,6 +25,7 @@ import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { communityRoutes } from './modules/community/community.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { ensureAdminUser } from './utils/adminBootstrap.js';
+import { ensureDeveloperUsers } from './utils/developerBootstrap.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -206,6 +207,7 @@ export async function buildApp(opts = {}) {
       password: config.ADMIN_PASSWORD,
       fullName: config.ADMIN_FULL_NAME
     });
+    await ensureDeveloperUsers(app.prisma);
   }
 
   // 6. Register CSRF and Rate Limiting

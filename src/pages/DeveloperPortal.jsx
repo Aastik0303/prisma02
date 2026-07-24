@@ -27,8 +27,7 @@ async function developerAuth(path, body) {
 
 export default function DeveloperPortal() {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '');
-  const [mode, setMode] = useState('signin');
-  const [form, setForm] = useState({ fullName: '', email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,16 +52,10 @@ export default function DeveloperPortal() {
   const submit = async event => {
     event.preventDefault(); setLoading(true); setError('');
     try {
-      if (mode === 'signup') {
-        await developerAuth('developer-register', form);
-        setMode('signin'); setForm(previous => ({ ...previous, password: '' }));
-        setError('Account created. Sign in with your developer credentials.');
-      } else {
-        const data = await developerAuth('developer-login', { email: form.email, password: form.password });
-        if (data.requiresMfa) throw new Error('Complete MFA through the main account login before using the developer portal.');
-        sessionStorage.setItem(TOKEN_KEY, data.accessToken);
-        setToken(data.accessToken);
-      }
+      const data = await developerAuth('developer-login', { email: form.email, password: form.password });
+      if (data.requiresMfa) throw new Error('Complete MFA through the main account login before using the developer portal.');
+      sessionStorage.setItem(TOKEN_KEY, data.accessToken);
+      setToken(data.accessToken);
     } catch (submitError) { setError(submitError.message); }
     finally { setLoading(false); }
   };
@@ -72,16 +65,14 @@ export default function DeveloperPortal() {
       <section className="w-full max-w-md rounded-3xl border border-indigo-400/20 bg-slate-900 p-7 shadow-2xl">
         <a href="/" className="mb-8 inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" /> Back to website</a>
         <div className="mb-7 grid h-12 w-12 place-items-center rounded-2xl bg-indigo-500/15 text-indigo-400"><Code2 /></div>
-        <h1 className="text-2xl font-black">Developer {mode === 'signin' ? 'sign in' : 'sign up'}</h1>
+        <h1 className="text-2xl font-black">Developer sign in</h1>
         <p className="mt-2 text-sm text-slate-400">Separate private access for the website development team.</p>
         <form onSubmit={submit} className="mt-7 space-y-4">
-          {mode === 'signup' && <input required placeholder="Full name" value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />}
           <input required type="email" placeholder="Approved Gmail address" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />
           <input required type="password" minLength={8} placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />
           {error && <p className={`rounded-xl px-4 py-3 text-xs font-bold ${error.startsWith('Account created') ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>{error}</p>}
-          <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-black hover:bg-indigo-500 disabled:opacity-60">{loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : mode === 'signin' ? <LockKeyhole className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}{mode === 'signin' ? 'Sign in to developer portal' : 'Create developer account'}</button>
+          <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-black hover:bg-indigo-500 disabled:opacity-60">{loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}Sign in to developer portal</button>
         </form>
-        <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); }} className="mt-5 w-full text-center text-xs font-bold text-indigo-400 hover:underline">{mode === 'signin' ? 'New developer? Sign up' : 'Already registered? Sign in'}</button>
       </section>
     </main>
   );
@@ -98,8 +89,8 @@ export default function DeveloperPortal() {
         <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900 p-6"><h2 className="text-xl font-black">Registration growth</h2><p className="mt-1 text-sm text-slate-400">Last 30 days · updated {new Date(stats.generatedAt).toLocaleString()}</p><div className="mt-7 h-80"><ResponsiveContainer><AreaChart data={stats.registrations}><CartesianGrid stroke="#334155" strokeDasharray="3 3" /><XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} /><YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} /><Tooltip /><Area dataKey="total" stroke="#818cf8" fill="#6366f1" fillOpacity={0.25} strokeWidth={3} /></AreaChart></ResponsiveContainer></div></section>
         <section className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
           <div className="border-b border-slate-800 p-6">
-            <h2 className="text-xl font-black">Recently registered users</h2>
-            <p className="mt-1 text-sm text-slate-400">Names and email IDs for registrations from the last 30 days.</p>
+            <h2 className="text-xl font-black">Registered users</h2>
+            <p className="mt-1 text-sm text-slate-400">Complete user list with names, email IDs, and registration times.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
@@ -107,7 +98,7 @@ export default function DeveloperPortal() {
                 <tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Email ID</th><th className="px-6 py-3">Registered</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {stats.recentUsers?.map(user => (
+                {stats.registeredUsers?.map(user => (
                   <tr key={user.id}>
                     <td className="px-6 py-4 font-bold text-white">{user.fullName || 'Name not provided'}</td>
                     <td className="px-6 py-4 text-slate-300">{user.email}</td>
@@ -116,7 +107,7 @@ export default function DeveloperPortal() {
                 ))}
               </tbody>
             </table>
-            {!stats.recentUsers?.length && <p className="p-8 text-center text-sm text-slate-500">No registrations in the last 30 days.</p>}
+            {!stats.registeredUsers?.length && <p className="p-8 text-center text-sm text-slate-500">No registered users found.</p>}
           </div>
         </section>
       </div>
