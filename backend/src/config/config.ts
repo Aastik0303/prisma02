@@ -59,7 +59,8 @@ const configSchema = z.object({
   ADMIN_FULL_NAME: z.string().min(1).default('System Administrator'),
   DEVELOPER_EMAILS: z.string().default('').transform(() => [
     'rishabhparashari068@gmail.com',
-    'aastikmishra20@gmail.com'
+    'aastikmishra20@gmail.com',
+    'harshitmishra211998@gmail.com'
   ]),
   FIELD_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/, 'FIELD_ENCRYPTION_KEY must be a 32-byte hex key (64 hex characters)'),
   BCRYPT_ROUNDS: z.coerce.number().default(12),
