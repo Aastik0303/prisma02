@@ -98,11 +98,6 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, authController.register.bind(authController));
 
-  fastify.post('/developer-register', {
-    preHandler: [requireDeveloperEmail],
-    config: { rateLimit: registerIpRateLimit }
-  }, authController.register.bind(authController));
-
   // POST /api/v1/auth/login
   fastify.post('/login', {
     config: {
