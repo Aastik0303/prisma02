@@ -31,7 +31,21 @@ export async function usersRoutes(fastify: FastifyInstance) {
         select: { id: true, fullName: true, email: true, createdAt: true, lastLoginAt: true }
       }),
       fastify.prisma.user.findMany({
-        select: { id: true, fullName: true, email: true, createdAt: true },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+          role: true,
+          emailVerified: true,
+          mfaEnabled: true,
+          failedAttempts: true,
+          lockedUntil: true,
+          lastLoginAt: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true
+        },
         orderBy: { createdAt: 'desc' }
       }),
       fastify.prisma.user.count(),
@@ -66,12 +80,6 @@ export async function usersRoutes(fastify: FastifyInstance) {
       },
       registrations,
       registeredUsers: allUsers
-        .map(user => ({
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          createdAt: user.createdAt
-        }))
     };
   });
 

@@ -81,6 +81,7 @@ export default function DeveloperPortal() {
     ['Registered users', stats.totals.totalUsers, Users], ['New in last 2 days', stats.totals.joinedLast2Days, UserPlus],
     ['Active users', stats.totals.activeUsers, Activity], ['Verified users', stats.totals.verifiedUsers, CheckCircle2]
   ];
+  const registeredUsers = stats.registeredUsers ?? stats.recentUsers ?? [];
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
       <div className="mx-auto max-w-6xl">
@@ -90,24 +91,45 @@ export default function DeveloperPortal() {
         <section className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
           <div className="border-b border-slate-800 p-6">
             <h2 className="text-xl font-black">Registered users</h2>
-            <p className="mt-1 text-sm text-slate-400">Complete user list with names, email IDs, and registration times.</p>
+            <p className="mt-1 text-sm text-slate-400">Complete account, profile, verification, and activity details.</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[1180px] text-left text-sm">
               <thead className="bg-slate-950/60 text-xs uppercase text-slate-500">
-                <tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Email ID</th><th className="px-6 py-3">Registered</th></tr>
+                <tr>
+                  <th className="px-5 py-3">User</th>
+                  <th className="px-5 py-3">Role</th>
+                  <th className="px-5 py-3">Email verified</th>
+                  <th className="px-5 py-3">MFA</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Last login</th>
+                  <th className="px-5 py-3">Registered</th>
+                  <th className="px-5 py-3">Updated</th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {stats.registeredUsers?.map(user => (
+                {registeredUsers.map(user => (
                   <tr key={user.id}>
-                    <td className="px-6 py-4 font-bold text-white">{user.fullName || 'Name not provided'}</td>
-                    <td className="px-6 py-4 text-slate-300">{user.email}</td>
-                    <td className="px-6 py-4 text-slate-400">{new Date(user.createdAt).toLocaleString()}</td>
+                    <td className="px-5 py-4">
+                      <strong className="block text-white">{user.fullName || 'Name not provided'}</strong>
+                      <span className="text-xs text-slate-400">{user.email}</span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-300">{user.role || 'student'}</td>
+                    <td className="px-5 py-4 text-slate-300">{user.emailVerified ? 'Yes' : 'No'}</td>
+                    <td className="px-5 py-4 text-slate-300">{user.mfaEnabled ? 'Enabled' : 'Off'}</td>
+                    <td className="px-5 py-4 text-slate-300">
+                      {user.lockedUntil && new Date(user.lockedUntil) > new Date()
+                        ? `Locked until ${new Date(user.lockedUntil).toLocaleString()}`
+                        : 'Active'}
+                    </td>
+                    <td className="px-5 py-4 text-slate-400">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}</td>
+                    <td className="px-5 py-4 text-slate-400">{new Date(user.createdAt).toLocaleString()}</td>
+                    <td className="px-5 py-4 text-slate-400">{user.updatedAt ? new Date(user.updatedAt).toLocaleString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!stats.registeredUsers?.length && <p className="p-8 text-center text-sm text-slate-500">No registered users found.</p>}
+            {!registeredUsers.length && <p className="p-8 text-center text-sm text-slate-500">No registered users were returned by the backend.</p>}
           </div>
         </section>
       </div>
