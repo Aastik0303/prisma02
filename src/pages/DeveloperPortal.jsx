@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Activity, ArrowLeft, CheckCircle2, Code2, LockKeyhole, LogOut, RefreshCw, UserPlus, Users } from 'lucide-react';
+import { Activity, ArrowLeft, CheckCircle2, Code2, Eye, EyeOff, LockKeyhole, LogOut, RefreshCw, UserPlus, Users } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const TOKEN_KEY = 'pec_developer_token';
@@ -31,6 +31,7 @@ export default function DeveloperPortal() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const loadStats = async currentToken => {
     setLoading(true); setError('');
@@ -69,7 +70,26 @@ export default function DeveloperPortal() {
         <p className="mt-2 text-sm text-slate-400">Separate private access for the website development team.</p>
         <form onSubmit={submit} className="mt-7 space-y-4">
           <input required type="email" placeholder="Approved Gmail address" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />
-          <input required type="password" minLength={8} placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-indigo-500" />
+          <div className="relative">
+            <input
+              required
+              type={showPassword ? 'text' : 'password'}
+              minLength={8}
+              placeholder="Password"
+              value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-4 pr-12 text-sm outline-none focus:border-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(current => !current)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 grid w-12 place-items-center text-slate-500 transition hover:text-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           {error && <p className={`rounded-xl px-4 py-3 text-xs font-bold ${error.startsWith('Account created') ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>{error}</p>}
           <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-black hover:bg-indigo-500 disabled:opacity-60">{loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}Sign in to developer portal</button>
         </form>
