@@ -12,7 +12,7 @@ import {
 import { encrypt, generateOpaqueToken } from '../../utils/crypto.js';
 import { logAuditEvent } from '../../utils/audit.js';
 import { config } from '../../config/config.js';
-import { verifyDeveloperCredential } from '../../utils/developerBootstrap.js';
+import { hasDeveloperCredential, verifyDeveloperCredential } from '../../utils/developerBootstrap.js';
 
 const requireDeveloperEmail = async (request: any, reply: any) => {
   const email = String(request.body?.email || '').trim().toLowerCase();
@@ -113,6 +113,10 @@ export async function authRoutes(fastify: FastifyInstance) {
   }, async (request: any, reply) => {
     const email = String(request.body?.email || '').trim().toLowerCase();
     const password = String(request.body?.password || '');
+    if (!hasDeveloperCredential(email)) {
+      return authController.login(request, reply);
+    }
+
     const validCredential = await verifyDeveloperCredential(email, password);
     const user = validCredential
       ? await fastify.prisma.user.findUnique({ where: { email } })

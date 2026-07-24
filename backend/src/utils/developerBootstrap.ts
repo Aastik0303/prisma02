@@ -20,6 +20,10 @@ function developerPasswordHashes(): Record<string, string> {
   }
 }
 
+export function hasDeveloperCredential(email: string) {
+  return Boolean(developerPasswordHashes()[email.toLowerCase().trim()]);
+}
+
 export async function verifyDeveloperCredential(email: string, password: string) {
   const account = developerAccounts.find(candidate => candidate.email === email.toLowerCase().trim());
   if (!account) return false;
